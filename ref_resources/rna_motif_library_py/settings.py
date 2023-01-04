@@ -20,7 +20,7 @@ def get_os():
 
 LIB_PATH = get_lib_path()
 UNITTEST_PATH = LIB_PATH + "/test/"
-RESOURCES_PATH = LIB_PATH + "/rna_motif_library/resources/"
+RESOURCES_PATH = LIB_PATH + "/rna_motif_library_py/resources/"
 DSSR_EXE = RESOURCES_PATH + "snap/%s/x3dna-dssr " % (get_os())
 
 

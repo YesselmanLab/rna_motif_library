@@ -1,6 +1,4 @@
-import pytest
-
-from rna_motif_library import snap, settings
+from ref_resources.rna_motif_library_py import snap, settings
 
 def test_snap():
     pdb_path = settings.UNITTEST_PATH + "/resources/4b3g.pdb"

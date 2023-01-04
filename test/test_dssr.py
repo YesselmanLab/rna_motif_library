@@ -1,4 +1,4 @@
-from rna_motif_library import dssr, settings
+from ref_resources.rna_motif_library_py import dssr, settings
 import atomium
 from atomium.pdb import structure_to_pdb_string
 

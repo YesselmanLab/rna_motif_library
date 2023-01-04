@@ -1,11 +1,10 @@
-import pandas as pd
 import wget
 import os
 import glob
 import pydssr.dssr
 import atomium
 
-from rna_motif_library import settings, snap, dssr
+from ref_resources.rna_motif_library_py import settings, snap, dssr
 
 
 def __safe_mkdir(dir):
@@ -33,10 +32,10 @@ def __download_cif_files(df):
 
 
 def __get_dssr_files():
-    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
+    pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
     dssr_path = settings.DSSR_EXE
-    out_path = settings.LIB_PATH + "/data/dssr_output"
-    pdbs = glob.glob(pdb_dir + "/*.cif")
+    out_path = settings.LIB_PATH + "/data/dssr_output_nmr"
+    pdbs = glob.glob(pdb_dir + "/*.pdb")
     count = 0
     for pdb_path in pdbs:
         s = os.path.getsize(pdb_path)
@@ -53,9 +52,9 @@ def __get_dssr_files():
 
 
 def __get_snap_files():
-    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
-    out_path = settings.LIB_PATH + "/data/snap_output"
-    pdbs = glob.glob(pdb_dir + "/*.cif")
+    pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
+    out_path = settings.LIB_PATH + "/data/snap_output_nmr"
+    pdbs = glob.glob(pdb_dir + "/*.pdb")
     count = 0
     for pdb_path in pdbs:
         s = os.path.getsize(pdb_path)
@@ -73,8 +72,8 @@ def __get_snap_files():
 
 
 def __generate_motif_files():
-    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
-    pdbs = glob.glob(pdb_dir + "/*.cif")
+    pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
+    pdbs = glob.glob(pdb_dir + "/*.pdb")
     count = 0
     dirs = [
         "motifs",
@@ -91,7 +90,7 @@ def __generate_motif_files():
     for d in dirs:
         __safe_mkdir(d)
 
-    motif_dir = "motifs/twoways/all"
+    motif_dir = "motifs/twoways/nmr"
     interactions_dir = "motif_interactions/twoways/all"
     hbond_vals = [
         "base:base",
@@ -114,7 +113,7 @@ def __generate_motif_files():
     for pdb_path in pdbs:
         s = os.path.getsize(pdb_path)
         name = pdb_path.split("/")[-1][:-4]
-        json_path = settings.LIB_PATH + "/data/dssr_output/" + name + ".out"
+        json_path = settings.LIB_PATH + "/data/dssr_output_nmr/" + name + ".out"
         # if s > 10000000:
         #    continue
         print(count, pdb_path)
@@ -160,10 +159,10 @@ def __generate_motif_files():
 
 
 def main():
-    csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.189_3.5A.csv"
-    df = pd.read_csv(csv_path)
+    #csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.189_3.5A.csv"
+    #df = pd.read_csv(csv_path)
     # __download_cif_files(df)
-    # __get_dssr_files()
+    #__get_dssr_files()
     #__get_snap_files()
     __generate_motif_files()
 

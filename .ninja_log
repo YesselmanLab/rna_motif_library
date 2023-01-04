@@ -1,0 +1,6 @@
+# ninja log v5
+0	243	1672851883437917775	CMakeFiles/rna_motif_library.dir/src/main.cpp.o	ef8e471755f418f0
+0	242	1672851041940130464	CMakeFiles/rna_motif_library_py.dir/src/main.cpp.o	a5f5728689eab05d
+243	271	1672851883467764480	rna_motif_library	7d3e7102ee45e223
+2	248	1672851975018005891	CMakeFiles/rna_motif_library.dir/src/main.cpp.o	3f22d8b1047c3225
+248	275	1672851975045917723	rna_motif_library	3508ebc630751bd2
