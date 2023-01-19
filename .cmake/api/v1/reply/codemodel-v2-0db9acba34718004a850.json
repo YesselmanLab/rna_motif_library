@@ -39,7 +39,7 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "rna_motif_library::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-rna_motif_library-Debug-b6fab9c23092d1c4fc64.json",
+					"jsonFile" : "target-rna_motif_library-Debug-949043b22cccb172f778.json",
 					"name" : "rna_motif_library",
 					"projectIndex" : 0
 				}
@@ -55,6 +55,6 @@
 	"version" : 
 	{
 		"major" : 2,
-		"minor" : 3
+		"minor" : 4
 	}
 }
