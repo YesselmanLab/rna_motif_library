@@ -64,6 +64,7 @@ public:
     // function to get specific column by name
     Strings get_column(String column_name) const;
 
+    // splits a specific row defined by name by a delimiter
     Strings split_row(const String& row_name, char delimiter);
 
 private:
