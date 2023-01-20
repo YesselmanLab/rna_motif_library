@@ -26,6 +26,9 @@ int main(int argc, char*argv[]) {
     }
 
     // read file contents and process here
+    // process with dssr
+    // process with snap
+
 
     return 0;
 }
