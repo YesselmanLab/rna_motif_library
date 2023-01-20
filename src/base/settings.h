@@ -13,7 +13,7 @@ String get_os();
 
 static String LIB_PATH = get_lib_path();
 static String UNITTEST_PATH = LIB_PATH + "/test/";
-static String RESOURCES_PATH = LIB_PATH + "/rna_motif_library_py/resources/";
+static String RESOURCES_PATH = LIB_PATH + "/rna_motif_library/src/resources/";
 static String DSSR_EXE = RESOURCES_PATH + "snap/" + get_os() + "/x3dna-dssr";
 
 #endif //REF_RESOURCES_RNA_MOTIF_LIBRARY_PY_SETTINGS_H

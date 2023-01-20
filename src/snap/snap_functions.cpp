@@ -15,7 +15,7 @@
 
 // commented out lines are functions that need to be implemented, don't delete anything yet
 
-/*
+
 void generate_out_file(const String &pdb_path, const String &out_path) {
     String dssr_exe = DSSR_EXE;
     String cmd = dssr_exe + String(" snap -i=") + pdb_path + String(" -o=") + out_path;
@@ -70,4 +70,3 @@ std::vector<RNPInteraction> get_rnp_interactions(const String &pdb_path = "", co
     }
     return interactions;
 }
- */
