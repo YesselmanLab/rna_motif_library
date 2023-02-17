@@ -1,6 +1,7 @@
+import biopandas
+import biopandas.pdb.pandas_pdb
+
 from rna_motif_library import dssr, settings
-import atomium
-from atomium.pdb import structure_to_pdb_string
 
 def test_get_motifs_from_structure():
     json_path = settings.UNITTEST_PATH + "/resources/1GID.json"
@@ -24,7 +25,7 @@ def test_from_lib():
     pdb_path = settings.LIB_PATH + "/data/pdbs/" + name + ".cif"
     json_path = settings.LIB_PATH + "/data/dssr_output/" + name + ".out"
     motifs, motif_hbonds, motif_interactions = dssr.get_motifs_from_structure(json_path)
-    pdb_model = atomium.open(pdb_path)
+    pdb_model = biopandas.PandasPdb().read_pdb(pdb_path)
     for m in motifs:
         if m.name not in motif_interactions:
             interactions = []
@@ -44,7 +45,7 @@ def _test_motifs_to_pdbs():
     exit()
     pdb_path = '1GID.pdb'
     d_out = dssr.DSSROutput(json_path='1GID.json')
-    cif1 = atomium.open(pdb_path)
+    cif1 = biopandas.PandasPdb().read_pdb(pdb_path)
     motifs = d_out.get_motifs()
     count = 0
     for m in motifs:
@@ -55,8 +56,9 @@ def _test_motifs_to_pdbs():
             res.append(cif1.model.residue(new_nt))
         s = ""
         for r in res:
-            lines = structure_to_pdb_string(r).split("\n")
-            s += "\n".join(lines[:-1]) + "\n"
+            continue # this is bullshit
+        #   lines = structure_to_pdb_string(r).split("\n")
+        #   s += "\n".join(lines[:-1]) + "\n"
         f = open(f"{m.mtype}.{count}.pdb", "w")
         count += 1
         f.write(s)

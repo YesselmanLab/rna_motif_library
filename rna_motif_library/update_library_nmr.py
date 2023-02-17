@@ -1,11 +1,12 @@
-import pandas as pd
 import wget
 import os
 import glob
-import pydssr.dssr
-import atomium
+from pydssr import dssr
+import pydssr
 
 from rna_motif_library import settings, snap, dssr
+
+import biopandas.pdb.pandas_pdb
 
 
 def __safe_mkdir(dir):
@@ -24,7 +25,7 @@ def __download_cif_files(df):
         path = f"https://files.rcsb.org/download/{pdb_name}.cif"
         if os.path.isfile(out_path):
             count += 1
-            # print(pdb_name + " ALREADY DOWNLOADED!")
+            print(pdb_name + " ALREADY DOWNLOADED!")
             continue
         else:
             print(pdb_name + " DOWNLOADING")
@@ -41,8 +42,8 @@ def __get_dssr_files():
     for pdb_path in pdbs:
         s = os.path.getsize(pdb_path)
         print(pdb_path, s)
-        # if s > 10000000:
-        #    continue
+        if s > 10000000:
+            continue
         name = pdb_path.split("/")[-1][:-4]
         if os.path.isfile(out_path):
             count += 1
@@ -120,7 +121,7 @@ def __generate_motif_files():
         print(count, pdb_path)
         count += 1
         try:
-            pdb_model = atomium.open(pdb_path)
+            pdb_model = biopandas.PandasPdb().read_pdb(pdb_path)
         except:
             continue
         (
