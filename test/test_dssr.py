@@ -38,7 +38,7 @@ def test_from_lib():
             dssr.write_res_coords_to_pdb(m.nts_long + interactions, pdb_model, m.name + ".inter")
 
 
-
+'''
 
 def _test_motifs_to_pdbs():
     json_path = '1GID.json'
@@ -56,13 +56,14 @@ def _test_motifs_to_pdbs():
             res.append(cif1.model.residue(new_nt))
         s = ""
         for r in res:
-            continue # this is bullshit
-        #   lines = structure_to_pdb_string(r).split("\n")
-        #   s += "\n".join(lines[:-1]) + "\n"
+           lines = structure_to_pdb_string(r).split("\n")
+           s += "\n".join(lines[:-1]) + "\n"
         f = open(f"{m.mtype}.{count}.pdb", "w")
         count += 1
         f.write(s)
         f.close()
+        
+'''
 
 
 def main():
