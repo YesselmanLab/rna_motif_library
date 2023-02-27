@@ -6,7 +6,9 @@ import pydssr
 
 from rna_motif_library import settings, snap, dssr
 
-import biopandas.pdb.pandas_pdb
+#import biopandas.pdb.pandas_pdb
+from biopandas.pdb.pandas_pdb import PandasPdb
+
 
 
 def __safe_mkdir(dir):
@@ -121,7 +123,7 @@ def __generate_motif_files():
         print(count, pdb_path)
         count += 1
         try:
-            pdb_model = biopandas.PandasPdb().read_pdb(pdb_path)
+            pdb_model = PandasPdb.read_pdb(pdb_path)
         except:
             continue
         (
@@ -134,6 +136,7 @@ def __generate_motif_files():
             spl = m.name.split(".")
             if not (spl[0] == "TWOWAY" or spl[0] == "NWAY"):
                 continue
+            # this is some test thing?
             try:
                 dssr.write_res_coords_to_pdb(
                     m.nts_long, pdb_model, motif_dir + "/" + m.name

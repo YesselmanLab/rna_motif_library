@@ -1,12 +1,15 @@
 import os
-import pydssr as dssr
+from pydssr.dssr import DSSROutput
+
 
 class DSSRRes(object):
     def __init__(self, s):
         s = s.split("^")[0]
         spl = s.split(".")
         cur_num = None
+        i_num = 0
         for i in range(0, len(spl[1])):
+            i_num = i
             try:
                 cur_num = int(spl[1][i:])
                 break
@@ -14,13 +17,13 @@ class DSSRRes(object):
                 continue
         self.num = int(cur_num)
         self.chain_id = spl[0]
-        self.res_id = spl[1][0:i]
+        self.res_id = spl[1][0:i_num]
 
 
 def get_motifs_from_structure(json_path):
     name = os.path.splitext(json_path.split("/")[-1])[0]
-    d_out = dssr.DSSROutput(json_path=json_path)
-    motifs = d_out.get_motifs()
+    d_out = DSSROutput(json_path)
+    motifs = d_out.get_motifs() # this needs a fix
     motifs = __merge_singlet_seperated(motifs)
     __name_motifs(motifs, name)
     shared = __find_motifs_that_share_basepair(motifs)
@@ -29,7 +32,6 @@ def get_motifs_from_structure(json_path):
     motifs = __remove_duplicate_motifs(motifs)
     motifs = __remove_large_motifs(motifs)
     return motifs, motif_hbonds, motif_interactions
-
 
 def __assign_atom_group(name):
     if name == 'OP1' or name == 'OP2' or name == 'P':
