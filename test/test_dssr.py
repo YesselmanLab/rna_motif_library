@@ -1,13 +1,13 @@
-#from biopandas.pdb.pandas_pdb import PandasPdb
-
 import rna_motif_library.dssr
 import rna_motif_library.settings
+from biopandas.pdb.pandas_pdb import PandasPdb
+
 
 def test_get_motifs_from_structure():
     json_path = rna_motif_library.settings.UNITTEST_PATH + "/resources/1GID.json"
     pdb_path = rna_motif_library.settings.UNITTEST_PATH + "/resources/1GID.pdb"
     motifs = rna_motif_library.dssr.get_motifs_from_structure(json_path)
-    #rna_motif_library.dssr.write_motif_coords_to_pdbs(motifs, pdb_path)
+    rna_motif_library.dssr.write_motif_coords_to_pdbs(motifs, pdb_path) # fix this, it doesn't exist anymore
 
 def test_dssr_res():
     s1 = 'H.A9'
@@ -25,7 +25,7 @@ def test_from_lib():
     pdb_path = rna_motif_library.settings.LIB_PATH + "/data/pdbs/" + name + ".cif"
     json_path = rna_motif_library.settings.LIB_PATH + "/data/dssr_output/" + name + ".out"
     motifs, motif_hbonds, motif_interactions = rna_motif_library.dssr.get_motifs_from_structure(json_path)
-    #pdb_model = PandasPdb.read_pdb(pdb_path)
+    pdb_model = PandasPdb.read_pdb(pdb_path) # this one is an argument bitch for some reason
     for m in motifs:
         if m.name not in motif_interactions:
             interactions = []
@@ -33,9 +33,9 @@ def test_from_lib():
             interactions = motif_interactions[m.name]
         if m.name in motif_hbonds:
             print(m.name, motif_hbonds[m.name])
-        #dssr.write_res_coords_to_pdb(m.nts_long, pdb_model, m.name)
-        #if len(interactions) > 0:
-            #rna_motif_library.dssr.write_res_coords_to_pdb(m.nts_long + interactions, pdb_model, m.name + ".inter")
+        rna_motif_library.dssr.write_res_coords_to_pdb(m.nts_long, pdb_model, m.name) #fix this it doesn't exist anymore
+        if len(interactions) > 0:
+            rna_motif_library.dssr.write_res_coords_to_pdb(m.nts_long + interactions, pdb_model, m.name + ".inter") #fix this, it doesn't exist anymore
 
 
 '''

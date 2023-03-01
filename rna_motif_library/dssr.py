@@ -23,7 +23,7 @@ class DSSRRes(object):
 def get_motifs_from_structure(json_path):
     name = os.path.splitext(json_path.split("/")[-1])[0]
     d_out = DSSROutput(json_path)
-    motifs = d_out.get_motifs() # this needs a fix
+    motifs = d_out.get_motifs()
     motifs = __merge_singlet_seperated(motifs)
     __name_motifs(motifs, name)
     shared = __find_motifs_that_share_basepair(motifs)

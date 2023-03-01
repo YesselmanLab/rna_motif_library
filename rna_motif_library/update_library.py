@@ -121,7 +121,7 @@ def __generate_motif_files():
         print(count, pdb_path)
         count += 1
         try:
-            pdb_model = PandasPdb.read_pdb(pdb_path)
+            pdb_model = PandasPdb.read_pdb(pdb_path) # this is being a bitch with arguments for some reason
         except:
             continue
         (
@@ -135,7 +135,7 @@ def __generate_motif_files():
             if not (spl[0] == "TWOWAY" or spl[0] == "NWAY"):
                 continue
             try:
-               dssr.write_res_coords_to_pdb( # fix this
+               dssr.write_res_coords_to_pdb( # fix this, it was deleted
                     m.nts_long, pdb_model, motif_dir + "/" + m.name
                )
             except:

@@ -123,7 +123,7 @@ def __generate_motif_files():
         print(count, pdb_path)
         count += 1
         try:
-            pdb_model = PandasPdb.read_pdb(pdb_path)
+            pdb_model = PandasPdb.read_pdb(pdb_path) # argument bitch
         except:
             continue
         (
@@ -138,7 +138,7 @@ def __generate_motif_files():
                 continue
             # this is some test thing?
             try:
-                dssr.write_res_coords_to_pdb(
+                dssr.write_res_coords_to_pdb( # does not exist anymore
                     m.nts_long, pdb_model, motif_dir + "/" + m.name
                 )
             except:
