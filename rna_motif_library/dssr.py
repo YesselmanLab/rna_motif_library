@@ -1,7 +1,24 @@
 import os
 from pydssr.dssr import DSSROutput
+from biopandas.pdb.pandas_pdb import PandasPdb
 
 # reimplementation of pandasPDB, and some code rewrites where applicable
+
+def write_motif_coords_to_pdbs(motifs, pdb_file):
+    # Load the PDB file into a DataFrame
+    df = PandasPdb().read_pdb(pdb_file)
+    count = 0
+    for m in motifs:
+        # Select the subset of the structure corresponding to the motif
+        subset = extract_structure(df, residue_ids=m.nts_long)
+        # Generate a PDB-formatted string for the subset
+        pdb_string = structure_to_pdb_string(subset)
+        # Write the PDB-formatted string to a file
+        with open(f"{m.mtype}.{count}.pdb", "w") as f:
+            f.write(pdb_string)
+        count += 1
+
+
 def write_res_coords_to_pdb(chain_ids, pdb_df, pdb_path):
     # Extract the selected atoms based on chain IDs
     pdb_subset = extract_structure(pdb_df, chain_ids=chain_ids)
