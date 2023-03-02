@@ -1,6 +1,105 @@
 import os
 from pydssr.dssr import DSSROutput
 
+# reimplementation of pandasPDB, and some code rewrites where applicable
+def write_res_coords_to_pdb(chain_ids, pdb_df, pdb_path):
+    # Extract the selected atoms based on chain IDs
+    pdb_subset = extract_structure(pdb_df, chain_ids=chain_ids)
+    # Group the atoms by residue and write each residue to a PDB-formatted string
+    pdb_strings = []
+    for name, group in pdb_subset.groupby(['residue_name', 'residue_number', 'chain_id']):
+        pdb_strings.append(structure_to_pdb_string(group))
+    # Concatenate the PDB-formatted strings into a single string
+    pdb_string = '\n'.join(pdb_strings)
+    # Write the PDB-formatted string to a file
+    with open(f"{pdb_path}.pdb", "w") as f:
+        f.write(pdb_string)
+
+def extract_structure(df, chain_ids=None, residue_ids=None, residue_names=None,
+                      atom_names=None, element_symbols=None):
+    """Extract a subset of a PDB DataFrame based on a variety of criteria.
+    :param pandas.DataFrame df: the DataFrame to extract from.
+    :param chain_ids: either a string specifying a single chain ID, a list of
+        chain IDs to extract, or None to extract all chains.
+    :type chain_ids: str or list of str or None
+    :param residue_ids: either a string specifying a single residue ID in
+        the format 'X###', where X is the insertion code and ### is the
+        residue number, a list of residue IDs to extract, or None to extract
+        all residues.
+    :type residue_ids: str or list of str or None
+    :param residue_names: either a string specifying a single residue name, a
+        list of residue names to extract, or None to extract all residues.
+    :type residue_names: str or list of str or None
+    :param atom_names: either a string specifying a single atom name, a list
+        of atom names to extract, or None to extract all atoms.
+    :type atom_names: str or list of str or None
+    :param element_symbols: either a string specifying a single element
+        symbol, a list of element symbols to extract, or None to extract all
+        atoms.
+    :type element_symbols: str or list of str or None
+    :rtype: pandas.DataFrame"""
+    # Filter by chain IDs
+    if chain_ids is not None:
+        if isinstance(chain_ids, str):
+            chain_ids = [chain_ids]
+        df = df[df['chain_id'].isin(chain_ids)]
+    # Filter by residue IDs
+    if residue_ids is not None:
+        if isinstance(residue_ids, str):
+            residue_ids = [residue_ids]
+        df = df[df['residue_id'].isin(residue_ids)]
+    # Filter by residue names
+    if residue_names is not None:
+        if isinstance(residue_names, str):
+            residue_names = [residue_names]
+        df = df[df['residue_name'].isin(residue_names)]
+    # Filter by atom names
+    if atom_names is not None:
+        if isinstance(atom_names, str):
+            atom_names = [atom_names]
+        df = df[df['atom_name'].isin(atom_names)]
+    # Filter by element symbols
+    if element_symbols is not None:
+        if isinstance(element_symbols, str):
+            element_symbols = [element_symbols]
+        df = df[df['element_symbol'].isin(element_symbols)]
+    return df.copy()
+
+def structure_to_pdb_string(df):
+    """Converts a PDB DataFrame to a .pdb filestring.
+    :param pandas.DataFrame df: the DataFrame to convert.
+    :rtype: ``str``"""
+    lines = []
+    for _, row in df.iterrows():
+        lines.append(atom_to_atom_line(row))
+    return '\n'.join(lines)
+
+def atom_to_atom_line(row):
+    """Converts a PDB DataFrame row to an ATOM/HETATM line in a PDB file.
+    :param pandas.Series row: the row to convert.
+    :rtype: ``str``"""
+    # Extract the columns for the line
+    atom_number = row['atom_number']
+    atom_name = row['atom_name']
+    alt_loc = row['alt_loc']
+    residue_name = row['residue_name']
+    chain_id = row['chain_id']
+    residue_number = row['residue_number']
+    insertion_code = row['insertion_code']
+    x_coord = row['x_coord']
+    y_coord = row['y_coord']
+    z_coord = row['z_coord']
+    occupancy = row['occupancy']
+    temp_factor = row['temp_factor']
+    element_symbol = row['element_symbol']
+    # Format the line
+    line = f"{'ATOM':6}{atom_number:>5} {atom_name:<4}{alt_loc:1}{residue_name:>3} {chain_id:1}{residue_number:>4}{insertion_code:1}   "
+    line += f"{x_coord:>8.3f}{y_coord:>8.3f}{z_coord:>8.3f}"
+    line += f"{occupancy:>6.2f}{temp_factor:>6.2f}          "
+    line += f"{element_symbol:>2}{alt_loc:1}"
+    return line
+
+# old code, keep
 
 class DSSRRes(object):
     def __init__(self, s):

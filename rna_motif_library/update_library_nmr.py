@@ -137,7 +137,7 @@ def __generate_motif_files():
             if not (spl[0] == "TWOWAY" or spl[0] == "NWAY"):
                 continue
             try:
-                dssr.write_res_coords_to_pdb( # does not exist anymore
+                dssr.write_res_coords_to_pdb(
                     m.nts_long, pdb_model, motif_dir + "/" + m.name
                 )
             except:
@@ -148,7 +148,8 @@ def __generate_motif_files():
             else:
                 vals = [str(motif_hbonds[m.name][x]) for x in hbond_vals]
             f.write(",".join(vals) + "\n")
-            """
+
+
             if m.name in motif_interactions:
                 try:
                     dssr.write_res_coords_to_pdb(
@@ -158,7 +159,6 @@ def __generate_motif_files():
                     )
                 except:
                     pass
-            """
     f.close()
 
 

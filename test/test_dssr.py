@@ -1,6 +1,7 @@
 import rna_motif_library.dssr
 import rna_motif_library.settings
 from biopandas.pdb.pandas_pdb import PandasPdb
+from pydssr import dssr
 
 
 def test_get_motifs_from_structure():
@@ -38,14 +39,12 @@ def test_from_lib():
             rna_motif_library.dssr.write_res_coords_to_pdb(m.nts_long + interactions, pdb_model, m.name + ".inter") #fix this, it doesn't exist anymore
 
 
-'''
-
 def _test_motifs_to_pdbs():
     json_path = '1GID.json'
     exit()
     pdb_path = '1GID.pdb'
     d_out = dssr.DSSROutput(json_path='1GID.json')
-    cif1 = biopandas.PandasPdb().read_pdb(pdb_path)
+    cif1 = PandasPdb().read_pdb(pdb_path)
     motifs = d_out.get_motifs()
     count = 0
     for m in motifs:
@@ -56,14 +55,13 @@ def _test_motifs_to_pdbs():
             res.append(cif1.model.residue(new_nt))
         s = ""
         for r in res:
-           lines = structure_to_pdb_string(r).split("\n")
+           lines = rna_motif_library.dssr.structure_to_pdb_string(r).split("\n")
            s += "\n".join(lines[:-1]) + "\n"
         f = open(f"{m.mtype}.{count}.pdb", "w")
         count += 1
         f.write(s)
         f.close()
-        
-'''
+
 
 
 def main():
