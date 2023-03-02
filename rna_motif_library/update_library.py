@@ -121,7 +121,7 @@ def __generate_motif_files():
         print(count, pdb_path)
         count += 1
         try:
-            pdb_model = PandasPdb.read_pdb(pdb_path) # this is being a bitch with arguments for some reason
+            pdb_model = PandasPdb().read_pdb(path=pdb_path)
         except:
             continue
         (

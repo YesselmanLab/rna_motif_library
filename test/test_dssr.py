@@ -25,7 +25,7 @@ def test_from_lib():
     pdb_path = rna_motif_library.settings.LIB_PATH + "/data/pdbs/" + name + ".cif"
     json_path = rna_motif_library.settings.LIB_PATH + "/data/dssr_output/" + name + ".out"
     motifs, motif_hbonds, motif_interactions = rna_motif_library.dssr.get_motifs_from_structure(json_path)
-    pdb_model = PandasPdb.read_pdb(pdb_path) # this one is an argument bitch for some reason
+    pdb_model = PandasPdb().read_pdb(path=pdb_path)
     for m in motifs:
         if m.name not in motif_interactions:
             interactions = []
