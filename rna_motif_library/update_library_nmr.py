@@ -1,12 +1,13 @@
 import wget
 import os
 import glob
-from pydssr import dssr
 import pydssr
 
-from rna_motif_library import settings, snap, dssr
+import settings
+import snap
+import dssr
 
-#import biopandas.pdb.pandas_pdb
+from pydssr import dssr
 from biopandas.pdb.pandas_pdb import PandasPdb
 
 
