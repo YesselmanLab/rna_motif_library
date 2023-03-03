@@ -1,6 +1,6 @@
 import os
 import subprocess
-from rna_motif_library import settings
+import settings
 
 class RNPInteraction(object):
     def __init__(self, nt_atom, aa_atom, dist, type):

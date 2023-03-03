@@ -4,7 +4,10 @@ import os
 import glob
 import pydssr
 
-from rna_motif_library import settings, snap, dssr
+import settings
+import snap
+import dssr
+
 from pydssr import dssr
 from biopandas.pdb.pandas_pdb import PandasPdb
 
@@ -161,9 +164,9 @@ def __generate_motif_files():
 def main():
     csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.189_3.5A.csv"
     df = pd.read_csv(csv_path)
-    # __download_cif_files(df)
-    # __get_dssr_files()
-    #__get_snap_files()
+    __download_cif_files(df)
+    __get_dssr_files()
+    __get_snap_files()
     __generate_motif_files()
 
 
