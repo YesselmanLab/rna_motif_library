@@ -2,7 +2,6 @@ import pandas as pd
 import wget
 import os
 import glob
-import pydssr
 
 import settings
 import snap
@@ -10,6 +9,8 @@ import dssr
 
 from pydssr import dssr
 from biopandas.pdb.pandas_pdb import PandasPdb
+
+from pydssr.dssr import write_dssr_json_output_to_file
 
 
 def __safe_mkdir(dir):
@@ -52,7 +53,7 @@ def __get_dssr_files():
         if os.path.isfile(out_path):
             count += 1
             continue
-        pydssr.dssr.write_dssr_json_output_to_file(
+        write_dssr_json_output_to_file(
                 dssr_path, pdb_path, out_path + "/" + name + ".out"
         )
 
