@@ -22,13 +22,14 @@ def __download_cif_files(df):
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     count = 0
     for i, row in df.iterrows():
-        spl = row["represent"].split("|")
+        #spl = row["represent"].split("|")
+        spl = row[1].split("|")
         pdb_name = spl[0]
         out_path = pdb_dir + f"{pdb_name}.cif"
         path = f"https://files.rcsb.org/download/{pdb_name}.cif"
         if os.path.isfile(out_path):
             count += 1
-            # print(pdb_name + " ALREADY DOWNLOADED!")
+            print(pdb_name + " ALREADY DOWNLOADED!")
             continue
         else:
             print(pdb_name + " DOWNLOADING")
@@ -52,7 +53,7 @@ def __get_dssr_files():
             count += 1
             continue
         pydssr.dssr.write_dssr_json_output_to_file(
-            dssr_path, pdb_path, out_path + "/" + name + ".out"
+                dssr_path, pdb_path, out_path + "/" + name + ".out"
         )
 
 
@@ -138,9 +139,9 @@ def __generate_motif_files():
             if not (spl[0] == "TWOWAY" or spl[0] == "NWAY"):
                 continue
             try:
-               dssr.write_res_coords_to_pdb(
-                    m.nts_long, pdb_model, motif_dir + "/" + m.name
-               )
+                dssr.write_res_coords_to_pdb(
+                        m.nts_long, pdb_model, motif_dir + "/" + m.name
+                )
             except:
                 continue
             f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
@@ -152,9 +153,9 @@ def __generate_motif_files():
             if m.name in motif_interactions:
                 try:
                     dssr.write_res_coords_to_pdb(
-                        m.nts_long + motif_interactions[m.name],
-                        pdb_model,
-                        interactions_dir + "/" + m.name + ".inter",
+                            m.nts_long + motif_interactions[m.name],
+                            pdb_model,
+                            interactions_dir + "/" + m.name + ".inter",
                     )
                 except:
                     pass
@@ -168,7 +169,6 @@ def main():
     __get_dssr_files()
     __get_snap_files()
     __generate_motif_files()
-
 
 
 if __name__ == "__main__":
