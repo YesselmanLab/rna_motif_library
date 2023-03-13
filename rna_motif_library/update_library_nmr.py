@@ -4,7 +4,7 @@ import glob
 
 import settings
 import snap
-import dssr
+import dssr_lib
 import pandas as pd
 
 from pydssr import dssr
@@ -133,14 +133,14 @@ def __generate_motif_files():
             motifs,
             motif_hbonds,
             motif_interactions,
-        ) = dssr.get_motifs_from_structure(json_path)
+        ) = dssr_lib.get_motifs_from_structure(json_path)
         for m in motifs:
             print(m.name)
             spl = m.name.split(".")
             if not (spl[0] == "TWOWAY" or spl[0] == "NWAY"):
                 continue
             try:
-                dssr.write_res_coords_to_pdb(
+                dssr_lib.write_res_coords_to_pdb(
                     m.nts_long, pdb_model, motif_dir + "/" + m.name
                 )
             except:
@@ -155,7 +155,7 @@ def __generate_motif_files():
 
             if m.name in motif_interactions:
                 try:
-                    dssr.write_res_coords_to_pdb(
+                    dssr_lib.write_res_coords_to_pdb(
                         m.nts_long + motif_interactions[m.name],
                         pdb_model,
                         interactions_dir + "/" + m.name + ".inter",

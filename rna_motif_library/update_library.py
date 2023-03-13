@@ -5,12 +5,10 @@ import glob
 
 import settings
 import snap
-import dssr
+import dssr_lib
 
-from pydssr import dssr
+import pydssr.dssr as dssr
 from biopandas.pdb.pandas_pdb import PandasPdb
-
-from pydssr.dssr import write_dssr_json_output_to_file
 
 
 def __safe_mkdir(dir):
@@ -23,7 +21,7 @@ def __download_cif_files(df):
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     count = 0
     for i, row in df.iterrows():
-        #spl = row["represent"].split("|")
+        # spl = row["represent"].split("|")
         spl = row[1].split("|")
         pdb_name = spl[0]
         out_path = pdb_dir + f"{pdb_name}.cif"
@@ -53,7 +51,7 @@ def __get_dssr_files():
         if os.path.isfile(out_path):
             count += 1
             continue
-        write_dssr_json_output_to_file(
+        dssr.write_dssr_json_output_to_file(
                 dssr_path, pdb_path, out_path + "/" + name + ".out"
         )
 
@@ -133,14 +131,14 @@ def __generate_motif_files():
             motifs,
             motif_hbonds,
             motif_interactions,
-        ) = dssr.get_motifs_from_structure(json_path)
+        ) = dssr_lib.get_motifs_from_structure(json_path)
         for m in motifs:
             print(m.name)
             spl = m.name.split(".")
             if not (spl[0] == "TWOWAY" or spl[0] == "NWAY"):
                 continue
             try:
-                dssr.write_res_coords_to_pdb(
+                dssr_lib.write_res_coords_to_pdb(
                         m.nts_long, pdb_model, motif_dir + "/" + m.name
                 )
             except:
@@ -153,7 +151,7 @@ def __generate_motif_files():
             f.write(",".join(vals) + "\n")
             if m.name in motif_interactions:
                 try:
-                    dssr.write_res_coords_to_pdb(
+                    dssr_lib.write_res_coords_to_pdb(
                             m.nts_long + motif_interactions[m.name],
                             pdb_model,
                             interactions_dir + "/" + m.name + ".inter",
