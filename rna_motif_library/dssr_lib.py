@@ -2,7 +2,6 @@ import os
 from pydssr.dssr import DSSROutput
 from biopandas.pdb.pandas_pdb import PandasPdb
 
-# reimplementation of pandasPDB, and some code rewrites where applicable
 
 def write_motif_coords_to_pdbs(motifs, pdb_file):
     # Load the PDB file into a DataFrame
@@ -32,29 +31,9 @@ def write_res_coords_to_pdb(chain_ids, pdb_df, pdb_path):
     with open(f"{pdb_path}.pdb", "w") as f:
         f.write(pdb_string)
 
+
 def extract_structure(df, chain_ids=None, residue_ids=None, residue_names=None,
                       atom_names=None, element_symbols=None):
-    """Extract a subset of a PDB DataFrame based on a variety of criteria.
-    :param pandas.DataFrame df: the DataFrame to extract from.
-    :param chain_ids: either a string specifying a single chain ID, a list of
-        chain IDs to extract, or None to extract all chains.
-    :type chain_ids: str or list of str or None
-    :param residue_ids: either a string specifying a single residue ID in
-        the format 'X###', where X is the insertion code and ### is the
-        residue number, a list of residue IDs to extract, or None to extract
-        all residues.
-    :type residue_ids: str or list of str or None
-    :param residue_names: either a string specifying a single residue name, a
-        list of residue names to extract, or None to extract all residues.
-    :type residue_names: str or list of str or None
-    :param atom_names: either a string specifying a single atom name, a list
-        of atom names to extract, or None to extract all atoms.
-    :type atom_names: str or list of str or None
-    :param element_symbols: either a string specifying a single element
-        symbol, a list of element symbols to extract, or None to extract all
-        atoms.
-    :type element_symbols: str or list of str or None
-    :rtype: pandas.DataFrame"""
     # Filter by chain IDs
     if chain_ids is not None:
         if isinstance(chain_ids, str):
@@ -82,19 +61,15 @@ def extract_structure(df, chain_ids=None, residue_ids=None, residue_names=None,
         df = df[df['element_symbol'].isin(element_symbols)]
     return df.copy()
 
+
 def structure_to_pdb_string(df):
-    """Converts a PDB DataFrame to a .pdb filestring.
-    :param pandas.DataFrame df: the DataFrame to convert.
-    :rtype: ``str``"""
     lines = []
     for _, row in df.iterrows():
         lines.append(atom_to_atom_line(row))
     return '\n'.join(lines)
 
+
 def atom_to_atom_line(row):
-    """Converts a PDB DataFrame row to an ATOM/HETATM line in a PDB file.
-    :param pandas.Series row: the row to convert.
-    :rtype: ``str``"""
     # Extract the columns for the line
     atom_number = row['atom_number']
     atom_name = row['atom_name']
@@ -116,7 +91,6 @@ def atom_to_atom_line(row):
     line += f"{element_symbol:>2}{alt_loc:1}"
     return line
 
-# old code, keep
 
 class DSSRRes(object):
     def __init__(self, s):
@@ -149,6 +123,7 @@ def get_motifs_from_structure(json_path):
     motifs = __remove_large_motifs(motifs)
     return motifs, motif_hbonds, motif_interactions
 
+
 def __assign_atom_group(name):
     if name == 'OP1' or name == 'OP2' or name == 'P':
         return "phos"
@@ -173,8 +148,8 @@ def __assign_hbonds_to_motifs(motifs, hbonds, shared):
     motif_interactions = {}
     start_dict = {
         'base:base' : 0, 'base:sugar': 0, 'base:phos': 0,
-        'sugar:base': 0, 'sugar:sugar' : 0, 'sugar:phos': 0, 'phos:base': 0, 'phos:sugar' : 0,
-        'phos:phos' : 0, 'base:aa'   : 0, 'sugar:aa': 0, 'phos:aa': 0
+        'sugar:base': 0, 'sugar:sugar': 0, 'sugar:phos': 0, 'phos:base': 0, 'phos:sugar': 0,
+        'phos:phos' : 0, 'base:aa': 0, 'sugar:aa': 0, 'phos:aa': 0
     }
     for hbond in hbonds:
         atom1, res1 = hbond.atom1_id.split("@")
@@ -389,4 +364,3 @@ def __sorted_res_int(item):
 def __sort_res(item):
     spl = item.nts_long[0].split(".")
     return (spl[0], spl[1][1:])
-
