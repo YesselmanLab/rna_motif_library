@@ -7,7 +7,7 @@ import settings
 import snap
 import dssr_lib
 
-import pydssr.dssr as dssr
+from pydssr.dssr import write_dssr_json_output_to_file
 from biopandas.pdb.pandas_pdb import PandasPdb
 
 
@@ -51,7 +51,7 @@ def __get_dssr_files():
         if os.path.isfile(out_path):
             count += 1
             continue
-        dssr.write_dssr_json_output_to_file(
+        write_dssr_json_output_to_file(
                 dssr_path, pdb_path, out_path + "/" + name + ".out"
         )
 
