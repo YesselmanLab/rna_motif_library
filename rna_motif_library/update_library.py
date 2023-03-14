@@ -55,6 +55,8 @@ def __get_dssr_files():
                 dssr_path, pdb_path, out_path + "/" + name + ".out"
         )
 
+# just grab any PDB w/ RNA in it
+# use RestAPI, ask Eric (Erik?)
 
 def __get_snap_files():
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
