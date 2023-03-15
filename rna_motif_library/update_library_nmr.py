@@ -7,9 +7,7 @@ import snap
 import dssr_lib
 import pandas as pd
 
-from pydssr import dssr
 from biopandas.pdb.pandas_pdb import PandasPdb
-
 from pydssr.dssr import write_dssr_json_output_to_file
 
 
@@ -24,7 +22,7 @@ def __download_cif_files(df):
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     count = 0
     for i, row in df.iterrows():
-        spl = row["represent"].split("|")
+        spl = row[1].split("|")
         pdb_name = spl[0]
         out_path = pdb_dir + f"{pdb_name}.cif"
         path = f"https://files.rcsb.org/download/{pdb_name}.cif"
@@ -47,8 +45,8 @@ def __get_dssr_files():
     for pdb_path in pdbs:
         s = os.path.getsize(pdb_path)
         print(pdb_path, s)
-        if s > 10000000:
-            continue
+        #if s > 10000000:
+        #    continue
         name = pdb_path.split("/")[-1][:-4]
         if os.path.isfile(out_path):
             count += 1
@@ -100,7 +98,7 @@ def __generate_motif_files():
     motif_dir = "motifs/twoways/nmr"
     interactions_dir = "motif_interactions/twoways/all"
     hbond_vals = [
-        "base:base",
+        ",base:base",
         "base:sugar",
         "base:phos",
         "sugar:base",

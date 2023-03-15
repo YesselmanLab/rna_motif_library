@@ -100,7 +100,7 @@ def __generate_motif_files():
     motif_dir = "motifs/twoways/all"
     interactions_dir = "motif_interactions/twoways/all"
     hbond_vals = [
-        "base:base",
+        ",base:base",
         "base:sugar",
         "base:phos",
         "sugar:base",
