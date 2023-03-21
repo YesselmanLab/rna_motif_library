@@ -1,3 +1,5 @@
+import rna_motif_library
+
 import rna_motif_library.dssr_lib
 import rna_motif_library.settings
 
@@ -26,6 +28,10 @@ def test_from_lib():
     name = '5WT1'
     pdb_path = rna_motif_library.settings.LIB_PATH + "/data/pdbs/" + name + ".cif"
     json_path = rna_motif_library.settings.LIB_PATH + "/data/dssr_output/" + name + ".out"
+
+    print(pdb_path)
+    print(json_path)
+
     motifs, motif_hbonds, motif_interactions = rna_motif_library.dssr_lib.get_motifs_from_structure(json_path)
     pdb_model = PandasPdb().read_pdb(path=pdb_path)
     for m in motifs:

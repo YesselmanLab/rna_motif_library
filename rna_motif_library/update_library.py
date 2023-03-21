@@ -54,6 +54,7 @@ def __get_dssr_files():
         write_dssr_json_output_to_file(
                 dssr_path, pdb_path, out_path + "/" + name + ".out"
         )
+        print(out_path + "/" + name + ".out")
 
 # just grab any PDB w/ RNA in it
 # use RestAPI, ask Eric (Erik?)
@@ -165,6 +166,9 @@ def __generate_motif_files():
 
 def main():
     csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.189_3.5A.csv"
+    print(csv_path)
+    exit(0)
+
     df = pd.read_csv(csv_path)
     __download_cif_files(df)
     __get_dssr_files()
