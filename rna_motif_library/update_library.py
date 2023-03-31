@@ -9,6 +9,9 @@ import dssr_lib
 
 from pydssr.dssr import write_dssr_json_output_to_file
 from biopandas.pdb.pandas_pdb import PandasPdb
+from flask import Flask, jsonify
+
+app = Flask(__name__)
 
 
 def __safe_mkdir(dir):
@@ -19,9 +22,10 @@ def __safe_mkdir(dir):
 
 def __download_cif_files(df):
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
+    if not os.path.exists(pdb_dir):
+        os.makedirs(pdb_dir)
     count = 0
     for i, row in df.iterrows():
-        # spl = row["represent"].split("|")
         spl = row[1].split("|")
         pdb_name = spl[0]
         out_path = pdb_dir + f"{pdb_name}.cif"
@@ -32,7 +36,11 @@ def __download_cif_files(df):
             continue
         else:
             print(pdb_name + " DOWNLOADING")
-        wget.download(path, out=out_path)
+            # Check if the PDB file has RNA chains
+            #if "RNA" not in row["macromolecules"]:
+            #    print(pdb_name + " SKIPPED - NO RNA CHAINS")
+            #    continue
+            wget.download(path, out=out_path)
     print(f"{count} pdbs already downloaded!")
 
 
@@ -40,6 +48,10 @@ def __get_dssr_files():
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     dssr_path = settings.DSSR_EXE
     out_path = settings.LIB_PATH + "/data/dssr_output"
+
+    if not os.path.exists(out_path):
+        os.mkdir(out_path)
+
     pdbs = glob.glob(pdb_dir + "/*.cif")
     count = 0
     for pdb_path in pdbs:
@@ -62,6 +74,10 @@ def __get_dssr_files():
 def __get_snap_files():
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     out_path = settings.LIB_PATH + "/data/snap_output"
+
+    if not os.path.isdir(out_path):
+        os.mkdir(out_path)
+
     pdbs = glob.glob(pdb_dir + "/*.cif")
     count = 0
     for pdb_path in pdbs:
@@ -119,6 +135,7 @@ def __generate_motif_files():
     f.write(",".join(hbond_vals) + "\n")
     count = 0
     for pdb_path in pdbs:
+        print("Reading " + pdb_path)
         s = os.path.getsize(pdb_path)
         name = pdb_path.split("/")[-1][:-4]
         json_path = settings.LIB_PATH + "/data/dssr_output/" + name + ".out"
@@ -164,7 +181,25 @@ def __generate_motif_files():
     f.close()
 
 
+@app.route('/update_library')
+def update_RNA_library():
+    csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.189_3.5A.csv"
+    df = pd.read_csv(csv_path)
+    __download_cif_files(df)
+    print("CIF files downloaded")
+    __get_dssr_files()
+    print("DSSR files generated")
+    __get_snap_files()
+    print("SNAP files generated")
+    __generate_motif_files()
+    print("Motif files generated")
+
+    response_data = {'message': 'Library updated'}
+    response = jsonify(response_data)
+    return response
+
 def main():
+    ##### one CSV
     csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.189_3.5A.csv"
     print(csv_path)
     df = pd.read_csv(csv_path)
@@ -172,7 +207,20 @@ def main():
     __get_dssr_files()
     __get_snap_files()
     __generate_motif_files()
+    ##### all CSVs in the folder
+    '''
+    csv_dir = settings.LIB_PATH + "/data/csvs/"
+    csv_files = glob.glob(csv_dir + "*.csv")
+    for csv_path in csv_files:
+        print(csv_path)
+        df = pd.read_csv(csv_path)
+        __download_cif_files(df)
+        __get_dssr_files()
+        __get_snap_files()
+        __generate_motif_files()'''
+    #exit(0)
 
 
-if __name__ == "__main__":
-    main()
+
+if __name__ == '__main__':
+    app.run()
