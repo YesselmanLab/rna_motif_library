@@ -36,10 +36,7 @@ def __download_cif_files(df):
             continue
         else:
             print(pdb_name + " DOWNLOADING")
-            # Check if the PDB file has RNA chains
-            #if "RNA" not in row["macromolecules"]:
-            #    print(pdb_name + " SKIPPED - NO RNA CHAINS")
-            #    continue
+            # implement a check if the PDB file has RNA chains
             wget.download(path, out=out_path)
     print(f"{count} pdbs already downloaded!")
 
@@ -48,15 +45,13 @@ def __get_dssr_files():
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     dssr_path = settings.DSSR_EXE
     out_path = settings.LIB_PATH + "/data/dssr_output"
-
     if not os.path.exists(out_path):
         os.mkdir(out_path)
-
     pdbs = glob.glob(pdb_dir + "/*.cif")
     count = 0
     for pdb_path in pdbs:
         s = os.path.getsize(pdb_path)
-        print(pdb_path, s)
+        print(pdb_path, s)  # s = size of file in bytes
         # if s > 10000000:
         #    continue
         name = pdb_path.split("/")[-1][:-4]
@@ -68,8 +63,6 @@ def __get_dssr_files():
         )
         print(out_path + "/" + name + ".out")
 
-# just grab any PDB w/ RNA in it
-# use RestAPI, ask Eric (Erik?)
 
 def __get_snap_files():
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
@@ -198,6 +191,7 @@ def update_RNA_library():
     response = jsonify(response_data)
     return response
 
+
 def main():
     ##### one CSV
     csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.189_3.5A.csv"
@@ -218,8 +212,7 @@ def main():
         __get_dssr_files()
         __get_snap_files()
         __generate_motif_files()'''
-    #exit(0)
-
+    # exit(0)
 
 
 if __name__ == '__main__':

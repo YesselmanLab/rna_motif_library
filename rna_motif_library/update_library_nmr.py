@@ -9,7 +9,9 @@ import pandas as pd
 
 from biopandas.pdb.pandas_pdb import PandasPdb
 from pydssr.dssr import write_dssr_json_output_to_file
+from flask import Flask, jsonify
 
+app = Flask(__name__)
 
 
 def __safe_mkdir(dir):
@@ -20,6 +22,8 @@ def __safe_mkdir(dir):
 
 def __download_cif_files(df):
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
+    if not os.path.exists(pdb_dir):
+        os.makedirs(pdb_dir)
     count = 0
     for i, row in df.iterrows():
         spl = row[1].split("|")
@@ -33,6 +37,7 @@ def __download_cif_files(df):
         else:
             print(pdb_name + " DOWNLOADING")
         wget.download(path, out=out_path)
+        # implement a check if the PDB file has RNA chains
     print(f"{count} pdbs already downloaded!")
 
 
@@ -40,25 +45,32 @@ def __get_dssr_files():
     pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
     dssr_path = settings.DSSR_EXE
     out_path = settings.LIB_PATH + "/data/dssr_output_nmr"
+    if not os.path.exists(out_path):
+        os.mkdir(out_path)
     pdbs = glob.glob(pdb_dir + "/*.pdb")
     count = 0
     for pdb_path in pdbs:
         s = os.path.getsize(pdb_path)
-        print(pdb_path, s)
-        #if s > 10000000:
+        print(pdb_path, s)  # s = size of file in bytes
+        # if s > 10000000:
         #    continue
         name = pdb_path.split("/")[-1][:-4]
         if os.path.isfile(out_path):
             count += 1
             continue
         write_dssr_json_output_to_file(
-            dssr_path, pdb_path, out_path + "/" + name + ".out"
+                dssr_path, pdb_path, out_path + "/" + name + ".out"
         )
+        print(out_path + "/" + name + ".out")
 
 
 def __get_snap_files():
     pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
     out_path = settings.LIB_PATH + "/data/snap_output_nmr"
+
+    if not os.path.isdir(out_path):
+        os.mkdir(out_path)
+
     pdbs = glob.glob(pdb_dir + "/*.pdb")
     count = 0
     for pdb_path in pdbs:
@@ -139,7 +151,7 @@ def __generate_motif_files():
                 continue
             try:
                 dssr_lib.write_res_coords_to_pdb(
-                    m.nts_long, pdb_model, motif_dir + "/" + m.name
+                        m.nts_long, pdb_model, motif_dir + "/" + m.name
                 )
             except:
                 continue
@@ -150,17 +162,34 @@ def __generate_motif_files():
                 vals = [str(motif_hbonds[m.name][x]) for x in hbond_vals]
             f.write(",".join(vals) + "\n")
 
-
             if m.name in motif_interactions:
                 try:
                     dssr_lib.write_res_coords_to_pdb(
-                        m.nts_long + motif_interactions[m.name],
-                        pdb_model,
-                        interactions_dir + "/" + m.name + ".inter",
+                            m.nts_long + motif_interactions[m.name],
+                            pdb_model,
+                            interactions_dir + "/" + m.name + ".inter",
                     )
                 except:
                     pass
     f.close()
+
+
+@app.route('/update_library_nmr')
+def update_RNA_NMR_library():
+    csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.189_3.5A.csv"
+    df = pd.read_csv(csv_path)
+    __download_cif_files(df)
+    print("CIF files downloaded")
+    __get_dssr_files()
+    print("DSSR files generated")
+    __get_snap_files()
+    print("SNAP files generated")
+    __generate_motif_files()
+    print("Motif files generated")
+
+    response_data = {'message': 'NMR library updated'}
+    response = jsonify(response_data)
+    return response
 
 
 def main():
@@ -173,4 +202,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    #main()
+    app.run()
