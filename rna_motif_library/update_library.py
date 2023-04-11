@@ -1,7 +1,7 @@
-import pandas as pd
-import wget
-import os
 import glob
+import requests
+import json
+import os
 
 import settings
 import snap
@@ -9,18 +9,13 @@ import dssr_lib
 
 from pydssr.dssr import write_dssr_json_output_to_file
 from biopandas.pdb.pandas_pdb import PandasPdb
-from flask import Flask, jsonify
-
-app = Flask(__name__)
-
 
 def __safe_mkdir(dir):
     if os.path.isdir(dir):
         return
     os.mkdir(dir)
 
-
-def __download_cif_files(df):
+"""def __download_cif_files(df):
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     if not os.path.exists(pdb_dir):
         os.makedirs(pdb_dir)
@@ -36,9 +31,101 @@ def __download_cif_files(df):
             continue
         else:
             print(pdb_name + " DOWNLOADING")
-            # implement a check if the PDB file has RNA chains
             wget.download(path, out=out_path)
-    print(f"{count} pdbs already downloaded!")
+    print(f"{count} pdbs already downloaded!")"""
+
+def __download_cif_files():
+    # Define the directory to save the PDB files
+    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
+    if not os.path.exists(pdb_dir):
+        os.makedirs(pdb_dir)
+    # Define the query term
+    query_term = {
+        "query"          : {
+            "type"            : "group",
+            "logical_operator": "and",
+            "nodes"           : [
+                {
+                    "type"      : "terminal",
+                    "service"   : "text",
+                    "parameters": {
+                        "attribute": "entity_poly.rcsb_entity_polymer_type",
+                        "operator" : "exact_match",
+                        "negation" : False,
+                        "value"    : "RNA"
+                    }
+                },
+                {
+                    "type"            : "group",
+                    "nodes"           : [
+                        {
+                            "type"      : "terminal",
+                            "service"   : "text",
+                            "parameters": {
+                                "attribute": "exptl.method",
+                                "operator" : "exact_match",
+                                "negation" : False,
+                                "value"    : "X-RAY DIFFRACTION"
+                            }
+                        },
+                        {
+                            "type"      : "terminal",
+                            "service"   : "text",
+                            "parameters": {
+                                "attribute": "exptl.method",
+                                "operator" : "exact_match",
+                                "negation" : False,
+                                "value"    : "ELECTRON MICROSCOPY"
+                            }
+                        }
+                    ],
+                    "logical_operator": "or"
+                }
+            ],
+            "label"           : "text"
+        },
+        "return_type"    : "entry",
+        "request_options": {
+            "paginate"            : {
+                "start": 0,
+                "rows" : 1000000
+            },
+            "results_content_type": [
+                "experimental"
+            ],
+            "sort"                : [
+                {
+                    "sort_by"  : "score",
+                    "direction": "desc"
+                }
+            ],
+            "scoring_strategy"    : "combined"
+        }
+    }
+    # Define the API endpoints
+    search_url = f"https://search.rcsb.org/rcsbsearch/v2/query?json={query_term}"
+    download_url = "https://files.rcsb.org/download/"
+    # Perform the search and download the PDB files (actually CIF but screw it)
+    response = requests.post(search_url, data=json.dumps(query_term))
+    results = response.json()["result_set"]
+    """# Define the filename to save the response to
+    filename = "response.json"
+    # Save the response to a file
+    with open(filename, "w") as f:
+        json.dump(response.json(), f)"""
+    for result in results:
+        pdb_id = result["identifier"]
+        pdb_file = f"{pdb_dir}/{pdb_id}.cif"
+        if os.path.exists(pdb_file):
+            print(f"{pdb_id} ALREADY DOWNLOADED")
+        else:
+            pdb_url = f"{download_url}{pdb_id}.cif"
+            print(f"{pdb_id} DOWNLOADING")
+            response = requests.get(pdb_url)
+            with open(pdb_file, "wb") as f:
+                f.write(response.content)
+
+    #exit(0)
 
 
 def __get_dssr_files():
@@ -174,46 +261,56 @@ def __generate_motif_files():
     f.close()
 
 
-@app.route('/update_library')
-def update_RNA_library():
-    csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.189_3.5A.csv"
-    df = pd.read_csv(csv_path)
-    __download_cif_files(df)
-    print("CIF files downloaded")
-    __get_dssr_files()
-    print("DSSR files generated")
-    __get_snap_files()
-    print("SNAP files generated")
-    __generate_motif_files()
-    print("Motif files generated")
-
-    response_data = {'message': 'Library updated'}
-    response = jsonify(response_data)
-    return response
-
-
 def main():
-    ##### one CSV
-    csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.189_3.5A.csv"
-    print(csv_path)
-    df = pd.read_csv(csv_path)
-    __download_cif_files(df)
+    __download_cif_files()
+    print('''
+╔════════════════════════════════════╗
+║                                    ║
+║                                    ║
+║                                    ║
+║                                    ║
+║                                    ║
+║       CIF FILES DOWNLOADED         ║
+║                                    ║
+╚════════════════════════════════════╝
+''')
     __get_dssr_files()
+    print('''
+    ╔════════════════════════════════════╗
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║       DSSR FILES FINISHED          ║
+    ║                                    ║
+    ╚════════════════════════════════════╝
+    ''')
     __get_snap_files()
+    print('''
+        ╔════════════════════════════════════╗
+        ║                                    ║
+        ║                                    ║
+        ║                                    ║
+        ║                                    ║
+        ║                                    ║
+        ║       SNAP FILES FINISHED          ║
+        ║                                    ║
+        ╚════════════════════════════════════╝
+        ''')
     __generate_motif_files()
-    ##### all CSVs in the folder
-    '''
-    csv_dir = settings.LIB_PATH + "/data/csvs/"
-    csv_files = glob.glob(csv_dir + "*.csv")
-    for csv_path in csv_files:
-        print(csv_path)
-        df = pd.read_csv(csv_path)
-        __download_cif_files(df)
-        __get_dssr_files()
-        __get_snap_files()
-        __generate_motif_files()'''
-    # exit(0)
+    print('''
+            ╔════════════════════════════════════╗
+            ║                                    ║
+            ║                                    ║
+            ║                                    ║
+            ║                                    ║
+            ║                                    ║
+            ║      MOTIF FILES FINISHED          ║
+            ║                                    ║
+            ╚════════════════════════════════════╝
+            ''')
 
 
 if __name__ == '__main__':
-    app.run()
+    main()

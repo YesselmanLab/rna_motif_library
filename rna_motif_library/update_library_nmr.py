@@ -9,9 +9,6 @@ import pandas as pd
 
 from biopandas.pdb.pandas_pdb import PandasPdb
 from pydssr.dssr import write_dssr_json_output_to_file
-from flask import Flask, jsonify
-
-app = Flask(__name__)
 
 
 def __safe_mkdir(dir):
@@ -174,24 +171,6 @@ def __generate_motif_files():
     f.close()
 
 
-@app.route('/update_library_nmr')
-def update_RNA_NMR_library():
-    csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.189_3.5A.csv"
-    df = pd.read_csv(csv_path)
-    __download_cif_files(df)
-    print("CIF files downloaded")
-    __get_dssr_files()
-    print("DSSR files generated")
-    __get_snap_files()
-    print("SNAP files generated")
-    __generate_motif_files()
-    print("Motif files generated")
-
-    response_data = {'message': 'NMR library updated'}
-    response = jsonify(response_data)
-    return response
-
-
 def main():
     csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.189_3.5A.csv"
     df = pd.read_csv(csv_path)
@@ -202,5 +181,4 @@ def main():
 
 
 if __name__ == "__main__":
-    #main()
-    app.run()
+    main()
