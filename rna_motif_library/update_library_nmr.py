@@ -1,11 +1,11 @@
-import wget
+import requests
 import os
 import glob
+import json
 
 import settings
 import snap
 import dssr_lib
-import pandas as pd
 
 from biopandas.pdb.pandas_pdb import PandasPdb
 from pydssr.dssr import write_dssr_json_output_to_file
@@ -17,7 +17,7 @@ def __safe_mkdir(dir):
     os.mkdir(dir)
 
 
-def __download_cif_files(df):
+"""def __download_cif_files(df):
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     if not os.path.exists(pdb_dir):
         os.makedirs(pdb_dir)
@@ -34,17 +34,110 @@ def __download_cif_files(df):
         else:
             print(pdb_name + " DOWNLOADING")
         wget.download(path, out=out_path)
-        # implement a check if the PDB file has RNA chains
-    print(f"{count} pdbs already downloaded!")
+    print(f"{count} pdbs already downloaded!")"""
+
+def __download_cif_files():
+    # Define the directory to save the PDB files
+    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
+    if not os.path.exists(pdb_dir):
+        os.makedirs(pdb_dir)
+    # Define the query term
+    query_term = {
+  "query": {
+    "type": "group",
+    "logical_operator": "and",
+    "nodes": [
+      {
+        "type": "terminal",
+        "service": "text",
+        "parameters": {
+          "attribute": "entity_poly.rcsb_entity_polymer_type",
+          "operator": "exact_match",
+          "negation": False,
+          "value": "RNA"
+        }
+      },
+      {
+        "type": "group",
+        "nodes": [
+          {
+            "type": "terminal",
+            "service": "text",
+            "parameters": {
+              "attribute": "exptl.method",
+              "operator": "exact_match",
+              "negation": False,
+              "value": "SOLID-STATE NMR"
+            }
+          },
+          {
+            "type": "terminal",
+            "service": "text",
+            "parameters": {
+              "attribute": "exptl.method",
+              "operator": "exact_match",
+              "negation": False,
+              "value": "SOLUTION NMR"
+            }
+          }
+        ],
+        "logical_operator": "or"
+      }
+    ],
+    "label": "text"
+  },
+  "return_type": "entry",
+  "request_options": {
+    "paginate": {
+      "start": 0,
+      "rows": 1000000
+    },
+    "results_content_type": [
+      "experimental"
+    ],
+    "sort": [
+      {
+        "sort_by": "score",
+        "direction": "desc"
+      }
+    ],
+    "scoring_strategy": "combined"
+  }
+}
+    # Define the API endpoints
+    search_url = f"https://search.rcsb.org/rcsbsearch/v2/query?json={query_term}"
+    download_url = "https://files.rcsb.org/download/"
+    # Perform the search and download the PDB files (actually CIF but screw it)
+    response = requests.post(search_url, data=json.dumps(query_term))
+    results = response.json()["result_set"]
+    """# Define the filename to save the response to
+    filename = "response.json"
+    # Save the response to a file
+    with open(filename, "w") as f:
+        json.dump(response.json(), f)"""
+    for result in results:
+        pdb_id = result["identifier"]
+        pdb_file = f"{pdb_dir}/{pdb_id}.cif"
+        if os.path.exists(pdb_file):
+            print(f"{pdb_id} ALREADY DOWNLOADED")
+        else:
+            pdb_url = f"{download_url}{pdb_id}.cif"
+            print(f"{pdb_id} DOWNLOADING")
+            response = requests.get(pdb_url)
+            with open(pdb_file, "wb") as f:
+                f.write(response.content)
+
+    #exit(0)
 
 
 def __get_dssr_files():
-    pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
+    #pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
+    pdb_dir = "/Users/jyesselm/PycharmProjects/rna_motif_library/data/pdbs"
     dssr_path = settings.DSSR_EXE
     out_path = settings.LIB_PATH + "/data/dssr_output_nmr"
     if not os.path.exists(out_path):
         os.mkdir(out_path)
-    pdbs = glob.glob(pdb_dir + "/*.pdb")
+    pdbs = glob.glob(pdb_dir + "/*.cif")
     count = 0
     for pdb_path in pdbs:
         s = os.path.getsize(pdb_path)
@@ -62,13 +155,14 @@ def __get_dssr_files():
 
 
 def __get_snap_files():
-    pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
+    #pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
+    pdb_dir = "/Users/jyesselm/PycharmProjects/rna_motif_library/data/pdbs"
     out_path = settings.LIB_PATH + "/data/snap_output_nmr"
 
     if not os.path.isdir(out_path):
         os.mkdir(out_path)
 
-    pdbs = glob.glob(pdb_dir + "/*.pdb")
+    pdbs = glob.glob(pdb_dir + "/*.cif")
     count = 0
     for pdb_path in pdbs:
         s = os.path.getsize(pdb_path)
@@ -86,8 +180,9 @@ def __get_snap_files():
 
 
 def __generate_motif_files():
-    pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
-    pdbs = glob.glob(pdb_dir + "/*.pdb")
+    #pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
+    pdb_dir = "/Users/jyesselm/PycharmProjects/rna_motif_library/data/pdbs"
+    pdbs = glob.glob(pdb_dir + "/*.cif")
     count = 0
     dirs = [
         "motifs",
@@ -172,12 +267,54 @@ def __generate_motif_files():
 
 
 def main():
-    csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.189_3.5A.csv"
-    df = pd.read_csv(csv_path)
-    __download_cif_files(df)
+    __download_cif_files()
+    print('''
+    ╔════════════════════════════════════╗
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║       CIF FILES DOWNLOADED         ║
+    ║                                    ║
+    ╚════════════════════════════════════╝
+    ''')
     __get_dssr_files()
+    print('''
+        ╔════════════════════════════════════╗
+        ║                                    ║
+        ║                                    ║
+        ║                                    ║
+        ║                                    ║
+        ║                                    ║
+        ║       DSSR FILES FINISHED          ║
+        ║                                    ║
+        ╚════════════════════════════════════╝
+        ''')
     __get_snap_files()
+    print('''
+            ╔════════════════════════════════════╗
+            ║                                    ║
+            ║                                    ║
+            ║                                    ║
+            ║                                    ║
+            ║                                    ║
+            ║       SNAP FILES FINISHED          ║
+            ║                                    ║
+            ╚════════════════════════════════════╝
+            ''')
     __generate_motif_files()
+    print('''
+                ╔════════════════════════════════════╗
+                ║                                    ║
+                ║                                    ║
+                ║                                    ║
+                ║                                    ║
+                ║                                    ║
+                ║      MOTIF FILES FINISHED          ║
+                ║                                    ║
+                ╚════════════════════════════════════╝
+                ''')
 
 
 if __name__ == "__main__":
