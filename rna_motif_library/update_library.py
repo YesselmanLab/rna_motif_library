@@ -277,6 +277,7 @@ def main():
 ║                                    ║
 ╚════════════════════════════════════╝
 ''')
+    current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
     __get_dssr_files()
