@@ -40,74 +40,11 @@ def __download_cif_files():
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     if not os.path.exists(pdb_dir):
         os.makedirs(pdb_dir)
-    # Define the query term
-    query_term = {
-        "query"          : {
-            "type"            : "group",
-            "logical_operator": "and",
-            "nodes"           : [
-                {
-                    "type"      : "terminal",
-                    "service"   : "text",
-                    "parameters": {
-                        "attribute": "entity_poly.rcsb_entity_polymer_type",
-                        "operator" : "exact_match",
-                        "negation" : False,
-                        "value"    : "RNA"
-                    }
-                },
-                {
-                    "type"            : "group",
-                    "nodes"           : [
-                        {
-                            "type"      : "terminal",
-                            "service"   : "text",
-                            "parameters": {
-                                "attribute": "exptl.method",
-                                "operator" : "exact_match",
-                                "negation" : False,
-                                "value"    : "X-RAY DIFFRACTION"
-                            }
-                        },
-                        {
-                            "type"      : "terminal",
-                            "service"   : "text",
-                            "parameters": {
-                                "attribute": "exptl.method",
-                                "operator" : "exact_match",
-                                "negation" : False,
-                                "value"    : "ELECTRON MICROSCOPY"
-                            }
-                        }
-                    ],
-                    "logical_operator": "or"
-                }
-            ],
-            "label"           : "text"
-        },
-        "return_type"    : "entry",
-        "request_options": {
-            "paginate"            : {
-                "start": 0,
-                "rows" : 1000000
-            },
-            "results_content_type": [
-                "experimental"
-            ],
-            "sort"                : [
-                {
-                    "sort_by"  : "score",
-                    "direction": "desc"
-                }
-            ],
-            "scoring_strategy"    : "combined"
-        }
-    }
     # Define the API endpoints
-    search_url = f"https://search.rcsb.org/rcsbsearch/v2/query?json={query_term}"
+    search_url = f"https://search.rcsb.org/rcsbsearch/v2/query?json={settings.QUERY_TERM}"
     download_url = "https://files.rcsb.org/download/"
     # Perform the search and download the PDB files (actually CIF but screw it)
-    response = requests.post(search_url, data=json.dumps(query_term))
+    response = requests.post(search_url, data=json.dumps(settings.QUERY_TERM))
     results = response.json()["result_set"]
     """# Define the filename to save the response to
     filename = "response.json"
