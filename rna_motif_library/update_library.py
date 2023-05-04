@@ -9,12 +9,14 @@ import snap
 import dssr_lib
 
 from pydssr.dssr import write_dssr_json_output_to_file
-from biopandas.pdb.pandas_pdb import PandasPdb
+from biopandas.mmcif.pandas_mmcif import PandasMmcif
+
 
 def __safe_mkdir(dir):
     if os.path.isdir(dir):
         return
     os.mkdir(dir)
+
 
 """def __download_cif_files(df):
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
@@ -35,6 +37,7 @@ def __safe_mkdir(dir):
             wget.download(path, out=out_path)
     print(f"{count} pdbs already downloaded!")"""
 
+
 def __download_cif_files():
     # Define the directory to save the PDB files
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
@@ -46,11 +49,13 @@ def __download_cif_files():
     # Perform the search and download the PDB files (actually CIF but screw it)
     response = requests.post(search_url, data=json.dumps(settings.QUERY_TERM))
     results = response.json()["result_set"]
+
     """# Define the filename to save the response to
     filename = "response.json"
     # Save the response to a file
     with open(filename, "w") as f:
         json.dump(response.json(), f)"""
+
     for result in results:
         pdb_id = result["identifier"]
         pdb_file = f"{pdb_dir}/{pdb_id}.cif"
@@ -63,30 +68,38 @@ def __download_cif_files():
             with open(pdb_file, "wb") as f:
                 f.write(response.content)
 
-    #exit(0)
-
 
 def __get_dssr_files():
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     dssr_path = settings.DSSR_EXE
     out_path = settings.LIB_PATH + "/data/dssr_output"
+    json_out_path = settings.LIB_PATH + "/data/json_output"
     if not os.path.exists(out_path):
         os.mkdir(out_path)
+    if not os.path.exists(json_out_path):
+        os.mkdir(json_out_path)
     pdbs = glob.glob(pdb_dir + "/*.cif")
-    count = 0
+    count = 1
     for pdb_path in pdbs:
         s = os.path.getsize(pdb_path)
-        print(pdb_path, s)  # s = size of file in bytes
+        print(count, pdb_path, s)  # s = size of file in bytes
         # if s > 10000000:
         #    continue
         name = pdb_path.split("/")[-1][:-4]
         if os.path.isfile(out_path):
             count += 1
             continue
+
+        """pretty_json_str = json.dumps(json.loads(write_dssr_json_output_to_file(                
+            dssr_path, pdb_path, out_path + "/" + name + ".json"
+        )), indent=4, sort_keys=True)  """
+
         write_dssr_json_output_to_file(
-                dssr_path, pdb_path, out_path + "/" + name + ".out"
+                dssr_path, pdb_path, out_path + "/" + name + ".json"
         )
-        print(out_path + "/" + name + ".out")
+        dssr_lib.pretty_print_json_file(input_file_path=out_path + "/" + name + ".json",
+                                        output_file_path=json_out_path + "/" + name + ".json")
+        print(json_out_path + "/" + name + ".json")
 
 
 def __get_snap_files():
@@ -116,7 +129,6 @@ def __get_snap_files():
 def __generate_motif_files():
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     pdbs = glob.glob(pdb_dir + "/*.cif")
-    count = 0
     dirs = [
         "motifs",
         "motif_interactions",
@@ -131,7 +143,6 @@ def __generate_motif_files():
     ]
     for d in dirs:
         __safe_mkdir(d)
-
     motif_dir = "motifs/twoways/all"
     interactions_dir = "motif_interactions/twoways/all"
     hbond_vals = [
@@ -154,33 +165,23 @@ def __generate_motif_files():
     count = 0
     for pdb_path in pdbs:
         print("Reading " + pdb_path)
-        s = os.path.getsize(pdb_path)
+        # s = os.path.getsize(pdb_path)
         name = pdb_path.split("/")[-1][:-4]
-        json_path = settings.LIB_PATH + "/data/dssr_output/" + name + ".out"
-        # if s > 10000000:
-        #    continue
-        print(count, pdb_path)
+        print(name)
+        json_path = settings.LIB_PATH + "/data/json_output/" + name + ".json"
+        print(json_path)
         count += 1
-        try:
-            pdb_model = PandasPdb().read_pdb(path=pdb_path)
-        except:
-            continue
-        (
-            motifs,
-            motif_hbonds,
-            motif_interactions,
-        ) = dssr_lib.get_motifs_from_structure(json_path)
+        print(count, pdb_path)
+        pdb_model = PandasMmcif().read_mmcif(path=pdb_path)
+        (motifs, motif_hbonds, motif_interactions) = dssr_lib.get_motifs_from_structure(json_path)
         for m in motifs:
             print(m.name)
             spl = m.name.split(".")
             if not (spl[0] == "TWOWAY" or spl[0] == "NWAY"):
                 continue
-            try:
-                dssr_lib.write_res_coords_to_pdb(
-                        m.nts_long, pdb_model, motif_dir + "/" + m.name
-                )
-            except:
-                continue
+            dssr_lib.write_res_coords_to_pdb(
+                    m.nts_long, pdb_model, motif_dir + "/" + m.name
+            )
             f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
             if m.name not in motif_hbonds:
                 vals = ["0" for _ in hbond_vals]
@@ -202,7 +203,7 @@ def __generate_motif_files():
 def main():
     current_time = datetime.datetime.now()
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    __download_cif_files()
+    # __download_cif_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
@@ -219,46 +220,46 @@ def main():
     print("Job finished on", time_string)
     __get_dssr_files()
     print('''
-    ╔════════════════════════════════════╗
-    ║                                    ║
-    ║                                    ║
-    ║                                    ║
-    ║                                    ║
-    ║                                    ║
-    ║       DSSR FILES FINISHED          ║
-    ║                                    ║
-    ╚════════════════════════════════════╝
-    ''')
+╔════════════════════════════════════╗
+║                                    ║
+║                                    ║
+║                                    ║
+║                                    ║
+║                                    ║
+║       DSSR FILES FINISHED          ║
+║                                    ║
+╚════════════════════════════════════╝
+''')
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    __get_snap_files()
+    # __get_snap_files()
     print('''
-        ╔════════════════════════════════════╗
-        ║                                    ║
-        ║                                    ║
-        ║                                    ║
-        ║                                    ║
-        ║                                    ║
-        ║       SNAP FILES FINISHED          ║
-        ║                                    ║
-        ╚════════════════════════════════════╝
-        ''')
+╔════════════════════════════════════╗
+║                                    ║
+║                                    ║
+║                                    ║
+║                                    ║
+║                                    ║
+║       SNAP FILES FINISHED          ║
+║                                    ║
+╚════════════════════════════════════╝
+''')
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
     __generate_motif_files()
     print('''
-            ╔════════════════════════════════════╗
-            ║                                    ║
-            ║                                    ║
-            ║                                    ║
-            ║                                    ║
-            ║                                    ║
-            ║      MOTIF FILES FINISHED          ║
-            ║                                    ║
-            ╚════════════════════════════════════╝
-            ''')
+╔════════════════════════════════════╗
+║                                    ║
+║                                    ║
+║                                    ║
+║                                    ║
+║                                    ║
+║      MOTIF FILES FINISHED          ║
+║                                    ║
+╚════════════════════════════════════╝
+''')
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job started on", start_time_string)

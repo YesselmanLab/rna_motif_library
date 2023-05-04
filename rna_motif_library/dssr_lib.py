@@ -1,6 +1,21 @@
 import os
+import json
 from pydssr.dssr import DSSROutput
 from biopandas.pdb.pandas_pdb import PandasPdb
+
+
+def pretty_print_json_file(input_file_path, output_file_path):
+    # Read the contents of the input file
+    with open(input_file_path, 'r') as f:
+        input_json = json.load(f)
+
+    # Create the output directory if it doesn't exist
+    output_dir = os.path.dirname(output_file_path)
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Write the pretty-printed JSON to the output file
+    with open(output_file_path, 'w') as f:
+        json.dump(input_json, f, indent=4, sort_keys=True)
 
 
 def write_motif_coords_to_pdbs(motifs, pdb_file):
