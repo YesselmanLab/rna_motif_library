@@ -146,7 +146,7 @@ def __generate_motif_files():
     motif_dir = "motifs/twoways/all"
     interactions_dir = "motif_interactions/twoways/all"
     hbond_vals = [
-        ",base:base",
+        "base:base",
         "base:sugar",
         "base:phos",
         "sugar:base",
@@ -164,46 +164,48 @@ def __generate_motif_files():
     f.write(",".join(hbond_vals) + "\n")
     count = 0
     for pdb_path in pdbs:
-        print("Reading " + pdb_path)
-        # s = os.path.getsize(pdb_path)
+        s = os.path.getsize(pdb_path)
         name = pdb_path.split("/")[-1][:-4]
-        print(name)
         json_path = settings.LIB_PATH + "/data/json_output/" + name + ".json"
-        print(json_path)
-        count += 1
-        print(count, pdb_path)
-        pdb_model = PandasMmcif().read_mmcif(path=pdb_path)
-        (motifs, motif_hbonds, motif_interactions) = dssr_lib.get_motifs_from_structure(json_path)
-        for m in motifs:
-            print(m.name)
-            spl = m.name.split(".")
-            if not (spl[0] == "TWOWAY" or spl[0] == "NWAY"):
-                continue
-            dssr_lib.write_res_coords_to_pdb(
-                    m.nts_long, pdb_model, motif_dir + "/" + m.name
-            )
-            f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
-            if m.name not in motif_hbonds:
-                vals = ["0" for _ in hbond_vals]
-            else:
-                vals = [str(motif_hbonds[m.name][x]) for x in hbond_vals]
-            f.write(",".join(vals) + "\n")
-            if m.name in motif_interactions:
-                try:
-                    dssr_lib.write_res_coords_to_pdb(
-                            m.nts_long + motif_interactions[m.name],
-                            pdb_model,
-                            interactions_dir + "/" + m.name + ".inter",
-                    )
-                except:
-                    pass
+        if s < 10000000:
+            count += 1
+            print(count, pdb_path, name)
+            pdb_model = PandasMmcif().read_mmcif(path=pdb_path)
+            (
+                motifs,
+                motif_hbonds,
+                motif_interactions
+            ) = dssr_lib.get_motifs_from_structure(json_path)
+            for m in motifs:
+                print(m.name)
+                spl = m.name.split(".")
+                if not (spl[0] == "TWOWAY" or spl[0] == "NWAY"):
+                    continue
+                dssr_lib.write_res_coords_to_pdb(
+                        m.nts_long, pdb_model, motif_dir + "/" + m.name
+                )
+                f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
+                if m.name not in motif_hbonds:
+                    vals = ["0" for _ in hbond_vals]
+                else:
+                    vals = [str(motif_hbonds[m.name][x]) for x in hbond_vals]
+                f.write(",".join(vals) + "\n")
+                if m.name in motif_interactions:
+                    try:
+                        dssr_lib.write_res_coords_to_pdb(
+                                m.nts_long + motif_interactions[m.name],
+                                pdb_model,
+                                interactions_dir + "/" + m.name + ".inter",
+                        )
+                    except:
+                        pass
     f.close()
 
 
 def main():
     current_time = datetime.datetime.now()
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    # __download_cif_files()
+    #__download_cif_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
@@ -218,7 +220,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    __get_dssr_files()
+    #__get_dssr_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
@@ -233,7 +235,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    # __get_snap_files()
+    #__get_snap_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║

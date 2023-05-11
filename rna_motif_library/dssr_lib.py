@@ -1,7 +1,9 @@
 import os
 import json
+
+import pandas as pd
 from pydssr.dssr import DSSROutput
-from biopandas.pdb.pandas_pdb import PandasPdb
+from biopandas.mmcif.pandas_mmcif import PandasMmcif
 
 
 def pretty_print_json_file(input_file_path, output_file_path):
@@ -19,8 +21,14 @@ def pretty_print_json_file(input_file_path, output_file_path):
 
 
 def write_motif_coords_to_pdbs(motifs, pdb_file):
-    # Load the PDB file into a DataFrame
-    df = PandasPdb().read_pdb(pdb_file)
+    # Load the PDB file into a DataFrame (actually mmcif)
+    df = PandasMmcif().read_mmcif(pdb_file)
+
+    # debug
+    print("i am running")
+    df.to_csv('cif_df.csv', index=False)
+    # /debug
+
     count = 0
     for m in motifs:
         # Select the subset of the structure corresponding to the motif
@@ -36,9 +44,15 @@ def write_motif_coords_to_pdbs(motifs, pdb_file):
 def write_res_coords_to_pdb(chain_ids, pdb_df, pdb_path):
     # Extract the selected atoms based on chain IDs
     pdb_subset = extract_structure(pdb_df, chain_ids=chain_ids)
+
+    # debug
+    pdb_subset.to_csv(
+        "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/out_csv_2.csv",
+        index=False)
+
     # Group the atoms by residue and write each residue to a PDB-formatted string
     pdb_strings = []
-    for name, group in pdb_subset.groupby(['residue_name', 'residue_number', 'chain_id']):
+    for name, group in pdb_subset.groupby(['label_comp_id', 'label_seq_id', 'label_asym_id']):
         pdb_strings.append(structure_to_pdb_string(group))
     # Concatenate the PDB-formatted strings into a single string
     pdb_string = '\n'.join(pdb_strings)
@@ -47,34 +61,44 @@ def write_res_coords_to_pdb(chain_ids, pdb_df, pdb_path):
         f.write(pdb_string)
 
 
-def extract_structure(df, chain_ids=None, residue_ids=None, residue_names=None,
+def extract_structure(input_mmcif, chain_ids=None, residue_ids=None, residue_names=None,
                       atom_names=None, element_symbols=None):
+    # Passes the mmcif to a dictionary
+    dict = input_mmcif.df
+    # Converts the resulting dictionary into a Dataframe for further processing
+    df = pd.DataFrame.from_dict(dict, orient='index')
+    inner_df = df.iloc[0, 0]
+
+    inner_df.to_csv(
+        "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/out_csv.csv",
+        index=False)
+
     # Filter by chain IDs
     if chain_ids is not None:
         if isinstance(chain_ids, str):
             chain_ids = [chain_ids]
-        df = df[df['chain_id'].isin(chain_ids)]
+        inner_df = inner_df[inner_df['label_asym_id'].isin(chain_ids)]
     # Filter by residue IDs
     if residue_ids is not None:
         if isinstance(residue_ids, str):
             residue_ids = [residue_ids]
-        df = df[df['residue_id'].isin(residue_ids)]
+        inner_df = inner_df[inner_df['label_seq_id'].isin(residue_ids)]
     # Filter by residue names
     if residue_names is not None:
         if isinstance(residue_names, str):
             residue_names = [residue_names]
-        df = df[df['residue_name'].isin(residue_names)]
+        inner_df = inner_df[inner_df['label_comp_id'].isin(residue_names)]
     # Filter by atom names
     if atom_names is not None:
         if isinstance(atom_names, str):
             atom_names = [atom_names]
-        df = df[df['atom_name'].isin(atom_names)]
+        inner_df = inner_df[inner_df['label_atom_id'].isin(atom_names)]
     # Filter by element symbols
     if element_symbols is not None:
         if isinstance(element_symbols, str):
             element_symbols = [element_symbols]
-        df = df[df['element_symbol'].isin(element_symbols)]
-    return df.copy()
+        inner_df = inner_df[inner_df['type_symbol'].isin(element_symbols)]
+    return inner_df.copy()
 
 
 def structure_to_pdb_string(df):
@@ -86,19 +110,19 @@ def structure_to_pdb_string(df):
 
 def atom_to_atom_line(row):
     # Extract the columns for the line
-    atom_number = row['atom_number']
-    atom_name = row['atom_name']
-    alt_loc = row['alt_loc']
-    residue_name = row['residue_name']
-    chain_id = row['chain_id']
-    residue_number = row['residue_number']
-    insertion_code = row['insertion_code']
-    x_coord = row['x_coord']
-    y_coord = row['y_coord']
-    z_coord = row['z_coord']
+    atom_number = row['id']
+    atom_name = row['label_atom_id']
+    alt_loc = row['label_alt_id']
+    residue_name = row['label_comp_id']
+    chain_id = row['label_asym_id']
+    residue_number = row['label_seq_id']
+    insertion_code = row['pdbx_PDB_ins_code']
+    x_coord = row['Cartn_x']
+    y_coord = row['Cartn_y']
+    z_coord = row['Cartn_z']
     occupancy = row['occupancy']
-    temp_factor = row['temp_factor']
-    element_symbol = row['element_symbol']
+    temp_factor = row['B_iso_or_equiv']
+    element_symbol = row['type_symbol']
     # Format the line
     line = f"{'ATOM':6}{atom_number:>5} {atom_name:<4}{alt_loc:1}{residue_name:>3} {chain_id:1}{residue_number:>4}{insertion_code:1}   "
     line += f"{x_coord:>8.3f}{y_coord:>8.3f}{z_coord:>8.3f}"
@@ -127,7 +151,7 @@ class DSSRRes(object):
 
 def get_motifs_from_structure(json_path):
     name = os.path.splitext(json_path.split("/")[-1])[0]
-    d_out = DSSROutput(json_path)
+    d_out = DSSROutput(json_path=json_path)
     motifs = d_out.get_motifs()
     motifs = __merge_singlet_seperated(motifs)
     __name_motifs(motifs, name)
