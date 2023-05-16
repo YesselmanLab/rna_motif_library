@@ -23,12 +23,6 @@ def pretty_print_json_file(input_file_path, output_file_path):
 def write_motif_coords_to_pdbs(motifs, pdb_file):
     # Load the PDB file into a DataFrame (actually mmcif)
     df = PandasMmcif().read_mmcif(pdb_file)
-
-    # debug
-    print("i am running")
-    df.to_csv('cif_df.csv', index=False)
-    # /debug
-
     count = 0
     for m in motifs:
         # Select the subset of the structure corresponding to the motif
@@ -44,18 +38,14 @@ def write_motif_coords_to_pdbs(motifs, pdb_file):
 def write_res_coords_to_pdb(chain_ids, pdb_df, pdb_path):
     # Extract the selected atoms based on chain IDs
     pdb_subset = extract_structure(pdb_df, chain_ids=chain_ids)
-
-    # debug
-    pdb_subset.to_csv(
-        "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/out_csv_2.csv",
-        index=False)
-
     # Group the atoms by residue and write each residue to a PDB-formatted string
     pdb_strings = []
     for name, group in pdb_subset.groupby(['label_comp_id', 'label_seq_id', 'label_asym_id']):
         pdb_strings.append(structure_to_pdb_string(group))
     # Concatenate the PDB-formatted strings into a single string
     pdb_string = '\n'.join(pdb_strings)
+    # Create the directory where the file will be saved if it doesn't exist
+    os.makedirs(os.path.dirname(pdb_path), exist_ok=True)
     # Write the PDB-formatted string to a file
     with open(f"{pdb_path}.pdb", "w") as f:
         f.write(pdb_string)
@@ -68,11 +58,9 @@ def extract_structure(input_mmcif, chain_ids=None, residue_ids=None, residue_nam
     # Converts the resulting dictionary into a Dataframe for further processing
     df = pd.DataFrame.from_dict(dict, orient='index')
     inner_df = df.iloc[0, 0]
-
     inner_df.to_csv(
-        "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/out_csv.csv",
-        index=False)
-
+            "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/out_csv.csv",
+            index=False)
     # Filter by chain IDs
     if chain_ids is not None:
         if isinstance(chain_ids, str):
@@ -137,16 +125,20 @@ class DSSRRes(object):
         spl = s.split(".")
         cur_num = None
         i_num = 0
-        for i in range(0, len(spl[1])):
-            i_num = i
-            try:
-                cur_num = int(spl[1][i:])
+        for i, c in enumerate(spl[1]):
+            if c.isdigit():
+                cur_num = spl[1][i:]
+                i_num = i
                 break
-            except:
-                continue
-        self.num = int(cur_num)
+        self.num = None
+        try:
+            if cur_num is not None:
+                self.num = int(cur_num)
+        except ValueError:
+            pass
         self.chain_id = spl[0]
         self.res_id = spl[1][0:i_num]
+
 
 
 def get_motifs_from_structure(json_path):
@@ -326,6 +318,17 @@ def __get_strands(motif):
         if len(strand) == 0:
             strand.append(r)
             continue
+        #debug
+        print(type(r.num))
+        print(type(strand[-1].num))
+        #/debug
+        #testfix
+        if r.num is None:
+            r.num = 0
+
+        if strand[-1].num is None:
+            strand[-1].num = 0
+        #/testfix
         diff = strand[-1].num - r.num
         if diff == -1:
             strand.append(r)
