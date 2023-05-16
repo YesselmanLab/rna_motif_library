@@ -205,7 +205,7 @@ def __generate_motif_files():
 def main():
     current_time = datetime.datetime.now()
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    #__download_cif_files()
+    __download_cif_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
@@ -220,7 +220,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    #__get_dssr_files()
+    __get_dssr_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
@@ -235,7 +235,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    #__get_snap_files()
+    __get_snap_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║

@@ -318,17 +318,10 @@ def __get_strands(motif):
         if len(strand) == 0:
             strand.append(r)
             continue
-        #debug
-        print(type(r.num))
-        print(type(strand[-1].num))
-        #/debug
-        #testfix
         if r.num is None:
             r.num = 0
-
         if strand[-1].num is None:
             strand[-1].num = 0
-        #/testfix
         diff = strand[-1].num - r.num
         if diff == -1:
             strand.append(r)
