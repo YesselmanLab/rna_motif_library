@@ -20,6 +20,7 @@ def pretty_print_json_file(input_file_path, output_file_path):
         json.dump(input_json, f, indent=4, sort_keys=True)
 
 
+# this one isn't actually used yet lmao
 def write_motif_coords_to_pdbs(motifs, pdb_file):
     # Load the PDB file into a DataFrame (actually mmcif)
     df = PandasMmcif().read_mmcif(pdb_file)
@@ -35,20 +36,74 @@ def write_motif_coords_to_pdbs(motifs, pdb_file):
         count += 1
 
 
-def write_res_coords_to_pdb(chain_ids, pdb_df, pdb_path):
-    # Extract the selected atoms based on chain IDs
-    pdb_subset = extract_structure(pdb_df, chain_ids=chain_ids)
-    # Group the atoms by residue and write each residue to a PDB-formatted string
-    pdb_strings = []
-    for name, group in pdb_subset.groupby(['label_comp_id', 'label_seq_id', 'label_asym_id']):
-        pdb_strings.append(structure_to_pdb_string(group))
-    # Concatenate the PDB-formatted strings into a single string
-    pdb_string = '\n'.join(pdb_strings)
-    # Create the directory where the file will be saved if it doesn't exist
-    os.makedirs(os.path.dirname(pdb_path), exist_ok=True)
-    # Write the PDB-formatted string to a file
+def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
+    res = []
+    for nt in nts:
+        r = DSSRRes(nt)
+        new_nt = r.chain_id + "." + str(r.num)
+        # convert the MMCIF to a dictionary, and the resulting dictionary to a DF
+        dict = pdb_model.df
+        df = pd.DataFrame.from_dict(dict, orient='index')
+        model_df = df.iloc[0, 0]
+
+        # model_df.to_csv('output.csv', index=False)
+        # Find residue in the PDB model
+        atom_res = model_df['label_seq_id'] == new_nt
+        chain_res = model_df['label_asym_id'] == r.chain_id
+        res_subset = model_df[atom_res | chain_res]
+        # keeps certain columns from the PDB
+        res_subset = res_subset[
+            ['group_PDB', 'id', 'label_atom_id', 'label_comp_id', 'label_asym_id', 'label_seq_id',
+             'Cartn_x', 'Cartn_y', 'Cartn_z', 'occupancy', 'B_iso_or_equiv', 'type_symbol']]
+        # resets temp factors
+        #res_subset['B_iso_or_equiv'] = 0
+        # Renumber the 'id' column
+        res_subset['id'] = range(1, len(res_subset) + 1)
+        res.append(res_subset)
+    s = ""
+    for r in res:
+        lines = r.to_string(index=False, header=False).split('\n')
+        df_list = []  # List to store the DataFrames for each line
+        for line in lines:
+            values = line.split()
+            df = pd.DataFrame([values],
+                              columns=['group_PDB', 'id', 'label_atom_id', 'label_comp_id',
+                                       'label_asym_id', 'label_seq_id', 'Cartn_x',
+                                       'Cartn_y', 'Cartn_z', 'occupancy', 'B_iso_or_equiv',
+                                       'type_symbol'])
+            df_list.append(df)
+        # Concatenate all DataFrames into a single DataFrame
+        result_df = pd.concat(df_list, ignore_index=True)
+        new_lines = []  # initializes a list of lines
+        for _, row in result_df.iterrows():
+            # goes through every row in the dataframe to reformat
+            line = atom_to_atom_line(row)
+            new_lines.append(line)
+        s += "\n".join(new_lines) + '\n'
     with open(f"{pdb_path}.pdb", "w") as f:
-        f.write(pdb_string)
+        f.write(s)
+
+
+def atom_to_atom_line(row):
+    group_id = str(row['group_PDB'])
+    atom_number = str(row['id'])
+    atom_number = f"{atom_number:>6}" if len(atom_number) < 6 else atom_number
+
+    atom_name = str(row['label_atom_id'])
+    atom_name = f" {atom_name:<4}" if len(atom_name) < 4 else atom_name
+
+    residue_name = str(row['label_comp_id'])
+    chain_id = str(row['label_asym_id'])
+    residue_number = str(row['label_seq_id'])
+    x_coord = f"{str(row['Cartn_x']):>8}"
+    y_coord = f"{str(row['Cartn_y']):>8}"
+    z_coord = f"{str(row['Cartn_z']):>8}"
+    occupancy = f"{str(row['occupancy']):>6}"
+    temp_factor = f"{str(row['B_iso_or_equiv']):>6}"
+    element_symbol = str(row['type_symbol'])
+    # formatting was a bitch please don't touch unless you know what you're doing
+    line = f"{group_id} {atom_number} {atom_name}{residue_name} {chain_id}   {residue_number}{' ' * 3} {x_coord}{y_coord}{z_coord}{occupancy}{temp_factor}{' ' * 11}{element_symbol}"
+    return line
 
 
 def extract_structure(input_mmcif, chain_ids=None, residue_ids=None, residue_names=None,
@@ -58,9 +113,6 @@ def extract_structure(input_mmcif, chain_ids=None, residue_ids=None, residue_nam
     # Converts the resulting dictionary into a Dataframe for further processing
     df = pd.DataFrame.from_dict(dict, orient='index')
     inner_df = df.iloc[0, 0]
-    inner_df.to_csv(
-            "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/out_csv.csv",
-            index=False)
     # Filter by chain IDs
     if chain_ids is not None:
         if isinstance(chain_ids, str):
@@ -86,7 +138,7 @@ def extract_structure(input_mmcif, chain_ids=None, residue_ids=None, residue_nam
         if isinstance(element_symbols, str):
             element_symbols = [element_symbols]
         inner_df = inner_df[inner_df['type_symbol'].isin(element_symbols)]
-    return inner_df.copy()
+    return inner_df.copy().reset_index(drop=True)
 
 
 def structure_to_pdb_string(df):
@@ -94,29 +146,6 @@ def structure_to_pdb_string(df):
     for _, row in df.iterrows():
         lines.append(atom_to_atom_line(row))
     return '\n'.join(lines)
-
-
-def atom_to_atom_line(row):
-    # Extract the columns for the line
-    atom_number = row['id']
-    atom_name = row['label_atom_id']
-    alt_loc = row['label_alt_id']
-    residue_name = row['label_comp_id']
-    chain_id = row['label_asym_id']
-    residue_number = row['label_seq_id']
-    insertion_code = row['pdbx_PDB_ins_code']
-    x_coord = row['Cartn_x']
-    y_coord = row['Cartn_y']
-    z_coord = row['Cartn_z']
-    occupancy = row['occupancy']
-    temp_factor = row['B_iso_or_equiv']
-    element_symbol = row['type_symbol']
-    # Format the line
-    line = f"{'ATOM':6}{atom_number:>5} {atom_name:<4}{alt_loc:1}{residue_name:>3} {chain_id:1}{residue_number:>4}{insertion_code:1}   "
-    line += f"{x_coord:>8.3f}{y_coord:>8.3f}{z_coord:>8.3f}"
-    line += f"{occupancy:>6.2f}{temp_factor:>6.2f}          "
-    line += f"{element_symbol:>2}{alt_loc:1}"
-    return line
 
 
 class DSSRRes(object):
@@ -138,7 +167,6 @@ class DSSRRes(object):
             pass
         self.chain_id = spl[0]
         self.res_id = spl[1][0:i_num]
-
 
 
 def get_motifs_from_structure(json_path):
@@ -341,7 +369,6 @@ def __name_junction(motif, pdb_name):
         s = "".join([x.res_id for x in strand])
         strs.append(s)
         lens.append(len(s) - 2)
-    name = ""
     if len(strs) == 2:
         name = "TWOWAY."
     else:

@@ -180,7 +180,6 @@ def __get_snap_files():
 
 
 def __generate_motif_files():
-    #pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
     pdb_dir = "/Users/jyesselm/PycharmProjects/rna_motif_library/data/pdbs"
     pdbs = glob.glob(pdb_dir + "/*.cif")
     count = 0

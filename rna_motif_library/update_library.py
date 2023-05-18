@@ -3,11 +3,13 @@ import requests
 import json
 import os
 import datetime
+import warnings
 
 import settings
 import snap
 import dssr_lib
 
+from numpy import VisibleDeprecationWarning
 from pydssr.dssr import write_dssr_json_output_to_file
 from biopandas.mmcif.pandas_mmcif import PandasMmcif
 
@@ -16,26 +18,6 @@ def __safe_mkdir(dir):
     if os.path.isdir(dir):
         return
     os.mkdir(dir)
-
-
-"""def __download_cif_files(df):
-    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
-    if not os.path.exists(pdb_dir):
-        os.makedirs(pdb_dir)
-    count = 0
-    for i, row in df.iterrows():
-        spl = row[1].split("|")
-        pdb_name = spl[0]
-        out_path = pdb_dir + f"{pdb_name}.cif"
-        path = f"https://files.rcsb.org/download/{pdb_name}.cif"
-        if os.path.isfile(out_path):
-            count += 1
-            print(pdb_name + " ALREADY DOWNLOADED!")
-            continue
-        else:
-            print(pdb_name + " DOWNLOADING")
-            wget.download(path, out=out_path)
-    print(f"{count} pdbs already downloaded!")"""
 
 
 def __download_cif_files():
@@ -49,14 +31,9 @@ def __download_cif_files():
     # Perform the search and download the PDB files (actually CIF but screw it)
     response = requests.post(search_url, data=json.dumps(settings.QUERY_TERM))
     results = response.json()["result_set"]
-
-    """# Define the filename to save the response to
-    filename = "response.json"
-    # Save the response to a file
-    with open(filename, "w") as f:
-        json.dump(response.json(), f)"""
-
+    # iterates over each item in the results list obtained from the search response
     for result in results:
+        # extracts the PDB identifier (pdb_id) and constructs a file path to save the CIF
         pdb_id = result["identifier"]
         pdb_file = f"{pdb_dir}/{pdb_id}.cif"
         if os.path.exists(pdb_file):
@@ -65,11 +42,13 @@ def __download_cif_files():
             pdb_url = f"{download_url}{pdb_id}.cif"
             print(f"{pdb_id} DOWNLOADING")
             response = requests.get(pdb_url)
+            # content of the response is then written to the pdb_file
             with open(pdb_file, "wb") as f:
                 f.write(response.content)
 
 
 def __get_dssr_files():
+    # creates and sets directories
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     dssr_path = settings.DSSR_EXE
     out_path = settings.LIB_PATH + "/data/dssr_output"
@@ -89,26 +68,24 @@ def __get_dssr_files():
         if os.path.isfile(out_path):
             count += 1
             continue
-
-        """pretty_json_str = json.dumps(json.loads(write_dssr_json_output_to_file(                
-            dssr_path, pdb_path, out_path + "/" + name + ".json"
-        )), indent=4, sort_keys=True)  """
-
+        # writes raw JSON data that is a pain in the ass to read
         write_dssr_json_output_to_file(
                 dssr_path, pdb_path, out_path + "/" + name + ".json"
         )
+        # makes the JSON look nice
         dssr_lib.pretty_print_json_file(input_file_path=out_path + "/" + name + ".json",
                                         output_file_path=json_out_path + "/" + name + ".json")
         print(json_out_path + "/" + name + ".json")
 
 
 def __get_snap_files():
+    # creates and sets directories
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     out_path = settings.LIB_PATH + "/data/snap_output"
-
     if not os.path.isdir(out_path):
         os.mkdir(out_path)
 
+    # scans every CIF file and stores the output in a .out file
     pdbs = glob.glob(pdb_dir + "/*.cif")
     count = 0
     for pdb_path in pdbs:
@@ -127,6 +104,7 @@ def __get_snap_files():
 
 
 def __generate_motif_files():
+    # creates directories
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     pdbs = glob.glob(pdb_dir + "/*.cif")
     dirs = [
@@ -145,6 +123,7 @@ def __generate_motif_files():
         __safe_mkdir(d)
     motif_dir = "motifs/twoways/all"
     interactions_dir = "motif_interactions/twoways/all"
+    # opens the file where information about nucleotide interactions are stored
     hbond_vals = [
         "base:base",
         "base:sugar",
@@ -161,8 +140,10 @@ def __generate_motif_files():
     ]
     f = open("interactions.csv", "w")
     f.write("name,type,size")
+    # writes to the CSV information about nucleotide interactions
     f.write(",".join(hbond_vals) + "\n")
     count = 0
+    # writes motif/motif interaction information to PDB files
     for pdb_path in pdbs:
         s = os.path.getsize(pdb_path)
         name = pdb_path.split("/")[-1][:-4]
@@ -181,8 +162,12 @@ def __generate_motif_files():
                 spl = m.name.split(".")
                 if not (spl[0] == "TWOWAY" or spl[0] == "NWAY"):
                     continue
+                motif_dir = "motifs/twoways/all" if spl[0] == "TWOWAY" else "motifs/nways/all"
+                interactions_dir = "motif_interactions/twoways/all" if spl[
+                                                                           0] == "TWOWAY" else "motif_interactions/nways/all"
                 dssr_lib.write_res_coords_to_pdb(
-                        m.nts_long, pdb_model, motif_dir + "/" + m.name
+                        m.nts_long, pdb_model,
+                        motif_dir + "/" + m.name
                 )
                 f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
                 if m.name not in motif_hbonds:
@@ -191,21 +176,22 @@ def __generate_motif_files():
                     vals = [str(motif_hbonds[m.name][x]) for x in hbond_vals]
                 f.write(",".join(vals) + "\n")
                 if m.name in motif_interactions:
-                    try:
-                        dssr_lib.write_res_coords_to_pdb(
-                                m.nts_long + motif_interactions[m.name],
-                                pdb_model,
-                                interactions_dir + "/" + m.name + ".inter",
-                        )
-                    except:
-                        pass
+                    dssr_lib.write_res_coords_to_pdb(
+                            m.nts_long + motif_interactions[m.name],
+                            pdb_model,
+                            interactions_dir + "/" + m.name + ".inter",
+                    )
     f.close()
 
 
 def main():
+    # blocks that stupid annoying warning
+    with warnings.catch_warnings():
+        warnings.filterwarnings("once", category=VisibleDeprecationWarning)
+    # time tracking stuff, tracks how long the process takes
     current_time = datetime.datetime.now()
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    __download_cif_files()
+    #__download_cif_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
@@ -220,7 +206,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    __get_dssr_files()
+    #__get_dssr_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
@@ -235,7 +221,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    __get_snap_files()
+    #__get_snap_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
