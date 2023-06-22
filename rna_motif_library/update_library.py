@@ -9,7 +9,6 @@ import settings
 import snap
 import dssr_lib
 
-from numpy import VisibleDeprecationWarning
 from pydssr.dssr import write_dssr_json_output_to_file
 from biopandas.mmcif.pandas_mmcif import PandasMmcif
 
@@ -169,6 +168,7 @@ def __generate_motif_files():
                         m.nts_long, pdb_model,
                         motif_dir + "/" + m.name
                 )
+
                 f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
                 if m.name not in motif_hbonds:
                     vals = ["0" for _ in hbond_vals]
@@ -185,13 +185,13 @@ def __generate_motif_files():
 
 
 def main():
-    # blocks that stupid annoying warning
-    with warnings.catch_warnings():
-        warnings.filterwarnings("once", category=VisibleDeprecationWarning)
+    warnings.filterwarnings("ignore")  # blocks that stupid warning
     # time tracking stuff, tracks how long the process takes
     current_time = datetime.datetime.now()
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    __download_cif_files()
+
+    # start of program
+    #__download_cif_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
@@ -206,7 +206,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    __get_dssr_files()
+    #__get_dssr_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
@@ -221,7 +221,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    __get_snap_files()
+    #__get_snap_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
