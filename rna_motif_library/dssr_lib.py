@@ -4,7 +4,6 @@ import json
 import pandas as pd
 from pydssr.dssr import DSSROutput
 
-
 # makes the JSON files outputted look nicer
 def pretty_print_json_file(input_file_path, output_file_path):
     # Read the contents of the input file
@@ -30,13 +29,11 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
         dict = pdb_model.df
         df = pd.DataFrame.from_dict(dict, orient='index')
         model_df = df.iloc[0, 0]
-        # this was debug space
-        # model_df.to_csv('output.csv', index=False) # at this point there are 21 columns in the data
         # Find residue in the PDB model
         atom_res = model_df['label_seq_id'] == new_nt
         chain_res = model_df['label_asym_id'] == r.chain_id
         res_subset = model_df[atom_res | chain_res]
-        # keeps certain columns from the PDB; trims and keeps 12 columns
+        # keeps certain columns from the CIF; trims and keeps 12 columns
         res_subset = res_subset[
             ['group_PDB', 'id', 'label_atom_id', 'label_comp_id', 'label_asym_id', 'label_seq_id',
              'Cartn_x', 'Cartn_y', 'Cartn_z', 'occupancy', 'B_iso_or_equiv', 'type_symbol']]
@@ -45,16 +42,11 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
     s = ""
     df_list = []  # List to store the DataFrames for each line (type = 'list')
     for r in res:
-        # Data reprocessing stuff, this loop is just making it a string and
-        # moving it around between different datatypes into a DF
+        # Data reprocessing stuff, this loop is moving it into a DF
         lines = r.to_string(index=False, header=False).split('\n')
         for line in lines:
-            values = line.split()  # (type of values = 'list')
-            # this try-except block keeps the value error from happening by
-            # ignoring incorrectly-imported PDB files
-            # the vast majority of them should be imported correctly
-            # this is to cover those anomalous files that are screwed up for whatever reason
-            # see the comment at the bottom for the error traceback
+            values = line.split()  # (type of 'values' = list)
+            # keeps the value error from happening by ignoring incorrectly-imported PDB files
             try:
                 if len(values) == 12:
                     df = pd.DataFrame([values], columns=[
@@ -66,32 +58,31 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
                     df_list.append(df)
             except ValueError:
                 continue
-    if df_list:
+    if df_list:  # i.e. if there are things inside df_list:
         # Concatenate all DFs into a single DF
         result_df = pd.concat(df_list, axis=0, ignore_index=True)
         # renumber IDs so there are no more duplicate IDs
         result_df['id'] = range(1, len(result_df) + 1)
-
         # updates the sequence IDs so they are all unique
         result_df = __reassign_unique_sequence_ids(result_df, 'label_seq_id')
 
-        # debug space
-        # result_df.to_csv('output.csv', index=False)
-        # exit(0)
+        # writes the dataframe to a CIF file
+        __dataframe_to_cif(df=result_df, file_path=f"{pdb_path}.cif")
 
-        # everything here on down reformats and prints to the output PDB
-        new_lines = []  # initializes a list of lines (for the reformatting purposes below)
+
+        """# everything here on down reformats and prints to the output PDB
+        new_lines = []  # initializes a list of lines (for the reformatting below)
         for _, row in result_df.iterrows():
-            # goes through every row (line) in the dataframe to reformat as PDB with that stupid annoying line
+            # goes through every line in the dataframe to reformat according to PDB standards
             line = atom_to_atom_line(row)
             new_lines.append(line)
         s += "\n".join(new_lines) + '\n'
         with open(f"{pdb_path}.pdb", "w") as f:
-            f.write(s)
+            f.write(s)"""
 
 
 # this function takes a row from the dataframe and formats it to fit on the PDB file
-def atom_to_atom_line(row):
+"""def atom_to_atom_line(row):
     group_id = str(row['group_PDB'])
     atom_number = str(row['id'])
     atom_number = f"{atom_number:>6}" if len(atom_number) < 6 else atom_number
@@ -114,7 +105,7 @@ def atom_to_atom_line(row):
     # formatting was a bitch please don't touch unless you know what you're doing
     line = f"{group_id} {atom_number} {atom_name}{residue_name} {chain_id}{residue_number}{' ' * 3} {x_coord}{y_coord}{z_coord}{occupancy}{temp_factor}{' ' * 11}{element_symbol}"
     return line
-
+"""
 
 class DSSRRes(object):
     def __init__(self, s):
@@ -408,104 +399,28 @@ def __reassign_unique_sequence_ids(df, column_name):
 
     return df
 
+# takes data from a dataframe and writes it to a CIF
+def __dataframe_to_cif(df, file_path):
+    # Open the CIF file for writing
+    with open(file_path, 'w') as f:
+        # Write the CIF header section
+        f.write('data_\n')
+        f.write('loop_\n')
+        f.write('_atom_site.group_PDB\n')
+        f.write('_atom_site.id\n')
+        f.write('_atom_site.label_atom_id\n')
+        f.write('_atom_site.label_comp_id\n')
+        f.write('_atom_site.label_asym_id\n')
+        f.write('_atom_site.label_seq_id\n')
+        f.write('_atom_site.Cartn_x\n')
+        f.write('_atom_site.Cartn_y\n')
+        f.write('_atom_site.Cartn_z\n')
+        f.write('_atom_site.occupancy\n')
+        f.write('_atom_site.B_iso_or_equiv\n')
+        f.write('_atom_site.type_symbol\n')
 
-"""
-Traceback (most recent call last):
-  File "/.../anaconda3/lib/python3.9/site-packages/pandas/core/internals/construction.py", line 982, in _finalize_columns_and_data
-    columns = _validate_or_indexify_columns(contents, columns)
-  File "/.../anaconda3/lib/python3.9/site-packages/pandas/core/internals/construction.py", line 1030, in _validate_or_indexify_columns
-    raise AssertionError(
-AssertionError: 12 columns passed, passed data had 2 columns
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "/.../PycharmProjects/rna_motif_library/rna_motif_library/update_library.py", line 258, in <module>
-    main()
-  File "/.../PycharmProjects/rna_motif_library/rna_motif_library/update_library.py", line 239, in main
-    __generate_motif_files()
-  File "/.../PycharmProjects/rna_motif_library/rna_motif_library/update_library.py", line 179, in __generate_motif_files
-    dssr_lib.write_res_coords_to_pdb(
-  File "/.../PycharmProjects/rna_motif_library/rna_motif_library/dssr_lib.py", line 73, in write_res_coords_to_pdb
-    df = pd.DataFrame([values],
-  File "/.../anaconda3/lib/python3.9/site-packages/pandas/core/frame.py", line 721, in __init__
-    arrays, columns, index = nested_data_to_arrays(
-  File "/.../anaconda3/lib/python3.9/site-packages/pandas/core/internals/construction.py", line 519, in nested_data_to_arrays
-    arrays, columns = to_arrays(data, columns, dtype=dtype)
-  File "/.../anaconda3/lib/python3.9/site-packages/pandas/core/internals/construction.py", line 883, in to_arrays
-    content, columns = _finalize_columns_and_data(arr, columns, dtype)
-  File "/.../anaconda3/lib/python3.9/site-packages/pandas/core/internals/construction.py", line 985, in _finalize_columns_and_data
-    raise ValueError(err) from err
-ValueError: 12 columns passed, passed data had 2 columns
-glitched motif: TWOWAY.7NAV.1-1.CAC-GUG.0
-
-"""
-
-"""def write_motif_coords_to_pdbs(motifs, cif_file):
-    mmcif = PandasMmcif()
-    mmcif.read_mmcif(cif_file)
-
-    count = 0
-    output_dir = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/structures"
-    for m in motifs:
-        res = []
-        for nt in m.nts_long:
-            spl = nt.split(".")
-            new_nt = spl[0] + "." + spl[1][1:]
-
-            dict = mmcif.df  # type = dict
-            df = pd.DataFrame.from_dict(dict, orient='index')
-            mmcif_df = df.iloc[0, 0]
-
-            residue = mmcif_df[(mmcif_df['label_seq_id'] == new_nt)]
-            res.append(residue)
-        s = ""
-        for r in res:
-            pdb_string = structure_to_pdb_string(r)
-            s += pdb_string + "\n"
-        filename = f"{m.mtype}.{count}.pdb"
-        filepath = os.path.join(output_dir, filename)
-        with open(filepath, "w") as f:
-            f.write(s)
-        count += 1
-"""
-
-"""def extract_structure(input_mmcif, chain_ids=None, residue_ids=None, residue_names=None,
-                      atom_names=None, element_symbols=None):
-    # Passes the mmcif to a dictionary
-    dict = input_mmcif.df
-    # Converts the resulting dictionary into a Dataframe for further processing
-    df = pd.DataFrame.from_dict(dict, orient='index')
-    inner_df = df.iloc[0, 0]
-    # Filter by chain IDs
-    if chain_ids is not None:
-        if isinstance(chain_ids, str):
-            chain_ids = [chain_ids]
-        inner_df = inner_df[inner_df['label_asym_id'].isin(chain_ids)]
-    # Filter by residue IDs
-    if residue_ids is not None:
-        if isinstance(residue_ids, str):
-            residue_ids = [residue_ids]
-        inner_df = inner_df[inner_df['label_seq_id'].isin(residue_ids)]
-    # Filter by residue names
-    if residue_names is not None:
-        if isinstance(residue_names, str):
-            residue_names = [residue_names]
-        inner_df = inner_df[inner_df['label_comp_id'].isin(residue_names)]
-    # Filter by atom names
-    if atom_names is not None:
-        if isinstance(atom_names, str):
-            atom_names = [atom_names]
-        inner_df = inner_df[inner_df['label_atom_id'].isin(atom_names)]
-    # Filter by element symbols
-    if element_symbols is not None:
-        if isinstance(element_symbols, str):
-            element_symbols = [element_symbols]
-        inner_df = inner_df[inner_df['type_symbol'].isin(element_symbols)]
-    return inner_df.copy().reset_index(drop=True)"""
-
-"""def structure_to_pdb_string(df):
-    lines = []
-    for _, row in df.iterrows():
-        lines.append(atom_to_atom_line(row))
-    return '\n'.join(lines)"""
+        # Write the data from the DataFrame (formatting)
+        for row in df.itertuples(index=False):
+            f.write("{:<8}{:<7}{:<6}{:<6}{:<6}{:<6}{:<12}{:<12}{:<12}{:<10}{:<10}{:<6}\n".format(
+                row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]
+            ))
