@@ -4,6 +4,7 @@ import json
 import pandas as pd
 from pydssr.dssr import DSSROutput
 
+
 # makes the JSON files outputted look nicer
 def pretty_print_json_file(input_file_path, output_file_path):
     # Read the contents of the input file
@@ -65,47 +66,9 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
         result_df['id'] = range(1, len(result_df) + 1)
         # updates the sequence IDs so they are all unique
         result_df = __reassign_unique_sequence_ids(result_df, 'label_seq_id')
-
         # writes the dataframe to a CIF file
         __dataframe_to_cif(df=result_df, file_path=f"{pdb_path}.cif")
 
-
-        """# everything here on down reformats and prints to the output PDB
-        new_lines = []  # initializes a list of lines (for the reformatting below)
-        for _, row in result_df.iterrows():
-            # goes through every line in the dataframe to reformat according to PDB standards
-            line = atom_to_atom_line(row)
-            new_lines.append(line)
-        s += "\n".join(new_lines) + '\n'
-        with open(f"{pdb_path}.pdb", "w") as f:
-            f.write(s)"""
-
-
-# this function takes a row from the dataframe and formats it to fit on the PDB file
-"""def atom_to_atom_line(row):
-    group_id = str(row['group_PDB'])
-    atom_number = str(row['id'])
-    atom_number = f"{atom_number:>6}" if len(atom_number) < 6 else atom_number
-
-    atom_name = str(row['label_atom_id'])
-    atom_name = f" {atom_name:<4}" if len(atom_name) < 4 else atom_name
-
-    residue_name = str(row['label_comp_id'])
-    chain_id = str(row['label_asym_id'])
-
-    residue_number = str(row['label_seq_id'])
-    residue_number = f"{residue_number:>4}" if len(residue_number) < 4 else residue_number
-
-    x_coord = f"{str(row['Cartn_x']):>8}"
-    y_coord = f"{str(row['Cartn_y']):>8}"
-    z_coord = f"{str(row['Cartn_z']):>8}"
-    occupancy = f"{str(row['occupancy']):>6}"
-    temp_factor = f"{str(row['B_iso_or_equiv']):>6}"
-    element_symbol = str(row['type_symbol'])
-    # formatting was a bitch please don't touch unless you know what you're doing
-    line = f"{group_id} {atom_number} {atom_name}{residue_name} {chain_id}{residue_number}{' ' * 3} {x_coord}{y_coord}{z_coord}{occupancy}{temp_factor}{' ' * 11}{element_symbol}"
-    return line
-"""
 
 class DSSRRes(object):
     def __init__(self, s):
@@ -399,6 +362,7 @@ def __reassign_unique_sequence_ids(df, column_name):
 
     return df
 
+
 # takes data from a dataframe and writes it to a CIF
 def __dataframe_to_cif(df, file_path):
     # Open the CIF file for writing
@@ -418,9 +382,9 @@ def __dataframe_to_cif(df, file_path):
         f.write('_atom_site.occupancy\n')
         f.write('_atom_site.B_iso_or_equiv\n')
         f.write('_atom_site.type_symbol\n')
-
         # Write the data from the DataFrame (formatting)
         for row in df.itertuples(index=False):
             f.write("{:<8}{:<7}{:<6}{:<6}{:<6}{:<6}{:<12}{:<12}{:<12}{:<10}{:<10}{:<6}\n".format(
-                row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]
+                    row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9],
+                    row[10], row[11]
             ))
