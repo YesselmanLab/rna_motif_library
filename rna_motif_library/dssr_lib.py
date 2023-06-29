@@ -62,6 +62,8 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
     if df_list:  # i.e. if there are things inside df_list:
         # Concatenate all DFs into a single DF
         result_df = pd.concat(df_list, axis=0, ignore_index=True)
+        # Removes duplicate atoms in the DF (by coordinates)
+        result_df = __remove_duplicate_lines(df=result_df)
         # renumber IDs so there are no more duplicate IDs
         result_df['id'] = range(1, len(result_df) + 1)
         # updates the sequence IDs so they are all unique
@@ -361,6 +363,15 @@ def __reassign_unique_sequence_ids(df, column_name):
         prev_value = value
 
     return df
+
+# removes duplicate lines in DF
+def __remove_duplicate_lines(df):
+    # Sort the DataFrame by coordinates to group duplicate lines together
+    df_sorted = df.sort_values(['Cartn_x', 'Cartn_y', 'Cartn_z'])
+    # Find and remove duplicate lines
+    df_unique = df_sorted.drop_duplicates(subset=['Cartn_x', 'Cartn_y', 'Cartn_z'], keep='first')
+    return df_unique
+
 
 
 # takes data from a dataframe and writes it to a CIF
