@@ -23,6 +23,7 @@ def pretty_print_json_file(input_file_path, output_file_path):
 # writes extracted residue data into the proper output PDB files
 def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
     res = []
+    errored_files = []
     for nt in nts:
         r = DSSRRes(nt)
         new_nt = r.chain_id + "." + str(r.num)
@@ -64,12 +65,15 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
         result_df = pd.concat(df_list, axis=0, ignore_index=True)
         # Removes duplicate atoms in the DF (by coordinates)
         result_df = __remove_duplicate_lines(df=result_df)
-        # renumber IDs so there are no more duplicate IDs
-        result_df['id'] = range(1, len(result_df) + 1)
-        # updates the sequence IDs so they are all unique
-        result_df = __reassign_unique_sequence_ids(result_df, 'label_seq_id')
-        # writes the dataframe to a CIF file
-        __dataframe_to_cif(df=result_df, file_path=f"{pdb_path}.cif")
+        # skips non-phosphorous containing DFs (i.e. ones w/ no RNA)
+        if result_df['type_symbol'].str.contains('P').any():
+            # renumber IDs so there are no more duplicate IDs and passes them as ints
+            result_df['id'] = range(1, len(result_df) + 1)
+            result_df['id'] = result_df['id'].astype(int)
+            # updates the sequence IDs so they are all unique
+            result_df = __reassign_unique_sequence_ids(result_df, 'label_seq_id')
+            # writes the dataframe to a CIF file
+            __dataframe_to_cif(df=result_df, file_path=f"{pdb_path}.cif")
 
 
 class DSSRRes(object):
