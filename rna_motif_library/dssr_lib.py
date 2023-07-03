@@ -8,7 +8,6 @@ from pydssr.dssr import DSSROutput
 # writes extracted residue data into the proper output PDB files
 def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
     res = []
-    errored_files = []
     for nt in nts:
         r = DSSRRes(nt)
         new_nt = r.chain_id + "." + str(r.num)
@@ -45,20 +44,19 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
                     df_list.append(df)
             except ValueError:
                 continue
-    if df_list:  # i.e. if there are things inside df_list:
-        # Concatenate all DFs into a single DF
-        result_df = pd.concat(df_list, axis=0, ignore_index=True)
-        # Removes duplicate atoms in the DF (by coordinates)
-        result_df = __remove_duplicate_lines(df=result_df)
-        # skips non-phosphorous containing DFs (i.e. ones w/ no RNA)
-        if result_df['type_symbol'].str.contains('P').any():
-            # renumber IDs so there are no more duplicate IDs and passes them as ints
-            result_df['id'] = range(1, len(result_df) + 1)
-            result_df['id'] = result_df['id'].astype(int)
-            # updates the sequence IDs so they are all unique
-            result_df = __reassign_unique_sequence_ids(result_df, 'label_seq_id')
-            # writes the dataframe to a CIF file
-            __dataframe_to_cif(df=result_df, file_path=f"{pdb_path}.cif")
+        if df_list:  # i.e. if there are things inside df_list:
+            # Concatenate all DFs into a single DF
+            result_df = pd.concat(df_list, axis=0, ignore_index=True)
+            # Removes duplicate atoms in the DF (by coordinates)
+            result_df = __remove_duplicate_lines(df=result_df)
+            # skips DFs ones w/ no RNA by checking for phosphorous
+            if result_df['type_symbol'].str.contains('P').any():
+                # renumber IDs so there are no more duplicate IDs and passes them as ints
+                result_df['id'] = range(1, len(result_df) + 1)
+                # updates the sequence IDs so they are all unique
+                result_df = __reassign_unique_sequence_ids(result_df, 'label_seq_id')
+                # writes the dataframe to a CIF file
+                __dataframe_to_cif(df=result_df, file_path=f"{pdb_path}.cif")
 
 
 class DSSRRes(object):
@@ -356,10 +354,23 @@ def __reassign_unique_sequence_ids(df, column_name):
 
 # removes duplicate lines in DF
 def __remove_duplicate_lines(df):
-    # Sort the DataFrame by coordinates to group duplicate lines together
-    df_sorted = df.sort_values(['Cartn_x', 'Cartn_y', 'Cartn_z'])
-    # Find and remove duplicate lines
-    df_unique = df_sorted.drop_duplicates(subset=['Cartn_x', 'Cartn_y', 'Cartn_z'], keep='first')
+    # Initialize variables
+    unique_coords = set()
+    indices_to_drop = []
+
+    # Iterate over the DataFrame
+    for i, row in df.iterrows():
+        # Check if coordinates are already encountered
+        coords = (row['Cartn_x'], row['Cartn_y'], row['Cartn_z'])
+        if coords in unique_coords:
+            indices_to_drop.extend(range(i, len(df)))
+            break  # Exit the loop once duplicate coordinates are found
+
+        # Add coordinates to the set
+        unique_coords.add(coords)
+
+    # Remove the duplicate lines and reset the index
+    df_unique = df.drop(indices_to_drop).reset_index(drop=True)
     return df_unique
 
 
