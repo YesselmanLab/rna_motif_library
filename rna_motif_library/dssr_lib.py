@@ -5,21 +5,6 @@ import pandas as pd
 from pydssr.dssr import DSSROutput
 
 
-# makes the JSON files outputted look nicer
-def pretty_print_json_file(input_file_path, output_file_path):
-    # Read the contents of the input file
-    with open(input_file_path, 'r') as f:
-        input_json = json.load(f)
-
-    # Create the output directory if it doesn't exist
-    output_dir = os.path.dirname(output_file_path)
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Write the pretty-printed JSON to the output file
-    with open(output_file_path, 'w') as f:
-        json.dump(input_json, f, indent=4, sort_keys=True)
-
-
 # writes extracted residue data into the proper output PDB files
 def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
     res = []
@@ -368,6 +353,7 @@ def __reassign_unique_sequence_ids(df, column_name):
 
     return df
 
+
 # removes duplicate lines in DF
 def __remove_duplicate_lines(df):
     # Sort the DataFrame by coordinates to group duplicate lines together
@@ -375,7 +361,6 @@ def __remove_duplicate_lines(df):
     # Find and remove duplicate lines
     df_unique = df_sorted.drop_duplicates(subset=['Cartn_x', 'Cartn_y', 'Cartn_z'], keep='first')
     return df_unique
-
 
 
 # takes data from a dataframe and writes it to a CIF

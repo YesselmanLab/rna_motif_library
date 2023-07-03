@@ -51,11 +51,8 @@ def __get_dssr_files():
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     dssr_path = settings.DSSR_EXE
     out_path = settings.LIB_PATH + "/data/dssr_output"
-    json_out_path = settings.LIB_PATH + "/data/json_output"
     if not os.path.exists(out_path):
         os.mkdir(out_path)
-    if not os.path.exists(json_out_path):
-        os.mkdir(json_out_path)
     pdbs = glob.glob(pdb_dir + "/*.cif")
     count = 1
     for pdb_path in pdbs:
@@ -67,15 +64,10 @@ def __get_dssr_files():
         if os.path.isfile(out_path):
             count += 1
             continue
-        # writes raw JSON data that is a pain in the ass to read
+        # writes raw JSON data
         write_dssr_json_output_to_file(
                 dssr_path, pdb_path, out_path + "/" + name + ".json"
         )
-        # makes the JSON look nice
-        dssr_lib.pretty_print_json_file(input_file_path=out_path + "/" + name + ".json",
-                                        output_file_path=json_out_path + "/" + name + ".json")
-        print(json_out_path + "/" + name + ".json")
-
 
 def __get_snap_files():
     # creates and sets directories
@@ -146,7 +138,7 @@ def __generate_motif_files():
     for pdb_path in pdbs:
         s = os.path.getsize(pdb_path)
         name = pdb_path.split("/")[-1][:-4]
-        json_path = settings.LIB_PATH + "/data/json_output/" + name + ".json"
+        json_path = settings.LIB_PATH + "/data/dssr_output/" + name + ".json"
         if s < 10000000:
             count += 1
             print(count, pdb_path, name)
