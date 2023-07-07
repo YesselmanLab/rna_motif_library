@@ -1,6 +1,6 @@
 import rna_motif_library
 
-import rna_motif_library.dssr_lib
+import rna_motif_library.dssr
 import rna_motif_library.settings
 
 from biopandas.pdb.pandas_pdb import PandasPdb

@@ -7,7 +7,7 @@ import warnings
 
 import settings
 import snap
-import dssr_lib
+import dssr
 
 from pydssr.dssr import write_dssr_json_output_to_file
 from biopandas.mmcif.pandas_mmcif import PandasMmcif
@@ -147,7 +147,7 @@ def __generate_motif_files():
                 motifs,
                 motif_hbonds,
                 motif_interactions
-            ) = dssr_lib.get_motifs_from_structure(json_path)
+            ) = dssr.get_motifs_from_structure(json_path)
             for m in motifs:
                 print(m.name)
                 spl = m.name.split(".")
@@ -156,7 +156,7 @@ def __generate_motif_files():
                 motif_dir = "motifs/twoways/all" if spl[0] == "TWOWAY" else "motifs/nways/all"
                 interactions_dir = "motif_interactions/twoways/all" if spl[
                                                                            0] == "TWOWAY" else "motif_interactions/nways/all"
-                dssr_lib.write_res_coords_to_pdb(
+                dssr.write_res_coords_to_pdb(
                         m.nts_long, pdb_model,
                         motif_dir + "/" + m.name
                 )
@@ -168,7 +168,7 @@ def __generate_motif_files():
                     vals = [str(motif_hbonds[m.name][x]) for x in hbond_vals]
                 f.write(",".join(vals) + "\n")
                 if m.name in motif_interactions:
-                    dssr_lib.write_res_coords_to_pdb(
+                    dssr.write_res_coords_to_pdb(
                             m.nts_long + motif_interactions[m.name],
                             pdb_model,
                             interactions_dir + "/" + m.name + ".inter",
