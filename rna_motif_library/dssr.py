@@ -3,6 +3,40 @@ import os
 import pandas as pd
 from pydssr.dssr import DSSROutput
 
+# takes data from a dataframe and writes it to a CIF
+def dataframe_to_cif(df, file_path):
+    # Open the CIF file for writing
+    with open(file_path, 'w') as f:
+        # Write the CIF header section
+        f.write('data_\n')
+        f.write('loop_\n')
+        f.write('_atom_site.group_PDB\n')
+        f.write('_atom_site.id\n')
+        f.write('_atom_site.label_atom_id\n')
+        f.write('_atom_site.label_comp_id\n')
+        f.write('_atom_site.label_asym_id\n')
+        f.write('_atom_site.label_seq_id\n')
+        f.write('_atom_site.Cartn_x\n')
+        f.write('_atom_site.Cartn_y\n')
+        f.write('_atom_site.Cartn_z\n')
+        f.write('_atom_site.occupancy\n')
+        f.write('_atom_site.B_iso_or_equiv\n')
+        f.write('_atom_site.type_symbol\n')
+        # Write the data from the DataFrame (formatting)
+        for row in df.itertuples(index=False):
+            f.write("{:<8}{:<7}{:<6}{:<6}{:<6}{:<6}{:<12}{:<12}{:<12}{:<10}{:<10}{:<6}\n".format(
+                    row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9],
+                    row[10], row[11]
+            ))
+
+def dataframe_to_pdb(df, file_path):
+    with open(file_path, 'w') as f:
+        # Write the ATOM records
+        for row in df.itertuples(index=False):
+            f.write("{:<6}{:>5}  {:<4}{:<5} {:3} {:1}{:4} {:12} {:12} {:12} {:12} {:12}\n".format(
+                row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]
+            ))
+
 
 # writes extracted residue data into the proper output PDB files
 def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
@@ -16,7 +50,6 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
         model_df = df.iloc[0, 0]
         # sets up nucleotide IDs
         nt_id = new_nt.split(".")  # strings
-
         # Find residue in the PDB model
         chain_res = model_df[
             model_df['auth_asym_id'].astype(str) == str(nt_id[0])]  # first it picks the chain
@@ -27,15 +60,15 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
             ['group_PDB', 'id', 'label_atom_id', 'label_comp_id', 'label_asym_id', 'label_seq_id',
              'Cartn_x', 'Cartn_y', 'Cartn_z', 'occupancy', 'B_iso_or_equiv', 'type_symbol']]
         res.append(res_subset)  # "res" is a list with all the needed dataframes inside it
-
     s = ""
     df_list = []  # List to store the DataFrames for each line (type = 'list')
     for r in res:
         # Data reprocessing stuff, this loop is moving it into a DF
         lines = r.to_string(index=False, header=False).split('\n')
         for line in lines:
-            values = line.split()  # (type of 'values' = list)
+            values = line.split()  # (type 'values' = list)
             # keeps the value error from happening by ignoring incorrectly-imported PDB files
+            # builds DF from values
             try:
                 if len(values) == 12:
                     df = pd.DataFrame([values], columns=[
@@ -50,16 +83,9 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
         if df_list:  # i.e. if there are things inside df_list:
             # Concatenate all DFs into a single DF
             result_df = pd.concat(df_list, axis=0, ignore_index=True)
-            # Removes duplicate atoms in the DF (by coordinates)
-            result_df = __remove_duplicate_lines(df=result_df)
-            # skips DFs ones w/ no RNA by checking for phosphorous
-            # if result_df['type_symbol'].str.contains('P').any():
-            # renumber IDs so there are no more duplicate IDs and passes them as ints
-            result_df['id'] = range(1, len(result_df) + 1)
-            # updates the sequence IDs so they are all unique
-            result_df = __reassign_unique_sequence_ids(result_df, 'label_seq_id')
             # writes the dataframe to a CIF file
-            __dataframe_to_cif(df=result_df, file_path=f"{pdb_path}.cif")
+            dataframe_to_cif(df=result_df, file_path=f"{pdb_path}.cif")
+            #dataframe_to_pdb(df=result_df, file_path=f"{pdb_path}.pdb")
 
 
 class DSSRRes(object):
@@ -342,63 +368,3 @@ def __sort_res(item):
     return (spl[0], spl[1][1:])
 
 
-def __reassign_unique_sequence_ids(df, column_name):
-    current_id = 0
-    prev_value = None
-
-    for i, value in enumerate(df[column_name]):
-        if value != prev_value:
-            current_id += 1
-        df.at[i, column_name] = current_id
-        prev_value = value
-
-    return df
-
-
-# removes duplicate lines in DF
-def __remove_duplicate_lines(df):
-    # Initialize variables
-    unique_coords = set()
-    indices_to_drop = []
-
-    # Iterate over the DataFrame
-    for i, row in df.iterrows():
-        # Check if coordinates are already encountered
-        coords = (row['Cartn_x'], row['Cartn_y'], row['Cartn_z'])
-        if coords in unique_coords:
-            indices_to_drop.extend(range(i, len(df)))
-            break  # Exit the loop once duplicate coordinates are found
-
-        # Add coordinates to the set
-        unique_coords.add(coords)
-
-    # Remove the duplicate lines and reset the index
-    df_unique = df.drop(indices_to_drop).reset_index(drop=True)
-    return df_unique
-
-
-# takes data from a dataframe and writes it to a CIF
-def __dataframe_to_cif(df, file_path):
-    # Open the CIF file for writing
-    with open(file_path, 'w') as f:
-        # Write the CIF header section
-        f.write('data_\n')
-        f.write('loop_\n')
-        f.write('_atom_site.group_PDB\n')
-        f.write('_atom_site.id\n')
-        f.write('_atom_site.label_atom_id\n')
-        f.write('_atom_site.label_comp_id\n')
-        f.write('_atom_site.label_asym_id\n')
-        f.write('_atom_site.label_seq_id\n')
-        f.write('_atom_site.Cartn_x\n')
-        f.write('_atom_site.Cartn_y\n')
-        f.write('_atom_site.Cartn_z\n')
-        f.write('_atom_site.occupancy\n')
-        f.write('_atom_site.B_iso_or_equiv\n')
-        f.write('_atom_site.type_symbol\n')
-        # Write the data from the DataFrame (formatting)
-        for row in df.itertuples(index=False):
-            f.write("{:<8}{:<7}{:<6}{:<6}{:<6}{:<6}{:<12}{:<12}{:<12}{:<10}{:<10}{:<6}\n".format(
-                    row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9],
-                    row[10], row[11]
-            ))
