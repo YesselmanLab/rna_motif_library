@@ -1,5 +1,4 @@
 import os
-import json
 
 import pandas as pd
 from pydssr.dssr import DSSROutput
