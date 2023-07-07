@@ -15,11 +15,13 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
         df = pd.DataFrame.from_dict(dict, orient='index')
         model_df = df.iloc[0, 0]
         # sets up nucleotide IDs
-        nt_id = new_nt.split(".") # strings
+        nt_id = new_nt.split(".")  # strings
 
         # Find residue in the PDB model
-        chain_res = model_df[model_df['auth_asym_id'].astype(str) == str(nt_id[0])]  # first it picks the chain
-        res_subset = chain_res[chain_res['auth_seq_id'].astype(str) == str(nt_id[1])]  # then it find the atoms
+        chain_res = model_df[
+            model_df['auth_asym_id'].astype(str) == str(nt_id[0])]  # first it picks the chain
+        res_subset = chain_res[
+            chain_res['auth_seq_id'].astype(str) == str(nt_id[1])]  # then it find the atoms
         # keeps certain columns from the CIF; trims and keeps 12 columns for rendering purposes
         res_subset = res_subset[
             ['group_PDB', 'id', 'label_atom_id', 'label_comp_id', 'label_asym_id', 'label_seq_id',
