@@ -15,11 +15,13 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
         dict = pdb_model.df
         df = pd.DataFrame.from_dict(dict, orient='index')
         model_df = df.iloc[0, 0]
+        # sets up nucleotide IDs
+        nt_id = new_nt.split(".") # strings
+
         # Find residue in the PDB model
-        atom_res = model_df['label_seq_id'] == new_nt
-        chain_res = model_df['label_asym_id'] == r.chain_id
-        res_subset = model_df[atom_res | chain_res]
-        # keeps certain columns from the CIF; trims and keeps 12 columns
+        chain_res = model_df[model_df['auth_asym_id'].astype(str) == str(nt_id[0])]  # first it picks the chain
+        res_subset = chain_res[chain_res['auth_seq_id'].astype(str) == str(nt_id[1])]  # then it find the atoms
+        # keeps certain columns from the CIF; trims and keeps 12 columns for rendering purposes
         res_subset = res_subset[
             ['group_PDB', 'id', 'label_atom_id', 'label_comp_id', 'label_asym_id', 'label_seq_id',
              'Cartn_x', 'Cartn_y', 'Cartn_z', 'occupancy', 'B_iso_or_equiv', 'type_symbol']]
@@ -50,13 +52,13 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
             # Removes duplicate atoms in the DF (by coordinates)
             result_df = __remove_duplicate_lines(df=result_df)
             # skips DFs ones w/ no RNA by checking for phosphorous
-            if result_df['type_symbol'].str.contains('P').any():
-                # renumber IDs so there are no more duplicate IDs and passes them as ints
-                result_df['id'] = range(1, len(result_df) + 1)
-                # updates the sequence IDs so they are all unique
-                result_df = __reassign_unique_sequence_ids(result_df, 'label_seq_id')
-                # writes the dataframe to a CIF file
-                __dataframe_to_cif(df=result_df, file_path=f"{pdb_path}.cif")
+            # if result_df['type_symbol'].str.contains('P').any():
+            # renumber IDs so there are no more duplicate IDs and passes them as ints
+            result_df['id'] = range(1, len(result_df) + 1)
+            # updates the sequence IDs so they are all unique
+            result_df = __reassign_unique_sequence_ids(result_df, 'label_seq_id')
+            # writes the dataframe to a CIF file
+            __dataframe_to_cif(df=result_df, file_path=f"{pdb_path}.cif")
 
 
 class DSSRRes(object):
