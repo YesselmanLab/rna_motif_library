@@ -3,39 +3,51 @@ import os
 import pandas as pd
 from pydssr.dssr import DSSROutput
 
+
 # takes data from a dataframe and writes it to a CIF
 def dataframe_to_cif(df, file_path):
     # Open the CIF file for writing
     with open(file_path, 'w') as f:
-        # Write the CIF header section
+        # Write the CIF header section; len(row) = 21
         f.write('data_\n')
         f.write('loop_\n')
-        f.write('_atom_site.group_PDB\n')
-        f.write('_atom_site.id\n')
-        f.write('_atom_site.label_atom_id\n')
-        f.write('_atom_site.label_comp_id\n')
-        f.write('_atom_site.label_asym_id\n')
-        f.write('_atom_site.label_seq_id\n')
-        f.write('_atom_site.Cartn_x\n')
-        f.write('_atom_site.Cartn_y\n')
-        f.write('_atom_site.Cartn_z\n')
-        f.write('_atom_site.occupancy\n')
-        f.write('_atom_site.B_iso_or_equiv\n')
-        f.write('_atom_site.type_symbol\n')
+        f.write('_atom_site.group_PDB\n')  # 0
+        f.write('_atom_site.id\n')  # 1
+        f.write('_atom_site.type_symbol\n')  # 2
+        f.write('_atom_site.label_atom_id\n')  # 3
+        f.write('_atom_site.label_alt_id\n')  # 4
+        f.write('_atom_site.label_comp_id\n')  # 5
+        f.write('_atom_site.label_asym_id\n')  # 6
+        f.write('_atom_site.label_entity_id\n')  # 7
+        f.write('_atom_site.label_seq_id\n')  # 8
+        f.write('_atom_site.pdbx_PDB_ins_code\n')  # 9
+        f.write('_atom_site.Cartn_x\n')  # 10
+        f.write('_atom_site.Cartn_y\n')  # 11
+        f.write('_atom_site.Cartn_z\n')  # 12
+        f.write('_atom_site.occupancy\n')  # 13
+        f.write('_atom_site.B_iso_or_equiv\n')  # 14
+        f.write('_atom_site.pdbx_formal_charge\n')  # 15
+        f.write('_atom_site.auth_seq_id\n')  # 16
+        f.write('_atom_site.auth_comp_id\n')  # 17
+        f.write('_atom_site.auth_asym_id\n')  # 18
+        f.write('_atom_site.auth_atom_id\n')  # 19
+        f.write('_atom_site.pdbx_PDB_model_num\n')  # 20
         # Write the data from the DataFrame (formatting)
         for row in df.itertuples(index=False):
-            f.write("{:<8}{:<7}{:<6}{:<6}{:<6}{:<6}{:<12}{:<12}{:<12}{:<10}{:<10}{:<6}\n".format(
+            f.write("{:<8}{:<7}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<12}{:<12}{:<12}{:<10}{:<10}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}\n".format(
                     row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9],
-                    row[10], row[11]
+                    row[10], row[11], row[12], row[13], row[14], row[15], row[16], row[17], row[18],
+                    row[19], row[20]
             ))
 
+
+# dataframe to PDB
 def dataframe_to_pdb(df, file_path):
     with open(file_path, 'w') as f:
-        # Write the ATOM records
         for row in df.itertuples(index=False):
-            f.write("{:<6}{:>5}  {:<4}{:<5} {:3} {:1}{:4} {:12} {:12} {:12} {:12} {:12}\n".format(
-                row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11]
-            ))
+            f.write("{:<5}{:>6}  {:<3} {:>3}{:>2}  {:>2}     {:>7} {:>7} {:>7}   {:>3} {:>3}         {:>3}\n".format(
+                    row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9],
+                    row[10], row[11]))
 
 
 # writes extracted residue data into the proper output PDB files
@@ -55,37 +67,47 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
             model_df['auth_asym_id'].astype(str) == str(nt_id[0])]  # first it picks the chain
         res_subset = chain_res[
             chain_res['auth_seq_id'].astype(str) == str(nt_id[1])]  # then it find the atoms
-        # keeps certain columns from the CIF; trims and keeps 12 columns for rendering purposes
-        res_subset = res_subset[
-            ['group_PDB', 'id', 'label_atom_id', 'label_comp_id', 'label_asym_id', 'label_seq_id',
-             'Cartn_x', 'Cartn_y', 'Cartn_z', 'occupancy', 'B_iso_or_equiv', 'type_symbol']]
         res.append(res_subset)  # "res" is a list with all the needed dataframes inside it
     s = ""
     df_list = []  # List to store the DataFrames for each line (type = 'list')
+    pdb_df_list = []
     for r in res:
         # Data reprocessing stuff, this loop is moving it into a DF
         lines = r.to_string(index=False, header=False).split('\n')
         for line in lines:
             values = line.split()  # (type 'values' = list)
-            # keeps the value error from happening by ignoring incorrectly-imported PDB files
-            # builds DF from values
+            # keeps the value error from happening by ignoring faulty imports
             try:
-                if len(values) == 12:
-                    df = pd.DataFrame([values], columns=[
-                        'group_PDB', 'id', 'label_atom_id', 'label_comp_id',
-                        'label_asym_id', 'label_seq_id', 'Cartn_x',
-                        'Cartn_y', 'Cartn_z', 'occupancy', 'B_iso_or_equiv',
-                        'type_symbol'
-                    ])
+                if len(values) == 21:
+                    df = pd.DataFrame([values],
+                                      columns=['group_PDB', 'id', 'type_symbol', 'label_atom_id',
+                                               'label_alt_id', 'label_comp_id', 'label_asym_id',
+                                               'label_entity_id', 'label_seq_id',
+                                               'pdbx_PDB_ins_code', 'Cartn_x', 'Cartn_y', 'Cartn_z',
+                                               'occupancy', 'B_iso_or_equiv', 'pdbx_formal_charge',
+                                               'auth_seq_id', 'auth_comp_id', 'auth_asym_id',
+                                               'auth_atom_id', 'pdbx_PDB_model_num'])
                     df_list.append(df)
+                    # constructs PDB DF
+                    pdb_columns = ['group_PDB', 'id', 'label_atom_id', 'label_comp_id',
+                                   'auth_asym_id', 'auth_seq_id', 'Cartn_x', 'Cartn_y', 'Cartn_z',
+                                   'occupancy', 'B_iso_or_equiv', 'type_symbol']
+                    pdb_df = df[pdb_columns]
+                    pdb_df_list.append(pdb_df)
             except ValueError:
                 continue
         if df_list:  # i.e. if there are things inside df_list:
             # Concatenate all DFs into a single DF
             result_df = pd.concat(df_list, axis=0, ignore_index=True)
+            # fills the None with 0
+            result_df = result_df.fillna(0)
             # writes the dataframe to a CIF file
             dataframe_to_cif(df=result_df, file_path=f"{pdb_path}.cif")
-            #dataframe_to_pdb(df=result_df, file_path=f"{pdb_path}.pdb")
+        if pdb_df_list:  # i.e. if there are things inside pdb_df_list
+            pdb_result_df = pd.concat(pdb_df_list, axis=0, ignore_index=True)
+            # writes the dataframe to a PDB file
+            pdb_result_df.to_csv("result.csv", index=False)
+            dataframe_to_pdb(df=pdb_result_df, file_path=f"{pdb_path}.pdb")
 
 
 class DSSRRes(object):
@@ -366,5 +388,3 @@ def __sorted_res_int(item):
 def __sort_res(item):
     spl = item.nts_long[0].split(".")
     return (spl[0], spl[1][1:])
-
-

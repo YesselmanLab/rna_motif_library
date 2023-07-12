@@ -4,6 +4,7 @@ import json
 import os
 import datetime
 import warnings
+import re
 
 import settings
 import snap
@@ -68,6 +69,7 @@ def __get_dssr_files():
         write_dssr_json_output_to_file(
                 dssr_path, pdb_path, out_path + "/" + name + ".json"
         )
+
 
 def __get_snap_files():
     # creates and sets directories
@@ -150,23 +152,99 @@ def __generate_motif_files():
             ) = dssr.get_motifs_from_structure(json_path)
             for m in motifs:
                 print(m.name)
-                spl = m.name.split(".")
+                spl = m.name.split(".")  # this is the filename
                 if not (spl[0] == "TWOWAY" or spl[0] == "NWAY"):
                     continue
+                # deciding on which directory residues go into
                 motif_dir = "motifs/twoways/all" if spl[0] == "TWOWAY" else "motifs/nways/all"
+                # sorts outputs into proper directories
+                if (spl[0] == "TWOWAY"):
+                    motif_dir = motif_dir + "/" + spl[2] + "/" + spl[3]
+                    if not os.path.exists(motif_dir):
+                        os.makedirs(motif_dir)
+                elif spl[0] == "NWAY":
+                    motif_split_list = re.split("-{1,}", spl[2])
+                    nway_motif_counter = len(motif_split_list)
+                    if motif_split_list[0] == '':
+                        nway_motif_counter = nway_motif_counter - 1
+                    if nway_motif_counter == 1:
+                        motif_dir = motif_dir + "/" + "1WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    elif nway_motif_counter == 3:
+                        motif_dir = motif_dir + "/" + "3WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    elif nway_motif_counter == 4:
+                        motif_dir = motif_dir + "/" + "4WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    elif nway_motif_counter == 5:
+                        motif_dir = motif_dir + "/" + "5WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    elif nway_motif_counter == 6:
+                        motif_dir = motif_dir + "/" + "6WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    elif nway_motif_counter == 7:
+                        motif_dir = motif_dir + "/" + "7WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    elif nway_motif_counter == 8:
+                        motif_dir = motif_dir + "/" + "8WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    elif nway_motif_counter == 9:
+                        motif_dir = motif_dir + "/" + "9WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    elif nway_motif_counter == 10:
+                        motif_dir = motif_dir + "/" + "10WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    elif nway_motif_counter == 11:
+                        motif_dir = motif_dir + "/" + "11WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    elif nway_motif_counter == 12:
+                        motif_dir = motif_dir + "/" + "12WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    elif nway_motif_counter == 13:
+                        motif_dir = motif_dir + "/" + "13WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    elif nway_motif_counter == 14:
+                        motif_dir = motif_dir + "/" + "14WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    elif nway_motif_counter == 15:
+                        motif_dir = motif_dir + "/" + "15WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+                    else:
+                        motif_dir = motif_dir + "/" + "16_up_WAY" + "/" + spl[2] + "/" + spl[3]
+                        if not os.path.exists(motif_dir):
+                            os.makedirs(motif_dir)
+
+                # deciding on which directory interactions go into
                 interactions_dir = "motif_interactions/twoways/all" if spl[
                                                                            0] == "TWOWAY" else "motif_interactions/nways/all"
+
+                # Writing the residues to the CIF files
                 dssr.write_res_coords_to_pdb(
                         m.nts_long, pdb_model,
                         motif_dir + "/" + m.name
                 )
-
+                # Writing to interactions.csv
                 f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
                 if m.name not in motif_hbonds:
                     vals = ["0" for _ in hbond_vals]
                 else:
                     vals = [str(motif_hbonds[m.name][x]) for x in hbond_vals]
                 f.write(",".join(vals) + "\n")
+                # Writing interactions between RNA and proteins
                 if m.name in motif_interactions:
                     dssr.write_res_coords_to_pdb(
                             m.nts_long + motif_interactions[m.name],
@@ -177,13 +255,13 @@ def __generate_motif_files():
 
 
 def main():
-    warnings.filterwarnings("ignore")  # blocks that stupid warning
+    warnings.filterwarnings("ignore")  # blocks the ragged nested sequence warning
     # time tracking stuff, tracks how long the process takes
     current_time = datetime.datetime.now()
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
 
     # start of program
-    #__download_cif_files()
+    # __download_cif_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
@@ -198,7 +276,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    #__get_dssr_files()
+    # __get_dssr_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
@@ -213,7 +291,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    #__get_snap_files()
+    # __get_snap_files()
     print('''
 ╔════════════════════════════════════╗
 ║                                    ║
