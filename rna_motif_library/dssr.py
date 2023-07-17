@@ -1,7 +1,37 @@
 import os
+import shutil
 
 import pandas as pd
 from pydssr.dssr import DSSROutput
+
+
+# separates CIF and PDB files after all is said and done
+def cif_pdb_sort(directory):
+    # Create a copy of the directory with "_PDB" suffix
+    directory_copy = directory + '_PDB'
+    shutil.copytree(directory, directory_copy)
+
+    # Iterate over the files in the copied directory
+    for root, dirs, files in os.walk(directory_copy):
+        for file in files:
+            if file.endswith('.cif'):
+                # Construct the file path
+                file_path = os.path.join(root, file)
+                # Delete the file
+                os.remove(file_path)
+
+    print(f".cif files deleted from {directory_copy}")
+
+    # Iterate over the files in the original directory
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.pdb'):
+                # Construct the file path
+                file_path = os.path.join(root, file)
+                # Delete the file
+                os.remove(file_path)
+
+    print(f".pdb files deleted from {directory}")
 
 
 # takes data from a dataframe and writes it to a CIF
@@ -53,6 +83,7 @@ def dataframe_to_pdb(df, file_path):
 # writes extracted residue data into the proper output PDB files
 def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
     res = []
+    print(pdb_path)
     for nt in nts:
         r = DSSRRes(nt)
         new_nt = r.chain_id + "." + str(r.num)
@@ -68,7 +99,6 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
         res_subset = chain_res[
             chain_res['auth_seq_id'].astype(str) == str(nt_id[1])]  # then it find the atoms
         res.append(res_subset)  # "res" is a list with all the needed dataframes inside it
-    s = ""
     df_list = []  # List to store the DataFrames for each line (type = 'list')
     pdb_df_list = []
     for r in res:
@@ -106,7 +136,6 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
         if pdb_df_list:  # i.e. if there are things inside pdb_df_list
             pdb_result_df = pd.concat(pdb_df_list, axis=0, ignore_index=True)
             # writes the dataframe to a PDB file
-            pdb_result_df.to_csv("result.csv", index=False)
             dataframe_to_pdb(df=pdb_result_df, file_path=f"{pdb_path}.pdb")
 
 
@@ -319,6 +348,7 @@ def __get_strands(motif):
             strands.append(strand)
             strand = [r]
     strands.append(strand)
+    print(len(strands)) # number of strands = # of way of motifs?
     return strands
 
 

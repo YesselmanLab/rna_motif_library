@@ -116,6 +116,8 @@ def __generate_motif_files():
         __safe_mkdir(d)
     motif_dir = "motifs/twoways/all"
     interactions_dir = "motif_interactions/twoways/all"
+    motif_sort_dir = "motifs"
+    interaction_sort_dir = "motif_interactions"
     # opens the file where information about nucleotide interactions are stored
     hbond_vals = [
         "base:base",
@@ -162,71 +164,8 @@ def __generate_motif_files():
                     motif_dir = motif_dir + "/" + spl[2] + "/" + spl[3]
                     if not os.path.exists(motif_dir):
                         os.makedirs(motif_dir)
-                elif spl[0] == "NWAY":
-                    motif_split_list = re.split("-{1,}", spl[2])
-                    nway_motif_counter = len(motif_split_list)
-                    if motif_split_list[0] == '':
-                        nway_motif_counter = nway_motif_counter - 1
-                    if nway_motif_counter == 1:
-                        motif_dir = motif_dir + "/" + "1WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    elif nway_motif_counter == 3:
-                        motif_dir = motif_dir + "/" + "3WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    elif nway_motif_counter == 4:
-                        motif_dir = motif_dir + "/" + "4WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    elif nway_motif_counter == 5:
-                        motif_dir = motif_dir + "/" + "5WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    elif nway_motif_counter == 6:
-                        motif_dir = motif_dir + "/" + "6WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    elif nway_motif_counter == 7:
-                        motif_dir = motif_dir + "/" + "7WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    elif nway_motif_counter == 8:
-                        motif_dir = motif_dir + "/" + "8WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    elif nway_motif_counter == 9:
-                        motif_dir = motif_dir + "/" + "9WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    elif nway_motif_counter == 10:
-                        motif_dir = motif_dir + "/" + "10WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    elif nway_motif_counter == 11:
-                        motif_dir = motif_dir + "/" + "11WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    elif nway_motif_counter == 12:
-                        motif_dir = motif_dir + "/" + "12WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    elif nway_motif_counter == 13:
-                        motif_dir = motif_dir + "/" + "13WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    elif nway_motif_counter == 14:
-                        motif_dir = motif_dir + "/" + "14WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    elif nway_motif_counter == 15:
-                        motif_dir = motif_dir + "/" + "15WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
-                    else:
-                        motif_dir = motif_dir + "/" + "16_up_WAY" + "/" + spl[2] + "/" + spl[3]
-                        if not os.path.exists(motif_dir):
-                            os.makedirs(motif_dir)
+                # elif NWAY
+
 
                 # deciding on which directory interactions go into
                 interactions_dir = "motif_interactions/twoways/all" if spl[
@@ -252,6 +191,8 @@ def __generate_motif_files():
                             interactions_dir + "/" + m.name + ".inter",
                     )
     f.close()
+    dssr.cif_pdb_sort(motif_sort_dir)
+    dssr.cif_pdb_sort(interaction_sort_dir)
 
 
 def main():
