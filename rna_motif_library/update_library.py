@@ -4,13 +4,38 @@ import json
 import os
 import datetime
 import warnings
+from typing import Dict
+import pandas as pd
 
 import settings
 import snap
 import dssr
-
 from pydssr.dssr import write_dssr_json_output_to_file
 from biopandas.mmcif.pandas_mmcif import PandasMmcif
+from biopandas.mmcif.mmcif_parser import load_cif_data
+from biopandas.mmcif.engines import mmcif_col_types
+from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
+
+# Pandas mmCIF override
+class PandasMmcifOverride(PandasMmcif):
+    def _construct_df(self, text: str):
+        data = load_cif_data(text)
+        data = data[list(data.keys())[0]]
+        self.data = data
+        df: Dict[str, pd.DataFrame] = {}
+        full_df = pd.DataFrame.from_dict(data["atom_site"], orient="index").transpose()
+        full_df = full_df.astype(mmcif_col_types, errors="ignore")
+
+        # Combine ATOM and HETATM records into the same DataFrame, this solves residue deletion
+        combined_df = pd.DataFrame(
+                full_df[(full_df.group_PDB == "ATOM") | (full_df.group_PDB == "HETATM")])
+
+        try:
+            df["ANISOU"] = pd.DataFrame(data["atom_site_anisotrop"])
+        except KeyError:
+            df["ANISOU"] = pd.DataFrame(columns=ANISOU_DF_COLUMNS)
+
+        return combined_df  # Return the combined DataFrame
 
 
 def __safe_mkdir(dir):
@@ -145,7 +170,7 @@ def __generate_motif_files():
         if s < 10000000:
             count += 1
             print(count, pdb_path, name)
-            pdb_model = PandasMmcif().read_mmcif(path=pdb_path)
+            pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
             (
                 motifs,
                 motif_hbonds,

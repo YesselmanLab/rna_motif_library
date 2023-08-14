@@ -154,14 +154,6 @@ def find_sequences(input_list):
     return num_sequences
 
 
-# extract first character in string of IDs
-def extract_first_character(input_string):
-    if input_string:
-        return input_string[0]
-    else:
-        return None
-
-
 # writes extracted residue data into the proper output PDB files
 def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
     # directory setup for later
@@ -170,6 +162,10 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
     # motif extraction
     nt_list = []
     res = []
+    # convert the MMCIF to a dictionary, and the resulting dictionary to a Dataframe
+    model_df = pdb_model.df
+    model_df.to_csv("df.csv", index=False)
+
     for nt in nts:
         r = DSSRRes(nt)
         # splits nucleotide names
@@ -181,15 +177,9 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
         new_nt = chain_id + "." + residue_id
         # add it to the list of nucleotides being processed
         nt_list.append(new_nt)
-        # convert the MMCIF to a dictionary, and the resulting dictionary to a Dataframe
-        dict = pdb_model.df
-        df = pd.DataFrame.from_dict(dict, orient='index')
-        model_df = df.iloc[0, 0]
-        model_df.to_csv("df.csv", index=False)
         # sets up nucleotide IDs for further processing
         nt_id = new_nt.split(".")  # strings
         # Find residue in the PDB model
-        print(nt_id[0])
         chain_res = model_df[model_df['auth_asym_id'].astype(str) == nt_id[0]]
         res_subset = chain_res[chain_res['auth_seq_id'].astype(str) == str(nt_id[1])]  # then it find the atoms
         res.append(res_subset)  # "res" is a list with all the needed dataframes inside it
@@ -224,59 +214,15 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
         if dir[0] != "motif_interactions":
             # this sorts and filters IDs so they are consecutive, and finds the # of strands
             basepair_ends = find_sequences(nt_list)
-            print(basepair_ends)
-            if basepair_ends == 1:
-                dir[1] = "oneway"
-                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
+            new_path = dir[0] + "/" + str(basepair_ends) + "ways" + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
                            sub_dir[
                                3]
-            elif basepair_ends == 2:
-                dir[1] = "twoways"
-                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
-                           sub_dir[
-                               3]
-            elif basepair_ends == 3:
-                dir[1] = "threeways"
-                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
-                           sub_dir[
-                               3]
-            elif basepair_ends == 4:
-                dir[1] = "fourways"
-                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
-                           sub_dir[
-                               3]
-            elif basepair_ends == 5:
-                dir[1] = "fiveways"
-                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
-                           sub_dir[
-                               3]
-            elif basepair_ends == 6:
-                dir[1] = "sixways"
-                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
-                           sub_dir[
-                               3]
-            elif basepair_ends == 7:
-                dir[1] = "sevenways"
-                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
-                           sub_dir[
-                               3]
-            elif basepair_ends == 8:
-                dir[1] = "eightways"
-                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
-                           sub_dir[
-                               3]
-            else:
-                dir[1] = "nways"
-                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
-                           sub_dir[
-                               3]
+
         else:
             new_path = pdb_path
         make_dir(new_path)
         # writes the dataframe to a CIF file
         dataframe_to_cif(df=result_df, file_path=f"{new_path}.cif")
-    if sub_dir[2] == "-1-1--1--1":
-        exit(0)
     # if pdb_df_list:  # i.e. if there are things inside pdb_df_list
     # pdb_result_df = pd.concat(pdb_df_list, axis=0, ignore_index=True)
     # writes the dataframe to a PDB file
