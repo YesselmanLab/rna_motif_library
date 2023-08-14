@@ -5,6 +5,12 @@ import pandas as pd
 from pydssr.dssr import DSSROutput
 
 
+# make new directories
+def make_dir(directory_path):
+    if not os.path.exists(directory_path):
+        os.makedirs(directory_path)
+
+
 # separates CIF and PDB files after all is said and done
 def cif_pdb_sort(directory):
     # Create a copy of the directory with "_PDB" suffix
@@ -80,63 +86,201 @@ def dataframe_to_pdb(df, file_path):
                     row[10], row[11]))
 
 
+# remove empty dataframes
+def remove_empty_dataframes(dataframes_list):
+    dataframes_list = [df for df in dataframes_list if not df.empty]
+    return dataframes_list
+
+
+# extracts residue IDs properly from strings
+def extract_longest_numeric_sequence(input_string):
+    longest_sequence = ""
+    current_sequence = ""
+    for c in input_string:
+        if c.isdigit():
+            current_sequence += c
+        else:
+            if len(current_sequence) > len(longest_sequence):
+                longest_sequence = current_sequence
+            current_sequence = ""
+    if len(current_sequence) > len(longest_sequence):
+        longest_sequence = current_sequence
+    return longest_sequence
+
+
+# groups residues into their own chains
+def group_residues_by_chain(input_list):
+    # Create a dictionary to hold grouped and sorted residue IDs by chain ID
+    chain_residues = {}
+
+    # Iterate through the input_list
+    for item in input_list:
+        chain_id, residue_id = item.split(".")
+        if residue_id != "None":
+            residue_id = int(residue_id)
+
+            # Create a list for the current chain_id if not already present
+            if chain_id not in chain_residues:
+                chain_residues[chain_id] = []
+
+            # Append the residue_id to the corresponding chain_id's list
+            chain_residues[chain_id].append(residue_id)
+
+    # Sort each chain's residue IDs and store them in the list of lists
+    sorted_chain_residues = []
+    for chain_id, residues in chain_residues.items():
+        sorted_residues = sorted(set(residues))
+        sorted_chain_residues.append(sorted_residues)
+
+    return sorted_chain_residues
+
+
+# finds # of consecutive IDs (i.e. individual strands) as a proxy for basepair ends
+def find_sequences(input_list):
+    # first sort through the list of nucleotides by chain ID
+    sorted_nt_ids_by_chain = group_residues_by_chain(input_list)
+    # count the # of consecutive number sequences
+    num_sequences = len(sorted_nt_ids_by_chain)
+    for inner_list in sorted_nt_ids_by_chain:
+        nt_ids = sorted(set(inner_list))
+        # sequence counter, counts # of consecutive number sequences
+        for i in range(len(nt_ids)):
+            current_id = nt_ids[i]
+            if i + 1 < len(nt_ids):
+                next_id = nt_ids[i + 1]
+                difference = next_id - current_id
+                if difference != 1:
+                    num_sequences += 1
+    return num_sequences
+
+
+# extract first character in string of IDs
+def extract_first_character(input_string):
+    if input_string:
+        return input_string[0]
+    else:
+        return None
+
+
 # writes extracted residue data into the proper output PDB files
 def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
+    # directory setup for later
+    dir = pdb_path.split("/")
+    sub_dir = dir[3].split(".")
+    # motif extraction
+    nt_list = []
     res = []
-    print(pdb_path)
     for nt in nts:
         r = DSSRRes(nt)
-        new_nt = r.chain_id + "." + str(r.num)
+        # splits nucleotide names
+        nt_spl = nt.split(".")
+        # purify IDs
+        chain_id = nt_spl[0]
+        residue_id = extract_longest_numeric_sequence(nt_spl[1])
+        # define nucleotide ID
+        new_nt = chain_id + "." + residue_id
+        # add it to the list of nucleotides being processed
+        nt_list.append(new_nt)
         # convert the MMCIF to a dictionary, and the resulting dictionary to a Dataframe
         dict = pdb_model.df
         df = pd.DataFrame.from_dict(dict, orient='index')
         model_df = df.iloc[0, 0]
-        # sets up nucleotide IDs
+        model_df.to_csv("df.csv", index=False)
+        # sets up nucleotide IDs for further processing
         nt_id = new_nt.split(".")  # strings
         # Find residue in the PDB model
-        chain_res = model_df[
-            model_df['auth_asym_id'].astype(str) == str(nt_id[0])]  # first it picks the chain
-        res_subset = chain_res[
-            chain_res['auth_seq_id'].astype(str) == str(nt_id[1])]  # then it find the atoms
+        print(nt_id[0])
+        chain_res = model_df[model_df['auth_asym_id'].astype(str) == nt_id[0]]
+        res_subset = chain_res[chain_res['auth_seq_id'].astype(str) == str(nt_id[1])]  # then it find the atoms
         res.append(res_subset)  # "res" is a list with all the needed dataframes inside it
     df_list = []  # List to store the DataFrames for each line (type = 'list')
-    pdb_df_list = []
+    # pdb_df_list = []
+    res = remove_empty_dataframes(res)
     for r in res:
         # Data reprocessing stuff, this loop is moving it into a DF
         lines = r.to_string(index=False, header=False).split('\n')
         for line in lines:
             values = line.split()  # (type 'values' = list)
-            # keeps the value error from happening by ignoring faulty imports
-            try:
-                if len(values) == 21:
-                    df = pd.DataFrame([values],
-                                      columns=['group_PDB', 'id', 'type_symbol', 'label_atom_id',
-                                               'label_alt_id', 'label_comp_id', 'label_asym_id',
-                                               'label_entity_id', 'label_seq_id',
-                                               'pdbx_PDB_ins_code', 'Cartn_x', 'Cartn_y', 'Cartn_z',
-                                               'occupancy', 'B_iso_or_equiv', 'pdbx_formal_charge',
-                                               'auth_seq_id', 'auth_comp_id', 'auth_asym_id',
-                                               'auth_atom_id', 'pdbx_PDB_model_num'])
-                    df_list.append(df)
-                    # constructs PDB DF
-                    pdb_columns = ['group_PDB', 'id', 'label_atom_id', 'label_comp_id',
+            df = pd.DataFrame([values],
+                              columns=['group_PDB', 'id', 'type_symbol', 'label_atom_id',
+                                       'label_alt_id', 'label_comp_id', 'label_asym_id',
+                                       'label_entity_id', 'label_seq_id',
+                                       'pdbx_PDB_ins_code', 'Cartn_x', 'Cartn_y', 'Cartn_z',
+                                       'occupancy', 'B_iso_or_equiv', 'pdbx_formal_charge',
+                                       'auth_seq_id', 'auth_comp_id', 'auth_asym_id',
+                                       'auth_atom_id', 'pdbx_PDB_model_num'])
+            df_list.append(df)
+            # constructs PDB DF
+            """pdb_columns = ['group_PDB', 'id', 'label_atom_id', 'label_comp_id',
                                    'auth_asym_id', 'auth_seq_id', 'Cartn_x', 'Cartn_y', 'Cartn_z',
                                    'occupancy', 'B_iso_or_equiv', 'type_symbol']
-                    pdb_df = df[pdb_columns]
-                    pdb_df_list.append(pdb_df)
-            except ValueError:
-                continue
-        if df_list:  # i.e. if there are things inside df_list:
-            # Concatenate all DFs into a single DF
-            result_df = pd.concat(df_list, axis=0, ignore_index=True)
-            # fills the None with 0
-            result_df = result_df.fillna(0)
-            # writes the dataframe to a CIF file
-            dataframe_to_cif(df=result_df, file_path=f"{pdb_path}.cif")
-        if pdb_df_list:  # i.e. if there are things inside pdb_df_list
-            pdb_result_df = pd.concat(pdb_df_list, axis=0, ignore_index=True)
-            # writes the dataframe to a PDB file
-            dataframe_to_pdb(df=pdb_result_df, file_path=f"{pdb_path}.pdb")
+            pdb_df = df[pdb_columns]
+            pdb_df_list.append(pdb_df)"""
+
+    if df_list:  # i.e. if there are things inside df_list:
+        # Concatenate all DFs into a single DF
+        result_df = pd.concat(df_list, axis=0, ignore_index=True)
+
+        if dir[0] != "motif_interactions":
+            # this sorts and filters IDs so they are consecutive, and finds the # of strands
+            basepair_ends = find_sequences(nt_list)
+            print(basepair_ends)
+            if basepair_ends == 1:
+                dir[1] = "oneway"
+                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
+                           sub_dir[
+                               3]
+            elif basepair_ends == 2:
+                dir[1] = "twoways"
+                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
+                           sub_dir[
+                               3]
+            elif basepair_ends == 3:
+                dir[1] = "threeways"
+                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
+                           sub_dir[
+                               3]
+            elif basepair_ends == 4:
+                dir[1] = "fourways"
+                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
+                           sub_dir[
+                               3]
+            elif basepair_ends == 5:
+                dir[1] = "fiveways"
+                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
+                           sub_dir[
+                               3]
+            elif basepair_ends == 6:
+                dir[1] = "sixways"
+                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
+                           sub_dir[
+                               3]
+            elif basepair_ends == 7:
+                dir[1] = "sevenways"
+                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
+                           sub_dir[
+                               3]
+            elif basepair_ends == 8:
+                dir[1] = "eightways"
+                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
+                           sub_dir[
+                               3]
+            else:
+                dir[1] = "nways"
+                new_path = dir[0] + "/" + dir[1] + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
+                           sub_dir[
+                               3]
+        else:
+            new_path = pdb_path
+        make_dir(new_path)
+        # writes the dataframe to a CIF file
+        dataframe_to_cif(df=result_df, file_path=f"{new_path}.cif")
+    if sub_dir[2] == "-1-1--1--1":
+        exit(0)
+    # if pdb_df_list:  # i.e. if there are things inside pdb_df_list
+    # pdb_result_df = pd.concat(pdb_df_list, axis=0, ignore_index=True)
+    # writes the dataframe to a PDB file
+    # dataframe_to_pdb(df=pdb_result_df, file_path=f"{pdb_path}.pdb")
 
 
 class DSSRRes(object):
@@ -148,6 +292,7 @@ class DSSRRes(object):
         for i, c in enumerate(spl[1]):
             if c.isdigit():
                 cur_num = spl[1][i:]
+                cur_num = extract_longest_numeric_sequence(cur_num)
                 i_num = i
                 break
         self.num = None
@@ -348,7 +493,6 @@ def __get_strands(motif):
             strands.append(strand)
             strand = [r]
     strands.append(strand)
-    print(len(strands)) # number of strands = # of way of motifs?
     return strands
 
 
@@ -364,7 +508,7 @@ def __name_junction(motif, pdb_name):
     if len(strs) == 2:
         name = "TWOWAY."
     else:
-        name = 'NWAY.'
+        name = "NWAY."
     name += pdb_name + "."
     name += "-".join([str(l) for l in lens]) + "."
     name += "-".join(strs)

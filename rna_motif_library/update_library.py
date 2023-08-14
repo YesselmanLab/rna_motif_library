@@ -4,7 +4,6 @@ import json
 import os
 import datetime
 import warnings
-import re
 
 import settings
 import snap
@@ -155,21 +154,26 @@ def __generate_motif_files():
             for m in motifs:
                 print(m.name)
                 spl = m.name.split(".")  # this is the filename
+                # don't run if there is no way in the name
                 if not (spl[0] == "TWOWAY" or spl[0] == "NWAY"):
                     continue
                 # deciding on which directory residues go into
-                motif_dir = "motifs/twoways/all" if spl[0] == "TWOWAY" else "motifs/nways/all"
+                if spl[0] == "TWOWAY":
+                    motif_dir = "motifs/twoways/all"
+                else:
+                    motif_dir = "motifs/nways/all"
+
                 # sorts outputs into proper directories
-                if (spl[0] == "TWOWAY"):
+                """if (spl[0] == "TWOWAY"):
                     motif_dir = motif_dir + "/" + spl[2] + "/" + spl[3]
                     if not os.path.exists(motif_dir):
-                        os.makedirs(motif_dir)
-                # elif NWAY
-
+                        os.makedirs(motif_dir)"""
 
                 # deciding on which directory interactions go into
-                interactions_dir = "motif_interactions/twoways/all" if spl[
-                                                                           0] == "TWOWAY" else "motif_interactions/nways/all"
+                if spl[0] == "TWOWAY":
+                    interactions_dir = "motif_interactions/twoways/all"
+                else:
+                    interactions_dir = "motif_interactions/nways/all"
 
                 # Writing the residues to the CIF files
                 dssr.write_res_coords_to_pdb(
@@ -183,16 +187,17 @@ def __generate_motif_files():
                 else:
                     vals = [str(motif_hbonds[m.name][x]) for x in hbond_vals]
                 f.write(",".join(vals) + "\n")
-                # Writing interactions between RNA and proteins
+                # leave this until the algorithm works
+                """# Writing interactions between RNA and proteins
                 if m.name in motif_interactions:
                     dssr.write_res_coords_to_pdb(
                             m.nts_long + motif_interactions[m.name],
                             pdb_model,
-                            interactions_dir + "/" + m.name + ".inter",
-                    )
+                            interactions_dir + "/" + m.name + ".inter"
+                    )"""
     f.close()
-    dssr.cif_pdb_sort(motif_sort_dir)
-    dssr.cif_pdb_sort(interaction_sort_dir)
+    # dssr.cif_pdb_sort(motif_sort_dir)
+    # dssr.cif_pdb_sort(interaction_sort_dir)
 
 
 def main():
