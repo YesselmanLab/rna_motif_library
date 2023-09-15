@@ -1,11 +1,17 @@
 import os
 import shutil
+import math
+import itertools
 
 import pandas as pd
+import numpy as np
 from pydssr.dssr import DSSROutput
 
+error_counter = 0
+error_counter_2 = 0
 
-# make new directories
+
+# make new directories if they don't exist
 def make_dir(directory_path):
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
@@ -77,7 +83,7 @@ def dataframe_to_cif(df, file_path):
             ))
 
 
-# dataframe to PDB
+# takes data from a dataframe and writes it to a PDB
 def dataframe_to_pdb(df, file_path):
     with open(file_path, 'w') as f:
         for row in df.itertuples(index=False):
@@ -97,21 +103,31 @@ def extract_longest_numeric_sequence(input_string):
     longest_sequence = ""
     current_sequence = ""
     for c in input_string:
-        if c.isdigit():
+        if c.isdigit() or (c == '-' and (not current_sequence or current_sequence[0] == '-')):
             current_sequence += c
-        else:
             if len(current_sequence) > len(longest_sequence):
                 longest_sequence = current_sequence
+        else:
             current_sequence = ""
-    if len(current_sequence) > len(longest_sequence):
-        longest_sequence = current_sequence
     return longest_sequence
 
 
-# groups residues into their own chains
+# removes duplicate items in a list, meant for removing duplicate residues in a chain
+def remove_duplicate_strings(original_list):
+    unique_list = []
+    for item in original_list:
+        if item not in unique_list:
+            unique_list.append(item)
+    return unique_list
+
+
+# groups residues into their own chains for sequence counting
 def group_residues_by_chain(input_list):
     # Create a dictionary to hold grouped and sorted residue IDs by chain ID
     chain_residues = {}
+
+    # Create a dictionary to hold chain IDs for the grouped residues
+    chain_ids_for_residues = {}
 
     # Iterate through the input_list
     for item in input_list:
@@ -126,48 +142,219 @@ def group_residues_by_chain(input_list):
             # Append the residue_id to the corresponding chain_id's list
             chain_residues[chain_id].append(residue_id)
 
+            # Store the chain_id for this residue in the dictionary
+            if residue_id not in chain_ids_for_residues:
+                chain_ids_for_residues[residue_id] = []
+            chain_ids_for_residues[residue_id].append(chain_id)
+
     # Sort each chain's residue IDs and store them in the list of lists
     sorted_chain_residues = []
-    for chain_id, residues in chain_residues.items():
-        sorted_residues = sorted(set(residues))
+    sorted_chain_ids = []
+
+    # Sort the chain IDs based on the order they appeared in the input
+    unique_chain_ids = list(chain_residues.keys())
+
+    # Sort the chain IDs in the order of appearance
+    sorted_unique_chain_ids = unique_chain_ids
+
+    for chain_id in sorted_unique_chain_ids:
+        sorted_residues = sorted(set(chain_residues[chain_id]))
         sorted_chain_residues.append(sorted_residues)
+        sorted_chain_ids.append(chain_id)
 
-    return sorted_chain_residues
+    return sorted_chain_residues, sorted_chain_ids
 
 
-# finds # of consecutive IDs (i.e. individual strands) as a proxy for basepair ends
-def find_sequences(input_list):
-    # first sort through the list of nucleotides by chain ID
-    sorted_nt_ids_by_chain = group_residues_by_chain(input_list)
-    # count the # of consecutive number sequences
-    num_sequences = len(sorted_nt_ids_by_chain)
-    for inner_list in sorted_nt_ids_by_chain:
-        nt_ids = sorted(set(inner_list))
-        # sequence counter, counts # of consecutive number sequences
-        for i in range(len(nt_ids)):
-            current_id = nt_ids[i]
-            if i + 1 < len(nt_ids):
-                next_id = nt_ids[i + 1]
-                difference = next_id - current_id
-                if difference != 1:
-                    num_sequences += 1
-    return num_sequences
+# calculates distance between atoms
+def euclidean_distance_dataframe(df1, df2):
+    global error_counter
+    """Calculate the Euclidean distance between two points represented by DataFrames."""
+    if {'Cartn_x', 'Cartn_y', 'Cartn_z'} != set(df1.columns) or {'Cartn_x', 'Cartn_y',
+                                                                 'Cartn_z'} != set(df2.columns):
+        raise ValueError("DataFrames must have 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns")
+
+    try:
+        point1 = df1[['Cartn_x', 'Cartn_y', 'Cartn_z']].values[0]
+        point2 = df2[['Cartn_x', 'Cartn_y', 'Cartn_z']].values[0]
+        squared_distances = [(float(x) - float(y)) ** 2 for x, y in zip(point1, point2)]
+        distance = math.sqrt(sum(squared_distances))
+    except IndexError:
+        distance = 10
+        error_counter += 1
+
+    return distance
+
+
+# Define a function to check if two residues are connected
+def are_residues_connected(residue1, residue2):
+    # Convert 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns to numeric
+    residue1[['Cartn_x', 'Cartn_y', 'Cartn_z']] = residue1[['Cartn_x', 'Cartn_y', 'Cartn_z']].apply(
+        pd.to_numeric)
+    residue2[['Cartn_x', 'Cartn_y', 'Cartn_z']] = residue2[['Cartn_x', 'Cartn_y', 'Cartn_z']].apply(
+        pd.to_numeric)
+
+    # Extract relevant atom data for both residues
+    atom1 = residue1[residue1['auth_atom_id'].str.contains("O3'", regex=True)]
+    atom2 = residue2[residue2['auth_atom_id'].isin(["P"])]
+
+    # Calculate the Euclidean distance between the two atoms
+    # try:
+    distance = np.linalg.norm(atom1[['Cartn_x', 'Cartn_y', 'Cartn_z']].values - atom2[
+        ['Cartn_x', 'Cartn_y', 'Cartn_z']].values)
+    # except ValueError:
+    #    error_counter_2 += 1
+    #    distance = 0
+    # print(distance)
+    return distance < 4.0
+
+
+# actually iterates through the list of residues and finds strands
+def find_strands(residue_list):
+    # Group residues by 'auth_asym_id', 'auth_seq_id', and 'pdbx_PDB_ins_code'
+    grouped = residue_list.groupby(['auth_asym_id', 'auth_seq_id', 'pdbx_PDB_ins_code'])
+
+    # Create a list of unique combinations of residues
+    residue_combinations = list(itertools.combinations(grouped.groups.keys(), 2))
+
+    strands = [] # List to store strands
+
+    for combo in residue_combinations:
+        residue1, residue2 = combo
+        group1 = grouped.get_group(residue1) # first residue
+        group2 = grouped.get_group(residue2) # second residue
+
+        # Check if the residues are connected
+        if are_residues_connected(group1, group2):
+            # Determine if they belong to an existing strand or create a new one
+            added_to_existing_strand = False
+            for strand in strands:
+                if residue1 in strand:
+                    strand.add(residue2)
+                    added_to_existing_strand = True
+                    break
+                elif residue2 in strand:
+                    strand.add(residue1)
+                    added_to_existing_strand = True
+                    break
+
+            # If not added to an existing strand, create a new strand
+            if not added_to_existing_strand:
+                new_strand = {residue1, residue2}
+                strands.append(new_strand)
+    return strands
+
+"""    # Initialize a list to store the strands
+    strands = []
+    strands_df = []
+
+    # Iterate through each residue in the list
+    for i in range(len(residues)):
+        residue_tuple = residues[i]
+
+        residue = residue_tuple[1]
+
+        # ID extraction
+        residue_chain_ids = residue["auth_asym_id"]
+        residue_res_ids = residue["auth_seq_id"]
+        residue_ins_codes = residue["pdbx_PDB_ins_code"]
+        # DF to lists
+        residue_chain_ids_list = residue_chain_ids.tolist()
+        residue_res_ids_list = residue_res_ids.tolist()
+        residue_ins_codes_list = residue_ins_codes.tolist()
+        # lists to unique values
+        res_chain_id = list(set(residue_chain_ids_list))[0]
+        res_res_id = list(set(residue_res_ids_list))[0]
+        res_ins_code = list(set(residue_ins_codes_list))[0]
+
+        # unique residue id
+        unique_residue_id = res_chain_id + "." + res_res_id + "." + res_ins_code
+
+        # Check if the residue is already part of another strand
+        in_existing_strand = False
+        for strand in strands:
+            if unique_residue_id in strand:
+                in_existing_strand = True
+                break
+
+        if not in_existing_strand:
+            # Start a new strand with the current residue
+            strand = [unique_residue_id]
+            strand_df = [residue]
+
+            # Iterate through the remaining residues
+            j = i + 1
+            while j < len(residues):
+                current_residue = residues[j][1]
+
+                # ID extraction
+                current_residue_chain_ids = current_residue["auth_asym_id"]
+                current_residue_res_ids = current_residue["auth_seq_id"]
+                current_residue_ins_codes = current_residue["pdbx_PDB_ins_code"]
+                # DF to lists
+                current_residue_chain_ids_list = current_residue_chain_ids.tolist()
+                current_residue_res_ids_list = current_residue_res_ids.tolist()
+                current_residue_ins_codes_list = current_residue_ins_codes.tolist()
+                # lists to unique values
+                cur_res_chain_id = list(set(current_residue_chain_ids_list))[0]
+                cur_res_res_id = list(set(current_residue_res_ids_list))[0]
+                cur_res_ins_code = list(set(current_residue_ins_codes_list))[0]
+                # unique residue id
+                cur_unique_residue_id = cur_res_chain_id + "." + cur_res_res_id + "." + cur_res_ins_code
+
+                # Check if the current residue is connected to the last residue in the strand
+                if are_residues_connected(residue, current_residue):
+                    strand.append(cur_unique_residue_id)
+                    strand_df.append(current_residue)
+                else:
+                    # If not connected, break the loop
+                    break
+
+                j += 1
+
+            # Add the strand to the list of strands
+            strands.append(strand)
+            strands_df.append(strand_df)
+
+    #return len(strands)
+"""
+
+
+
+# literally just counts and returns the # of strands
+def count_strands(master_res_df):
+    # Step 1: get a list of residues
+    # Group master_res_df by the specified columns
+    grouped = master_res_df.groupby(['auth_asym_id', 'auth_seq_id', 'pdbx_PDB_ins_code'])
+
+    # Initialize a list to store the individual groups
+    res_list = []
+
+    # Iterate through the groups and append each group to res_list
+    for group_data in grouped:
+        res_list.append(group_data)
+    # Now we have a list of residues to work with
+
+    # pass through function that analyzes the residues to find which ones are in a strand
+    list_of_strands = find_strands(master_res_df)
+
+    return len(list_of_strands)
 
 
 # writes extracted residue data into the proper output PDB files
-def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
+def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path):
     # directory setup for later
     dir = pdb_path.split("/")
     sub_dir = dir[3].split(".")
+    motif_name = dir[3]
     # motif extraction
     nt_list = []
+    # list of residues
     res = []
     # convert the MMCIF to a dictionary, and the resulting dictionary to a Dataframe
     model_df = pdb_model.df
-    model_df.to_csv("df.csv", index=False)
-
+    # extracts identification data from nucleotide list
     for nt in nts:
-        r = DSSRRes(nt)
+        # r = DSSRRes(nt)
         # splits nucleotide names
         nt_spl = nt.split(".")
         # purify IDs
@@ -177,14 +364,25 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
         new_nt = chain_id + "." + residue_id
         # add it to the list of nucleotides being processed
         nt_list.append(new_nt)
-        # sets up nucleotide IDs for further processing
-        nt_id = new_nt.split(".")  # strings
-        # Find residue in the PDB model
-        chain_res = model_df[model_df['auth_asym_id'].astype(str) == nt_id[0]]
-        res_subset = chain_res[chain_res['auth_seq_id'].astype(str) == str(nt_id[1])]  # then it find the atoms
-        res.append(res_subset)  # "res" is a list with all the needed dataframes inside it
+    # sorts nucleotide list for further processing
+    nucleotide_list_sorted, chain_list_sorted = group_residues_by_chain(
+            nt_list)  # nt_list_sorted is a list of lists
+
+    # this list is for strand-counting purposes
+    list_of_chains = []
+
+    # extraction of residues into dataframes
+    for chain_number, residue_list in zip(chain_list_sorted, nucleotide_list_sorted):
+        for residue in residue_list:
+            # Find residue in the PDB model, first it picks the chain
+            chain_res = model_df[model_df['auth_asym_id'].astype(str) == str(chain_number)]
+            res_subset = chain_res[
+                chain_res['auth_seq_id'].astype(str) == str(residue)]  # then it find the atoms
+            res.append(res_subset)  # "res" is a list with all the residue DFs inside
+        list_of_chains.append(res)
+
     df_list = []  # List to store the DataFrames for each line (type = 'list')
-    # pdb_df_list = []
+
     res = remove_empty_dataframes(res)
     for r in res:
         # Data reprocessing stuff, this loop is moving it into a DF
@@ -206,27 +404,73 @@ def write_res_coords_to_pdb(nts, pdb_model, pdb_path):
                                    'occupancy', 'B_iso_or_equiv', 'type_symbol']
             pdb_df = df[pdb_columns]
             pdb_df_list.append(pdb_df)"""
-
     if df_list:  # i.e. if there are things inside df_list:
         # Concatenate all DFs into a single DF
         result_df = pd.concat(df_list, axis=0, ignore_index=True)
 
-        if dir[0] != "motif_interactions":
-            # this sorts and filters IDs so they are consecutive, and finds the # of strands
-            basepair_ends = find_sequences(nt_list)
-            new_path = dir[0] + "/" + str(basepair_ends) + "ways" + "/" + dir[2] + "/" + sub_dir[2] + "/" + \
-                           sub_dir[
-                               3]
-
-        else:
-            new_path = pdb_path
+        basepair_ends = len(find_strands(result_df))  # you need an actual list of residues here
+        print(basepair_ends)
+        new_path = dir[0] + "/" + str(basepair_ends) + "ways" + "/" + dir[2] + "/" + sub_dir[
+            2] + "/" + sub_dir[3]
+        name_path = new_path + "/" + motif_name
         make_dir(new_path)
-        # writes the dataframe to a CIF file
-        dataframe_to_cif(df=result_df, file_path=f"{new_path}.cif")
-    # if pdb_df_list:  # i.e. if there are things inside pdb_df_list
-    # pdb_result_df = pd.concat(pdb_df_list, axis=0, ignore_index=True)
-    # writes the dataframe to a PDB file
-    # dataframe_to_pdb(df=pdb_result_df, file_path=f"{pdb_path}.pdb")
+        dataframe_to_cif(df=result_df, file_path=f"{name_path}.cif")
+
+    if interactions != None:
+        # removes duplicate amino acids
+        interactions_filtered = remove_duplicate_strings(interactions)
+        # interaction processing
+        inter_list = []
+        inter_res = []
+        for inter in interactions_filtered:
+            inter_spl = inter.split(".")
+            # purify IDs
+            inter_chain_id = inter_spl[0]
+            inter_protein_id = extract_longest_numeric_sequence(inter_spl[1])
+            # define protein ID
+            new_inter = inter_chain_id + "." + inter_protein_id
+            # add it to the list of proteins
+            inter_list.append(new_inter)
+            inter_id = new_inter.split(".")
+            # Find proteins in the PDB model
+            inter_chain = model_df[model_df['auth_asym_id'].astype(str) == inter_id[0]]
+            inter_res_subset = inter_chain[inter_chain['auth_seq_id'].astype(str) == str(
+                    inter_id[1])]  # then it find the atoms
+            inter_res.append(
+                    inter_res_subset)  # "res" is a list with all the needed dataframes inside it
+        inter_df_list = []  # List to store the DataFrames for each line (type = 'list')
+        inter_res = remove_empty_dataframes(inter_res)
+
+        for inter in inter_res:
+            # Data reprocessing stuff, this loop is moving it into a DF
+            lines = inter.to_string(index=False, header=False).split('\n')
+            for line in lines:
+                values = line.split()  # (type 'values' = list)
+                inter_df = pd.DataFrame([values],
+                                        columns=['group_PDB', 'id', 'type_symbol', 'label_atom_id',
+                                                 'label_alt_id', 'label_comp_id', 'label_asym_id',
+                                                 'label_entity_id', 'label_seq_id',
+                                                 'pdbx_PDB_ins_code', 'Cartn_x', 'Cartn_y',
+                                                 'Cartn_z',
+                                                 'occupancy', 'B_iso_or_equiv',
+                                                 'pdbx_formal_charge',
+                                                 'auth_seq_id', 'auth_comp_id', 'auth_asym_id',
+                                                 'auth_atom_id', 'pdbx_PDB_model_num'])
+                inter_df_list.append(inter_df)
+        if df_list and inter_df_list:
+            result_inter_df = pd.concat(inter_df_list, axis=0, ignore_index=True)
+            total_result_df = pd.concat([result_df, result_inter_df], ignore_index=True)
+            inter_new_path = "motif_interactions/" + str(basepair_ends) + "ways/" + dir[2] + "/" + \
+                             sub_dir[2] + "/" + sub_dir[3]
+            inter_name_path = inter_new_path + "/" + motif_name + ".inter"
+            make_dir(inter_new_path)
+            # writes interactions to CIF
+            dataframe_to_cif(df=total_result_df, file_path=f"{inter_name_path}.cif")
+
+        # if pdb_df_list:  # i.e. if there are things inside pdb_df_list
+        # pdb_result_df = pd.concat(pdb_df_list, axis=0, ignore_index=True)
+        # writes the dataframe to a PDB file
+        # dataframe_to_pdb(df=pdb_result_df, file_path=f"{pdb_path}.pdb")
 
 
 class DSSRRes(object):

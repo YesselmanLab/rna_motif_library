@@ -121,27 +121,17 @@ def __get_snap_files():
 
 
 def __generate_motif_files():
+    global error_counter
     # creates directories
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     pdbs = glob.glob(pdb_dir + "/*.cif")
     dirs = [
         "motifs",
         "motif_interactions",
-        "motifs/twoways",
-        "motifs/nways",
-        "motif_interactions/twoways",
-        "motif_interactions/twoways/all",
-        "motif_interactions/nways",
-        "motif_interactions/nways/all",
-        "motifs/twoways/all",
-        "motifs/nways/all",
     ]
     for d in dirs:
         __safe_mkdir(d)
-    motif_dir = "motifs/twoways/all"
-    interactions_dir = "motif_interactions/twoways/all"
-    motif_sort_dir = "motifs"
-    interaction_sort_dir = "motif_interactions"
+    motif_dir = "motifs/nways/all"
     # opens the file where information about nucleotide interactions are stored
     hbond_vals = [
         "base:base",
@@ -182,29 +172,7 @@ def __generate_motif_files():
                 # don't run if there is no way in the name
                 if not (spl[0] == "TWOWAY" or spl[0] == "NWAY"):
                     continue
-                # deciding on which directory residues go into
-                if spl[0] == "TWOWAY":
-                    motif_dir = "motifs/twoways/all"
-                else:
-                    motif_dir = "motifs/nways/all"
 
-                # sorts outputs into proper directories
-                """if (spl[0] == "TWOWAY"):
-                    motif_dir = motif_dir + "/" + spl[2] + "/" + spl[3]
-                    if not os.path.exists(motif_dir):
-                        os.makedirs(motif_dir)"""
-
-                # deciding on which directory interactions go into
-                if spl[0] == "TWOWAY":
-                    interactions_dir = "motif_interactions/twoways/all"
-                else:
-                    interactions_dir = "motif_interactions/nways/all"
-
-                # Writing the residues to the CIF files
-                dssr.write_res_coords_to_pdb(
-                        m.nts_long, pdb_model,
-                        motif_dir + "/" + m.name
-                )
                 # Writing to interactions.csv
                 f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
                 if m.name not in motif_hbonds:
@@ -212,14 +180,18 @@ def __generate_motif_files():
                 else:
                     vals = [str(motif_hbonds[m.name][x]) for x in hbond_vals]
                 f.write(",".join(vals) + "\n")
-                # leave this until the algorithm works
-                """# Writing interactions between RNA and proteins
-                if m.name in motif_interactions:
-                    dssr.write_res_coords_to_pdb(
-                            m.nts_long + motif_interactions[m.name],
-                            pdb_model,
-                            interactions_dir + "/" + m.name + ".inter"
-                    )"""
+                # if there are no interactions with the motif then it skips and avoids a crash
+                try:
+                    interactions = motif_interactions[m.name]
+                except KeyError:
+                    interactions = None  # or any value you want as a default
+                # Writing the residues AND interactions to the CIF files
+                dssr.write_res_coords_to_pdb(
+                        m.nts_long, interactions, pdb_model,
+                        motif_dir + "/" + m.name
+                )
+
+
     f.close()
     # dssr.cif_pdb_sort(motif_sort_dir)
     # dssr.cif_pdb_sort(interaction_sort_dir)
@@ -293,6 +265,10 @@ def main():
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job started on", start_time_string)
     print("Job finished on", time_string)
+    print("Errors of the glitchy datafram type:")
+    print(dssr.error_counter)
+    print("Errors where there are two atom lines:")
+    print(dssr.error_counter_2)
 
 
 if __name__ == '__main__':
