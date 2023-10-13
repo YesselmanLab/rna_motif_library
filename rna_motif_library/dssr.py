@@ -7,9 +7,6 @@ import pandas as pd
 import numpy as np
 from pydssr.dssr import DSSROutput
 
-error_counter = 0
-error_counter_2 = 0
-
 
 # make new directories if they don't exist
 def make_dir(directory_path):
@@ -168,7 +165,7 @@ def group_residues_by_chain(input_list):
 # calculates distance between atoms
 def euclidean_distance_dataframe(df1, df2):
     global error_counter
-    """Calculate the Euclidean distance between two points represented by DataFrames."""
+    # Calculate the Euclidean distance between two points represented by DataFrames.
     if {'Cartn_x', 'Cartn_y', 'Cartn_z'} != set(df1.columns) or {'Cartn_x', 'Cartn_y',
                                                                  'Cartn_z'} != set(df2.columns):
         raise ValueError("DataFrames must have 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns")
@@ -186,162 +183,283 @@ def euclidean_distance_dataframe(df1, df2):
 
 
 # Define a function to check if two residues are connected
-def are_residues_connected(residue1, residue2):
+def calc_residue_distances(res_1, res_2):
+    residue1 = res_1[1]
+    residue2 = res_2[1]
+
     # Convert 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns to numeric
     residue1[['Cartn_x', 'Cartn_y', 'Cartn_z']] = residue1[['Cartn_x', 'Cartn_y', 'Cartn_z']].apply(
-        pd.to_numeric)
+            pd.to_numeric)
     residue2[['Cartn_x', 'Cartn_y', 'Cartn_z']] = residue2[['Cartn_x', 'Cartn_y', 'Cartn_z']].apply(
-        pd.to_numeric)
+            pd.to_numeric)
 
     # Extract relevant atom data for both residues
     atom1 = residue1[residue1['auth_atom_id'].str.contains("O3'", regex=True)]
     atom2 = residue2[residue2['auth_atom_id'].isin(["P"])]
 
     # Calculate the Euclidean distance between the two atoms
-    # try:
-    distance = np.linalg.norm(atom1[['Cartn_x', 'Cartn_y', 'Cartn_z']].values - atom2[
+
+    distance = np.linalg.norm(atom2[['Cartn_x', 'Cartn_y', 'Cartn_z']].values - atom1[
         ['Cartn_x', 'Cartn_y', 'Cartn_z']].values)
-    # except ValueError:
-    #    error_counter_2 += 1
-    #    distance = 0
-    # print(distance)
-    return distance < 4.0
+
+    return distance
 
 
-# actually iterates through the list of residues and finds strands
-def find_strands(residue_list):
-    # Group residues by 'auth_asym_id', 'auth_seq_id', and 'pdbx_PDB_ins_code'
-    grouped = residue_list.groupby(['auth_asym_id', 'auth_seq_id', 'pdbx_PDB_ins_code'])
+# Extracts continuous chains from a list
+def extract_continuous_chains(pair_list):
+    chains = []
 
-    # Create a list of unique combinations of residues
-    residue_combinations = list(itertools.combinations(grouped.groups.keys(), 2))
+    for pair in pair_list:
+        matched_chain = None
 
-    strands = [] # List to store strands
-
-    for combo in residue_combinations:
-        residue1, residue2 = combo
-        group1 = grouped.get_group(residue1) # first residue
-        group2 = grouped.get_group(residue2) # second residue
-
-        # Check if the residues are connected
-        if are_residues_connected(group1, group2):
-            # Determine if they belong to an existing strand or create a new one
-            added_to_existing_strand = False
-            for strand in strands:
-                if residue1 in strand:
-                    strand.add(residue2)
-                    added_to_existing_strand = True
-                    break
-                elif residue2 in strand:
-                    strand.add(residue1)
-                    added_to_existing_strand = True
-                    break
-
-            # If not added to an existing strand, create a new strand
-            if not added_to_existing_strand:
-                new_strand = {residue1, residue2}
-                strands.append(new_strand)
-    return strands
-
-"""    # Initialize a list to store the strands
-    strands = []
-    strands_df = []
-
-    # Iterate through each residue in the list
-    for i in range(len(residues)):
-        residue_tuple = residues[i]
-
-        residue = residue_tuple[1]
-
-        # ID extraction
-        residue_chain_ids = residue["auth_asym_id"]
-        residue_res_ids = residue["auth_seq_id"]
-        residue_ins_codes = residue["pdbx_PDB_ins_code"]
-        # DF to lists
-        residue_chain_ids_list = residue_chain_ids.tolist()
-        residue_res_ids_list = residue_res_ids.tolist()
-        residue_ins_codes_list = residue_ins_codes.tolist()
-        # lists to unique values
-        res_chain_id = list(set(residue_chain_ids_list))[0]
-        res_res_id = list(set(residue_res_ids_list))[0]
-        res_ins_code = list(set(residue_ins_codes_list))[0]
-
-        # unique residue id
-        unique_residue_id = res_chain_id + "." + res_res_id + "." + res_ins_code
-
-        # Check if the residue is already part of another strand
-        in_existing_strand = False
-        for strand in strands:
-            if unique_residue_id in strand:
-                in_existing_strand = True
+        for chain in chains:
+            if chain[-1][1] == pair[0] or chain[0][0] == pair[1]:
+                matched_chain = chain
+                break
+            elif chain[-1][1] == pair[1] or chain[0][0] == pair[0]:
+                matched_chain = chain
                 break
 
-        if not in_existing_strand:
-            # Start a new strand with the current residue
-            strand = [unique_residue_id]
-            strand_df = [residue]
+        if matched_chain:
+            matched_chain.append(pair)
 
-            # Iterate through the remaining residues
-            j = i + 1
-            while j < len(residues):
-                current_residue = residues[j][1]
+        else:
+            chains.append([pair])
 
-                # ID extraction
-                current_residue_chain_ids = current_residue["auth_asym_id"]
-                current_residue_res_ids = current_residue["auth_seq_id"]
-                current_residue_ins_codes = current_residue["pdbx_PDB_ins_code"]
-                # DF to lists
-                current_residue_chain_ids_list = current_residue_chain_ids.tolist()
-                current_residue_res_ids_list = current_residue_res_ids.tolist()
-                current_residue_ins_codes_list = current_residue_ins_codes.tolist()
-                # lists to unique values
-                cur_res_chain_id = list(set(current_residue_chain_ids_list))[0]
-                cur_res_res_id = list(set(current_residue_res_ids_list))[0]
-                cur_res_ins_code = list(set(current_residue_ins_codes_list))[0]
-                # unique residue id
-                cur_unique_residue_id = cur_res_chain_id + "." + cur_res_res_id + "." + cur_res_ins_code
+    return chains
 
-                # Check if the current residue is connected to the last residue in the strand
-                if are_residues_connected(residue, current_residue):
-                    strand.append(cur_unique_residue_id)
-                    strand_df.append(current_residue)
-                else:
-                    # If not connected, break the loop
-                    break
 
-                j += 1
+# Puts together continuous chains (don't get rid of commented out yet)
+"""def connect_continuous_chains(chains):
+    connected_chains = []
+    current_chain = []
 
-            # Add the strand to the list of strands
-            strands.append(strand)
-            strands_df.append(strand_df)
+    for chain in chains:
+        print("Chain: ")
+        print(chain)
+        print("Current Chain: ")
+        print(current_chain)
+        if len(current_chain) == 0:
+            current_chain = chain
+        else:
+            #print(current_chain)
+            #print("Current chain ^")
+            if current_chain[-1][1] == chain[0][0]:
+                current_chain = chain + current_chain
+            elif current_chain[0][0] == chain[-1][1]:
+                current_chain.extend(chain)
+            elif current_chain[-1][0] == chain[-1][1]:
+                current_chain.extend(chain)
+            elif current_chain[0][1] == chain[-1][0]:
+                current_chain.extend(chain)
+            elif current_chain[0][0] == chain[-1][0]:
+                current_chain.extend(chain)
+            elif current_chain[-1][0] == chain[0][1]:
+                current_chain.extend(chain)
+            elif current_chain[-1][1] == chain[-1][0]:
+                current_chain.extend(chain)
+            else:
+                connected_chains.append(current_chain)
+                current_chain = chain
 
-    #return len(strands)
+    if current_chain:
+        connected_chains.append(current_chain)
+
+    return connected_chains"""
+
+
+def connect_continuous_chains(chains):
+    connected_chains = []
+
+    for chain in chains:
+        connected = False
+        for current_chain in connected_chains:
+            # chain is appended to current_chain
+            """print("Current chain:")
+            print(current_chain)
+            print("Chain:")
+            print(chain)"""
+
+            if current_chain[-1][1] == chain[0][0]:
+                current_chain.extend(chain)
+                connected = True
+                break
+            elif current_chain[0][0] == chain[-1][1]:
+                current_chain.insert(0, chain)
+                connected = True
+                break
+            elif current_chain[-1][0] == chain[-1][1]:
+                current_chain.extend(chain)
+                connected = True
+                break
+            elif current_chain[0][1] == chain[-1][0]:
+                current_chain.extend(chain)
+                connected = True
+                break
+            elif current_chain[0][0] == chain[-1][0]:
+                current_chain.extend(chain)
+                connected = True
+                break
+            elif current_chain[-1][0] == chain[0][1]:
+                current_chain.extend(chain)
+                connected = True
+                break
+            elif current_chain[-1][1] == chain[-1][0]:
+                current_chain.extend(chain)
+                connected = True
+                break
+
+        if not connected:
+            connected_chains.append(chain)
+
+    return connected_chains
+
+
+def refine_continuous_chains(input_lists):
+    merged = []
+
+    def merge_lists(list1, list2):
+        for sub_list1 in list1:
+            for sub_list2 in list2:
+                if any(item1 in sub_list2 for item1 in sub_list1):
+                    list1.extend(sub_list2)
+                    list2.clear()
+                    return list1
+
+    for i in range(len(input_lists)):
+        current_list = input_lists[i]
+        for j in range(i + 1, len(input_lists)):
+            item = input_lists[j]
+            if merge_lists(current_list, item):
+                break
+
+        if current_list:  # Check if current_list is not empty
+            merged.append(current_list)
+
+    return merged
+
+
+
+# counts # of strands given a table of residues
+def count_connections(master_res_df):
+    # debug, prints master DF to a CSV for closer inspection
+    # master_res_df.to_csv("model.csv", index=False)
+
+    # step 1: make a list of all known residues
+    # there are several cases where the IDs don't represent the actual residues, so we have to account for each one
+
+    # Extract unique values from pdbx_PDB_ins_code column
+    unique_ins_code_values = master_res_df["pdbx_PDB_ins_code"]
+    unique_model_num_values = master_res_df["pdbx_PDB_model_num"]
+
+    # Convert each unique value to lists
+    unique_ins_code_values_list = unique_ins_code_values.astype(str).tolist()
+    unique_model_num_values_list = unique_model_num_values.astype(str).tolist()
+
+    ins_code_set_list = sorted(set(unique_ins_code_values_list))
+    model_num_set_list = sorted(set(unique_model_num_values_list))
+
+    """# Check if there are values other than "None" in lists
+    ins_code_has_values_other_than_none = any(
+            value != "None" for value in unique_ins_code_values_list)
+    model_num_has_values_other_than_none = any(
+            value != "None" for value in unique_model_num_values_list)
 """
+    # lay out each case
+    if len(ins_code_set_list) > 1:
+        grouped_res_dfs = master_res_df.groupby(
+                ['auth_asym_id', 'auth_seq_id', 'pdbx_PDB_ins_code'])
+    elif len(model_num_set_list) > 1:
+        # here we might need to filter the DFs to keep only 1 pdbx_PDB_model_num
+        filtered_master_df = master_res_df[master_res_df['pdbx_PDB_model_num'] == "1"]
+        grouped_res_dfs = filtered_master_df.groupby(
+                ['auth_asym_id', 'auth_seq_id', 'pdbx_PDB_model_num'])
+    else:
+        grouped_res_dfs = master_res_df.groupby(
+                ['auth_asym_id', 'auth_seq_id', 'pdbx_PDB_ins_code'])
 
-
-
-# literally just counts and returns the # of strands
-def count_strands(master_res_df):
-    # Step 1: get a list of residues
-    # Group master_res_df by the specified columns
-    grouped = master_res_df.groupby(['auth_asym_id', 'auth_seq_id', 'pdbx_PDB_ins_code'])
-
-    # Initialize a list to store the individual groups
+    # puts the grouped residues in a list
     res_list = []
+    for grouped_residue in grouped_res_dfs:
+        res_list.append(grouped_residue)
 
-    # Iterate through the groups and append each group to res_list
-    for group_data in grouped:
-        res_list.append(group_data)
-    # Now we have a list of residues to work with
+    print("passed 1")
 
-    # pass through function that analyzes the residues to find which ones are in a strand
-    list_of_strands = find_strands(master_res_df)
+    # step 2: find all possible dataframe combinations
+    # this should include non-unique combinations
+    combinations_of_residues = []
 
-    return len(list_of_strands)
+    # Nested loop to generate combinations
+    for i in range(len(res_list)):
+        for j in range(len(res_list)):
+            combo = (res_list[i], res_list[j])
+            combinations_of_residues.append(combo)
+    # combinations_of_residues = list(itertools.combinations(res_list, 2))
+
+    print("passed 2")
+    # step 3: calculate distances for each pair of dataframes and put them in a separate list
+    distances_btwn_residues = []
+    for pair_of_residues in combinations_of_residues:
+        distance_btwn_residues = calc_residue_distances(pair_of_residues[0], pair_of_residues[1])
+        distances_btwn_residues.append(distance_btwn_residues)
+
+    # this step takes the longest
+
+    print("passed 3")
+    # step 4: put the two lists together into a big dataframe
+    combined_combo_distance_df = pd.DataFrame(
+            {'Residues': combinations_of_residues, 'Distances': distances_btwn_residues})
+    print("passed 4")
+
+    # step 5: delete the lines with distance > 4
+    connected_residues_df = combined_combo_distance_df[
+        combined_combo_distance_df["Distances"] < 2.7]
+    connected_residues_df_final = connected_residues_df[connected_residues_df["Distances"] != 0]
+    print("passed 5")
+
+    # step 6: extract the column with the combinations and put it back inside a list, take out the DFs
+    list_of_residue_combos = connected_residues_df_final["Residues"].tolist()
+    list_of_ids = []  # this is the list of connected residues to process
+
+    for combo in list_of_residue_combos:
+        res_1_data = combo[0]
+        res_2_data = combo[1]
+
+        res_1_id = res_1_data[0]
+        res_2_id = res_2_data[0]
+
+        small_list = [res_1_id, res_2_id]
+        list_of_ids.append(small_list)
+
+    print("passed 6")
+
+    # Step 7: take the list of pairs and extract chains from them
+
+    chains = extract_continuous_chains(list_of_ids)
+
+    refined_chains = connect_continuous_chains(chains)
+
+    ultra_refined_chains = refine_continuous_chains(refined_chains)
+
+    # debug
+    for element in ultra_refined_chains:
+        print(element)
+
+    print("passed 7")
+
+    # Step 8: count lens and return
+
+    len_chains = len(ultra_refined_chains)
+    print("passed 8")
+
+    return len_chains
 
 
 # writes extracted residue data into the proper output PDB files
 def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path):
+    # print(pdb_path)
+    # exit(0)
+
     # directory setup for later
     dir = pdb_path.split("/")
     sub_dir = dir[3].split(".")
@@ -407,14 +525,20 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path):
     if df_list:  # i.e. if there are things inside df_list:
         # Concatenate all DFs into a single DF
         result_df = pd.concat(df_list, axis=0, ignore_index=True)
+        basepair_ends = count_connections(result_df)  # you need a master DF of residues here
 
-        basepair_ends = len(find_strands(result_df))  # you need an actual list of residues here
+        # if sub_dir[0] == "TWOWAY":
+        #    basepair_ends = 2
         print(basepair_ends)
+
         new_path = dir[0] + "/" + str(basepair_ends) + "ways" + "/" + dir[2] + "/" + sub_dir[
             2] + "/" + sub_dir[3]
         name_path = new_path + "/" + motif_name
         make_dir(new_path)
         dataframe_to_cif(df=result_df, file_path=f"{name_path}.cif")
+
+        if basepair_ends == 0:
+            raise ValueError("Cannot be zero wtf!?")
 
     if interactions != None:
         # removes duplicate amino acids

@@ -16,6 +16,9 @@ from biopandas.mmcif.mmcif_parser import load_cif_data
 from biopandas.mmcif.engines import mmcif_col_types
 from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
 
+operation_counter = 0
+
+
 # Pandas mmCIF override
 class PandasMmcifOverride(PandasMmcif):
     def _construct_df(self, text: str):
@@ -121,7 +124,7 @@ def __get_snap_files():
 
 
 def __generate_motif_files():
-    global error_counter
+    global operation_counter
     # creates directories
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     pdbs = glob.glob(pdb_dir + "/*.cif")
@@ -154,10 +157,13 @@ def __generate_motif_files():
     count = 0
     # writes motif/motif interaction information to PDB files
     for pdb_path in pdbs:
+        # debug, here we define which exact pdb path to run
+        # if pdb_path == "/Users/jyesselm/PycharmProjects/rna_motif_library/data/pdbs/7URI.cif": # change the part before .cif
+        # //debug
         s = os.path.getsize(pdb_path)
         name = pdb_path.split("/")[-1][:-4]
         json_path = settings.LIB_PATH + "/data/dssr_output/" + name + ".json"
-        if s < 10000000:
+        if s < 10000000:  # size-limit on PDB to process, need more computer power to go over this
             count += 1
             print(count, pdb_path, name)
             pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
@@ -186,11 +192,13 @@ def __generate_motif_files():
                 except KeyError:
                     interactions = None  # or any value you want as a default
                 # Writing the residues AND interactions to the CIF files
+                operation_counter += 1
                 dssr.write_res_coords_to_pdb(
                         m.nts_long, interactions, pdb_model,
                         motif_dir + "/" + m.name
                 )
-
+                # if operation_counter == 5:
+                #    exit(0)
 
     f.close()
     # dssr.cif_pdb_sort(motif_sort_dir)
@@ -265,10 +273,6 @@ def main():
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job started on", start_time_string)
     print("Job finished on", time_string)
-    print("Errors of the glitchy datafram type:")
-    print(dssr.error_counter)
-    print("Errors where there are two atom lines:")
-    print(dssr.error_counter_2)
 
 
 if __name__ == '__main__':
