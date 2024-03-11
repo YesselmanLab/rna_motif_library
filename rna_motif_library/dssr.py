@@ -8,30 +8,6 @@ import numpy as np
 from pydssr.dssr import DSSROutput
 from update_library import PandasMmcifOverride
 
-# amino acid dictionary (it's here JIC)
-amino_acids = {
-    'ALA': 'Alanine',
-    'ARG': 'Arginine',
-    'ASN': 'Asparagine',
-    'ASP': 'Aspartic Acid',
-    'CYS': 'Cysteine',
-    'GLN': 'Glutamine',
-    'GLU': 'Glutamic Acid',
-    'GLY': 'Glycine',
-    'HIS': 'Histidine',
-    'ILE': 'Isoleucine',
-    'LEU': 'Leucine',
-    'LYS': 'Lysine',
-    'MET': 'Methionine',
-    'PHE': 'Phenylalanine',
-    'PRO': 'Proline',
-    'SER': 'Serine',
-    'THR': 'Threonine',
-    'TRP': 'Tryptophan',
-    'TYR': 'Tyrosine',
-    'VAL': 'Valine'
-}
-
 
 # make new directories if they don't exist
 def make_dir(directory_path):
@@ -215,7 +191,6 @@ def group_residues_by_chain(input_list):
 
 # calculates distance between atoms
 def euclidean_distance_dataframe(df1, df2):
-    global error_counter
     # Calculate the Euclidean distance between two points represented by DataFrames.
     if {'Cartn_x', 'Cartn_y', 'Cartn_z'} != set(df1.columns) or {'Cartn_x', 'Cartn_y',
                                                                  'Cartn_z'} != set(df2.columns):
@@ -228,7 +203,6 @@ def euclidean_distance_dataframe(df1, df2):
         distance = math.sqrt(sum(squared_distances))
     except IndexError:
         distance = 10
-        error_counter += 1
 
     return distance
 
@@ -246,6 +220,9 @@ def calc_residue_distances(res_1, res_2):
 
     # Extract relevant atom data for both residues
     atom1 = residue1[residue1['auth_atom_id'].str.contains("O3'", regex=True)]
+    # delete hydrogens in the selection if there are any
+    atom1 = atom1[~atom1['auth_atom_id'].str.contains("H", regex=False)]
+
     atom2 = residue2[residue2['auth_atom_id'].isin(["P"])]
 
     # Calculate the Euclidean distance between the two atoms
@@ -293,8 +270,6 @@ def count_connections(master_res_df, motif_name, twoway_jct_csv):
     for grouped_residue in grouped_res_dfs:
         res_list.append(grouped_residue)
 
-    # print("passed 1")
-
     # step 2: find all possible dataframe combinations
     # this should include non-unique combinations
     combinations_of_residues = []
@@ -306,7 +281,6 @@ def count_connections(master_res_df, motif_name, twoway_jct_csv):
             combinations_of_residues.append(combo)
     # combinations_of_residues = list(itertools.combinations(res_list, 2))
 
-    # print("passed 2")
     # step 3: calculate distances for each pair of dataframes and put them in a separate list
     distances_btwn_residues = []
     for pair_of_residues in combinations_of_residues:
@@ -315,17 +289,14 @@ def count_connections(master_res_df, motif_name, twoway_jct_csv):
 
     # this step takes the longest
 
-    # print("passed 3")
     # step 4: put the two lists together into a big dataframe
     combined_combo_distance_df = pd.DataFrame(
         {'Residues': combinations_of_residues, 'Distances': distances_btwn_residues})
-    # print("passed 4")
 
     # step 5: delete the lines with distance > 4
     connected_residues_df = combined_combo_distance_df[
         combined_combo_distance_df["Distances"] < 2.7]
     connected_residues_df_final = connected_residues_df[connected_residues_df["Distances"] != 0]
-    # print("passed 5")
 
     # step 6: extract the column with the combinations and put it back inside a list, take out the DFs
     list_of_residue_combos = connected_residues_df_final["Residues"].tolist()
@@ -341,8 +312,6 @@ def count_connections(master_res_df, motif_name, twoway_jct_csv):
         small_list = [res_1_id, res_2_id]
         list_of_ids.append(small_list)
 
-    # print("passed 6")
-
     # Step 7: take the list of pairs and extract chains from them
     chains = extract_continuous_chains(list_of_ids)
 
@@ -350,15 +319,18 @@ def count_connections(master_res_df, motif_name, twoway_jct_csv):
 
     ultra_refined_chains = refine_continuous_chains(refined_chains)
 
-    # print("passed 7")
+    # final_refined_chains = combine_remaining_chains(ultra_refined_chains)
 
     # Step 8: count lens and return
     len_chains = len(ultra_refined_chains)
 
-    # print("passed 8")
+    # we need to set up a function that continuously refines strands until all the possible nucleotides have been joined
+    # do we though? put a pin in this because I need to check something
+    """if len_chains == 8:
+        print(ultra_refined_chains)
+        exit(0)"""
 
-    # Step 9: if there's a
-    # TODO print the contents of 2-way motifs into a CSV (nucleotide data, motif names)
+    # Step 9: print the contents of 2-way motifs into a CSV (nucleotide data, motif names)
     if len_chains == 2:
 
         # Concatenate all inner lists and keep only unique values
@@ -426,10 +398,6 @@ def connect_continuous_chains(chains):
         connected = False
         for current_chain in connected_chains:
             # chain is appended to current_chain
-            """print("Current chain:")
-            print(current_chain)
-            print("Chain:")
-            print(chain)"""
 
             if current_chain[-1][1] == chain[0][0]:
                 current_chain.extend(chain)
@@ -491,6 +459,11 @@ def refine_continuous_chains(input_lists):
     return merged
 
 
+# Take the remaining chains, and process them continuously in a loop until they have all been combined into their final states
+def combine_remaining_chains():
+    pass
+
+
 # writes extracted residue data into the proper output PDB files
 def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_list, csv_file, residue_csv_list,
                             twoway_csv):
@@ -530,16 +503,10 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
         # of that, the first one is the chain_id and te second the res_id
         residue_id = extract_longest_numeric_sequence(nt_spl[1])
 
-        print(nt_spl[0])
-        print(nt_spl[1])
-
         if "/" in nt_spl[1]:
             print("run")
             sub_spl = nt_spl[1].split("/")
             residue_id = sub_spl[1]
-
-        print(chain_id)
-        print(residue_id)
 
         # define nucleotide ID
         new_nt = chain_id + "." + residue_id
@@ -593,15 +560,12 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
     if df_list:  # i.e. if there are things inside df_list:
         # Concatenate all DFs into a single DF
         result_df = pd.concat(df_list, axis=0, ignore_index=True)
-        # print(pdb_path)
 
         # this is for NWAY/2WAY jcts
         if ((sub_dir[0] == "NWAY") or (sub_dir[0] == "TWOWAY")):
             basepair_ends = count_connections(result_df, motif_name=motif_name,
                                               twoway_jct_csv=twoway_csv)  # you need a master DF of residues here
-            # print(basepair_ends)
             # Write # of BP ends to the motif name (labeling of n-way junction)
-            # print(dir[0])
             new_path = dir[0] + "/" + str(basepair_ends) + "ways" + "/" + dir[2] + "/" + sub_dir[
                 2] + "/" + sub_dir[3]
             name_path = new_path + "/" + motif_name
@@ -616,10 +580,9 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
             make_dir(hairpin_path)
             name_path = hairpin_path + "/" + motif_name
         if (sub_dir[0] == "HELIX"):
-            # helices need to be processed differently
-            # helices should be classified into folders by their length/ # of basepairs
+            # helices should be classified into folders by their # of basepairs
             # this should be very simple as the lengths are given in the motif names
-            # also classify firther by the sequence composition, this is also given in motif name
+            # also classify further by the sequence composition, this is also given in motif name
             helix_count = str(sub_dir[2])
             helix_comp = str(sub_dir[3])
             # after classification put em in the folders
@@ -644,16 +607,9 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
             inter_chain_id = inter_spl[0]
             inter_protein_id = extract_longest_numeric_sequence(inter_spl[1])
 
-            print(inter_spl[0])
-            print(inter_spl[1])
-
             if "/" in inter_spl[1]:
-                print("run")
                 sub_spl = inter_spl[1].split("/")
                 inter_protein_id = sub_spl[1]
-
-            print(inter_chain_id)
-            print(inter_protein_id)
 
             # define protein ID
             new_inter = inter_chain_id + "." + inter_protein_id
@@ -738,17 +694,7 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
 
     # then, of those interactions, find the appropriate residues and print them
     for interaction in list_of_matching_interactions:
-
-        print(interaction)
-
-        # extract each residue in "interaction" (tuple)
-        # print(res_1) # f.ARG54
-        # print(res_2) # 3.A164
-
-        # interaction format:
-        # ('f.ARG54', '3.G167', 'NH2', 'O6', '3.977')
-
-        # make_dir()
+        # interaction format: ('f.ARG54', '3.G167', 'NH2', 'O6', '3.977')
 
         # Obtains residues
         res_1 = interaction[0]
@@ -759,19 +705,14 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
         res_1_chain_id, res_1_res_data = res_1.split(".")
         res_2_chain_id, res_2_res_data = res_2.split(".")
 
-        print(res_1)
-        print(res_2)
-
         # if there are slashes present:
         if "/" in res_1:
-            print("run")
             res_1_split = res_1.split(".")
             res_1_inside = res_1_split[1]
             res_1_res_data_spl = res_1_inside.split("/")
             res_1_res_data = res_1_res_data_spl[1]
 
         if "/" in res_2:
-            print("run")
             res_2_split = res_2.split(".")
             res_2_inside = res_2_split[1]
             res_2_res_data_spl = res_2_inside.split("/")
@@ -781,18 +722,9 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
         res_1_res_id = extract_longest_numeric_sequence(res_1_res_data)
         res_2_res_id = extract_longest_numeric_sequence(res_2_res_data)
 
-        print(res_1_chain_id)
-        print(res_2_chain_id)
-
-        print(res_1_res_id)
-        print(res_2_res_id)
-
         # first find the chains for res_1 and res_2
         res_1_inter_chain = pdb_model_df[pdb_model_df["auth_asym_id"].astype(str) == str(res_1_chain_id)]
         res_2_inter_chain = pdb_model_df[pdb_model_df["auth_asym_id"].astype(str) == str(res_2_chain_id)]
-
-        # print(res_1_inter_chain)
-        print(res_2_inter_chain)
 
         # then find the residues for res_1 and res_2
         res_1_inter_res = res_1_inter_chain[
@@ -804,8 +736,6 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
         res_1_res_2_result_df = pd.concat([res_1_inter_res, res_2_inter_res], axis=0,
                                           ignore_index=True)
 
-        print(res_1_res_2_result_df)
-
         # write interactions to CSV
         # first determine what type res_1 and res_2 are
         res_1_type_list = res_1_inter_res["auth_comp_id"].unique().tolist()
@@ -814,7 +744,7 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
         res_1_type = res_1_type_list[0]
         res_2_type = res_2_type_list[0]
 
-        ## exclude all canonical pairs
+        # exclude all canonical pairs
         # atom extraction
         atom_1 = interaction[2]
         atom_2 = interaction[3]
@@ -824,12 +754,7 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
         # calculate the angle in the interaction
         # find which residue contains the oxygen atom
 
-        print(interaction[2])
-        print(interaction[3])
-
         if "O" in interaction[2]:  # case for O-O/O-N interactions
-
-            # print("O-O or O-N" + "," + interaction[2] + "," + interaction[3])
 
             # interaction[0] is the oxygen residue
             oxygen_residue = res_1_inter_res
@@ -914,8 +839,6 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
 
         elif "O" in interaction[3]:  # N-O interactions
 
-            # print("N-O" + "," + interaction[3] + "," + interaction[2])
-
             oxygen_residue = res_2_inter_res
             second_residue = res_1_inter_res
 
@@ -979,8 +902,6 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
 
         else:  # case for N-N interactions
 
-            # print("N-N" + "," + interaction[3] + "," + interaction[2])
-
             # interaction[1] is the oxygen residue
             oxygen_residue = res_2_inter_res
             second_residue = res_1_inter_res
@@ -1001,30 +922,14 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
                     second_atom = second_residue[
                         second_residue['auth_atom_id'].str.contains(split_interaction_2[0])]
 
-        print(oxygen_atom)
-        print(second_atom)
-
         carbon_atom = find_closest_atom(oxygen_atom, res_1_res_2_result_df)
 
-        # calculate bond angle
+        fourth_atom = find_closest_atom(second_atom, res_1_res_2_result_df)
+
+        # calculate planar bond angle
         bond_angle_degrees, o_atom_data, n_atom_data, c_atom_data = calculate_bond_angle(
-            oxygen_atom, second_atom, carbon_atom)
+            oxygen_atom, second_atom, carbon_atom, fourth_atom)
 
-        # need to obtain strings from the tuples
-        o_atom_type = o_atom_data[0]
-        o_atom_x = str(o_atom_data[1])
-        o_atom_y = str(o_atom_data[2])
-        o_atom_z = str(o_atom_data[3])
-
-        n_atom_type = n_atom_data[0]
-        n_atom_x = str(n_atom_data[1])
-        n_atom_y = str(n_atom_data[2])
-        n_atom_z = str(n_atom_data[3])
-
-        c_atom_type = c_atom_data[0]
-        c_atom_x = str(c_atom_data[1])
-        c_atom_y = str(c_atom_data[2])
-        c_atom_z = str(c_atom_data[3])
 
         # setting the name
         # then set extension for name
@@ -1052,12 +957,20 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
             # fill blanks
             res_1_res_2_result_df.fillna(0, inplace=True)
 
-            # exit(0)
             dataframe_to_cif(res_1_res_2_result_df, file_path=f"{ind_inter_path}.cif", motif_name=name_inter)
+
+            if len(res_1_type) == 1:
+                nt_1 = "nt"
+            else:
+                nt_1 = "aa"
+            if len(res_2_type) == 1:
+                nt_2 = "nt"
+            else:
+                nt_2 = "aa"
 
             # f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
             csv_file.write(
-                motif_name + ',' + res_1 + ',' + res_2 + ',' + res_1_type + ',' + res_2_type + ',' + atom_1 + ',' + atom_2 + ',' + distance_ext + ',' + bond_angle_degrees + ',' + o_atom_type + ',' + o_atom_x + ',' + o_atom_y + ',' + o_atom_z + ',' + n_atom_type + ',' + n_atom_x + ',' + n_atom_y + ',' + n_atom_z + ',' + c_atom_type + ',' + c_atom_x + ',' + c_atom_y + ',' + c_atom_z + "\n")
+                motif_name + ',' + res_1 + ',' + res_2 + ',' + res_1_type + ',' + res_2_type + ',' + atom_1 + ',' + atom_2 + ',' + distance_ext + ',' + bond_angle_degrees + ',' + nt_1 + ',' + nt_2 + "\n")
 
 
 # find the closest atom for 3rd point in angle
@@ -1083,13 +996,9 @@ def find_closest_atom(atom_A, whole_interaction):
 
 
 # calc the bond angle (need to return tuple with the atoms I used to calculate)
-def calculate_bond_angle(center_atom, second_atom, carbon_atom):
+def calculate_bond_angle(center_atom, second_atom, carbon_atom, fourth_atom):
     # center_atom = oxygen atom; second_atom = usually the nitrogen atom; carbon_atom = 3rd atom
-    # center is P, second A, carbon C
-
-    print(center_atom)
-    print(second_atom)
-    print(carbon_atom)
+    # center is P, second A, carbon C, fourth F
 
     # point P - center atom (where we are calculating angle)
     x1, y1, z1 = center_atom["Cartn_x"].to_list()[0], center_atom["Cartn_y"].to_list()[0], \
@@ -1100,23 +1009,36 @@ def calculate_bond_angle(center_atom, second_atom, carbon_atom):
     # point C - carbon atom connected to the center atom
     x3, y3, z3 = carbon_atom["Cartn_x"].to_list()[0], carbon_atom["Cartn_y"].to_list()[0], \
         carbon_atom["Cartn_z"].to_list()[0]
+    # point F - fourth atom connected to second atom in H-bond
+    x4, y4, z4 = fourth_atom["Cartn_x"].to_list()[0], fourth_atom["Cartn_y"].to_list()[0], \
+        fourth_atom["Cartn_z"].to_list()[0]
 
     # tuples passed as points
     P = (x1, y1, z1)
     A = (x2, y2, z2)
     C = (x3, y3, z3)
+    F = (x4, y4, z4)
 
-    # passed to numpy
+    # passed to numpy and vectors are calculated
     vector_AP = np.array(A) - np.array(P)
     vector_PC = np.array(C) - np.array(P)
+    vector_FA = np.array(F) - np.array(A)
 
-    dot_product = np.dot(vector_AP, vector_PC)
-    magnitude_AP = np.linalg.norm(vector_AP)
-    magnitude_PC = np.linalg.norm(vector_PC)
+    # get cross products for planes
+    vector_n1 = np.cross(vector_AP, vector_PC)
+    vector_n2 = np.cross(vector_AP, vector_FA)
 
-    cos_theta = dot_product / (magnitude_AP * magnitude_PC)
+    dot_product = np.dot(vector_n1, vector_n2)
+
+    magnitude_n1 = np.linalg.norm(vector_n1)
+    magnitude_n2 = np.linalg.norm(vector_n2)
+
+    cos_theta = dot_product / (magnitude_n1 * magnitude_n2)
     angle_rad = np.arccos(np.clip(cos_theta, -1.0, 1.0))
     angle_deg = str(np.degrees(angle_rad))
+
+    if np.degrees(angle_rad) > 180.0:
+        exit(0)
 
     # need to label and return the atoms that are used in calculation
 
@@ -1128,6 +1050,7 @@ def calculate_bond_angle(center_atom, second_atom, carbon_atom):
     center_atom_data = (center_atom_type, x1, y1, z1)
     second_atom_data = (second_atom_type, x2, y2, z2)
     carbon_atom_data = (carbon_atom_type, x3, y3, z3)
+    # data for 4th atom?
 
     return angle_deg, center_atom_data, second_atom_data, carbon_atom_data
 
@@ -1258,6 +1181,8 @@ def __assign_hbonds_to_motifs(motifs, hbonds, shared):
         # this specifies the class of interaction (aa:base, aa:aa, etc)
         hbond_classes = __assign_hbond_class(atom1, atom2, rt1, rt2)
 
+        print(hbond_classes)
+
         # this counts the # of hydrogen bonds in each category
         if m1 is not None:
             if m1.name not in motif_hbonds:
@@ -1266,6 +1191,7 @@ def __assign_hbonds_to_motifs(motifs, hbonds, shared):
 
             # sets hydrogen bond class
             hbond_class = hbond_classes[0] + ":" + hbond_classes[1]
+
             # increments the start_dict
             motif_hbonds[m1.name][hbond_class] += 1
             motif_interactions[m1.name].append(res2)
@@ -1281,6 +1207,8 @@ def __assign_hbonds_to_motifs(motifs, hbonds, shared):
                 hbond_class = hbond_classes[0] + ":" + hbond_classes[1]
             motif_hbonds[m2.name][hbond_class] += 1
             motif_interactions[m2.name].append(res1)
+
+            print(motif_interactions)
 
     return motif_hbonds, motif_interactions, hbonds_in_motif
 

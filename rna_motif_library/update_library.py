@@ -1,7 +1,5 @@
 import csv
 import glob
-import shutil
-import tempfile
 
 import requests
 import json
@@ -13,10 +11,9 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-import time
 
 import wget
-from matplotlib.colors import LogNorm
+from collections import Counter
 
 import settings
 import snap
@@ -27,7 +24,36 @@ from biopandas.mmcif.mmcif_parser import load_cif_data
 from biopandas.mmcif.engines import mmcif_col_types
 from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
 
-operation_counter = 0
+# amino acid/canonical residue dictionary
+canon_res_dict = {
+    'A': 'Adenine',
+    'ALA': 'Alanine',
+    'ARG': 'Arginine',
+    'ASN': 'Asparagine',
+    'ASP': 'Aspartic Acid',
+    'CYS': 'Cysteine',
+    'C': 'Cytosine',
+    'G': 'Guanine',
+    'GLN': 'Glutamine',
+    'GLU': 'Glutamic Acid',
+    'GLY': 'Glycine',
+    'HIS': 'Histidine',
+    'ILE': 'Isoleucine',
+    'LEU': 'Leucine',
+    'LYS': 'Lysine',
+    'MET': 'Methionine',
+    'PHE': 'Phenylalanine',
+    'PRO': 'Proline',
+    'SER': 'Serine',
+    'THR': 'Threonine',
+    'TRP': 'Tryptophan',
+    'TYR': 'Tyrosine',
+    'U': 'Uracil',
+    'VAL': 'Valine'
+}
+
+canon_res_list = ['A', 'ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'C', 'G', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS',
+                  'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'U', 'VAL']
 
 
 # Pandas mmCIF override
@@ -52,13 +78,14 @@ class PandasMmcifOverride(PandasMmcif):
         return combined_df  # Return the combined DataFrame
 
 
-def __safe_mkdir(dir):
-    if os.path.isdir(dir):
-        return
-    os.mkdir(dir)
+# Safely create a directory if it doesn't exist.
+def __safe_mkdir(directory):
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
 
 
-"""def __download_cif_files():
+# download the redundant set (may not actually work)
+def __download_redundant_cif_files():
     # Define the directory to save the PDB files
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     if not os.path.exists(pdb_dir):
@@ -68,6 +95,9 @@ def __safe_mkdir(dir):
     download_url = "https://files.rcsb.org/download/"
     # Perform the search and download the PDB files (actually CIF but screw it)
     response = requests.post(search_url, data=json.dumps(settings.QUERY_TERM))
+
+    #print(response)
+    #exit(0)
     results = response.json()["result_set"]
     # iterates over each item in the results list obtained from the search response
     for result in results:
@@ -83,7 +113,6 @@ def __safe_mkdir(dir):
             # content of the response is then written to the pdb_file
             with open(pdb_file, "wb") as f:
                 f.write(response.content)
-"""
 
 
 def __download_cif_files(csv_path):
@@ -166,7 +195,6 @@ def __get_snap_files():
 
 
 def __generate_motif_files():
-    global operation_counter
     # creates directories
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     pdbs = glob.glob(pdb_dir + "/*.cif")
@@ -200,7 +228,7 @@ def __generate_motif_files():
     # CSV about ind. interactions
     f_inter = open("interactions_detailed.csv", "w")
     f_inter.write(
-        "name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,oxygen_central_atom_type,oxygen_central_atom_x,oxygen_central_atom_y,oxygen_central_atom_z,second_atom_data,second_atom_x,second_atom_y, second_atom_z,carbon_atom_data,carbon_atom_x,carbon_atom_y,carbon_atom_z" + "\n")
+        "name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2" + "\n")
 
     # CSV listing all th residues present in a given motif
     f_residues = open("motif_residues_list.csv", "w")
@@ -213,13 +241,12 @@ def __generate_motif_files():
 
     # writes motif/motif interaction information to PDB files
     for pdb_path in pdbs:
-        # debug, here we define which exact pdb path to run
+        # debug, here we define which exact pdb to run (if we need to for whatever reason)
         # if pdb_path == "/Users/jyesselm/PycharmProjects/rna_motif_library/data/pdbs/7PKQ.cif": # change the part before .cif
-        # //debug
         s = os.path.getsize(pdb_path)
         name = pdb_path.split("/")[-1][:-4]
         json_path = settings.LIB_PATH + "/data/dssr_output/" + name + ".json"
-        if s < 10000000:  # size-limit on PDB to process, need more computer power to go over this
+        if s < 10000000:  # size-limit on PDB; need more RAM for higher limits; run on a 16 GB machine
             count += 1
             print(count, pdb_path, name)
             pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
@@ -250,8 +277,6 @@ def __generate_motif_files():
                     vals = ["0" for _ in hbond_vals]
                 else:
                     vals = [str(motif_hbonds[m.name][x]) for x in hbond_vals]
-                    # print("vals:")
-                    # print(vals)
 
                 f.write(",".join(vals) + "\n")
                 # if there are no interactions with the motif then it skips and avoids a crash
@@ -260,7 +285,6 @@ def __generate_motif_files():
                 except KeyError:
                     interactions = None  # or any value you want as a default
                 # Writing the residues AND interactions to the CIF files
-                operation_counter += 1
                 dssr.write_res_coords_to_pdb(
                     m.nts_long, interactions, pdb_model,
                     motif_dir + "/" + m.name, unique_inter_motifs, f_inter, f_residues, f_twoways
@@ -278,6 +302,11 @@ def __find_tertiary_contacts():
     # create a CSV file to write tertiary contacts to
     f_tert = open("tertiary_contact_list.csv", "w")
     f_tert.write("motif_1,motif_2,type_1,type_2,res_1,res_2,hairpin_len_1,hairpin_len_2" + "\n")
+
+    # also create a CSV to write non-terts to
+    f_single = open("single_motif_inter_list.csv", "w")
+    f_single.write("motif,type_1,type_2,res_1,res_2,nt_1,nt_2,distance,angle" + "\n")
+
     # Specify paths to the CSV files
     interactions_csv_path = "interactions_detailed.csv"
     motif_residues_csv_path = "motif_residues_list.csv"
@@ -307,7 +336,7 @@ def __find_tertiary_contacts():
             # Store the data in the dictionary
             motif_residues_dict[name] = data
 
-    # Iterate over each motif_name
+    # Iterate over each motif name, as grouped in the dataframe above
     for interaction_group in grouped_interactions_csv_df:
         # interaction_group[0] is the name, [1] is the actual DF
         # HELIX.7PKQ.3.UGC-GCA.0 is the format; now you have the motif name as str
@@ -318,10 +347,6 @@ def __find_tertiary_contacts():
 
         # get the residues for the motif of interest; look up in the dictionary
         residues_in_source_motif = motif_residues_dict.get(name_of_source_motif)  # is a list of strings
-
-        # print(name_of_source_motif)
-        # print(residues_in_source_motif)
-        # exit(0)
 
         # now get the DF with the interaction data in it
         interaction_data_df = interaction_group[1]
@@ -334,9 +359,25 @@ def __find_tertiary_contacts():
             res_1 = interaction_data[1]
             res_2 = interaction_data[2]  # all are strings
 
+            # only for f_single
+            type_1 = interaction_data[3]
+            type_2 = interaction_data[4]
+
+            if len(type_1) == 1:
+                nt_1 = "nt"
+            else:
+                nt_1 = "aa"
+
+            if len(type_2) == 1:
+                nt_2 = "nt"
+            else:
+                nt_2 = "aa"
+
+            distance_data = str(interaction_data[7])
+            angle_data = str(interaction_data[8])
+
             res_1_present = False
             res_2_present = False
-            is_tert_contact = False
 
             # need to check if the residue is present in ANY residue list where the CIF id is the same
             # so first we filter to get all the motifs in the same CIF
@@ -361,14 +402,17 @@ def __find_tertiary_contacts():
             # check if residues are present, and if they are, handle them accordingly
             if (res_1_present == False) and (res_2_present == False):
                 # not a tert_contact
-                is_tert_contact = False
+                # prints interactions - tert contacts to CSV
+                f_single.write(
+                    name_of_source_motif + "," + type_1 + "," + type_2 + "," + res_1 + "," + res_2 + "," + nt_1 + "," + nt_2 + "," + distance_data + "," + angle_data + "\n")
+
+
             elif (res_1_present == True) and (res_2_present == True):
                 # not a tert_contact
-                is_tert_contact = False
+                pass
 
             elif (res_1_present == True) and (res_2_present == False):
                 # tert contact found
-                is_tert_contact = True
                 # res_1 is present in the current motif, res_2 is elsewhere so need to find it
                 # now find which motif res_2 is in
                 for motif_name, motif_residue_list in dict_with_source_motif_PDB_motifs.items():
@@ -380,8 +424,8 @@ def __find_tertiary_contacts():
 
                         # if the motifs are hairpins, get length
                         if motif_name_type == "HAIRPIN":
-                            hairpin_length_1 = str(name_of_source_motif[1])
-                            hairpin_length_2 = str(motif_name[1])
+                            hairpin_length_1 = str(name_split[2])
+                            hairpin_length_2 = str(motif_name_split[2])
                         else:
                             hairpin_length_1 = "0"
                             hairpin_length_2 = "0"
@@ -392,7 +436,6 @@ def __find_tertiary_contacts():
 
             elif (res_1_present == False) and (res_2_present == True):
                 # tert contact found
-                is_tert_contact = True
                 # res_2 is present in the current motif, res_1 is elsewhere
                 res_2_data = (res_2, name_of_source_motif)
                 # now find which motif res_1 is in
@@ -405,8 +448,8 @@ def __find_tertiary_contacts():
 
                         # if the motifs are hairpins, get length
                         if motif_name_type == "HAIRPIN":
-                            hairpin_length_1 = str(name_of_source_motif[1])
-                            hairpin_length_2 = str(motif_name[1])
+                            hairpin_length_1 = str(name_split[2])
+                            hairpin_length_2 = str(motif_name_split[2])
                         else:
                             hairpin_length_1 = "0"
                             hairpin_length_2 = "0"
@@ -419,16 +462,7 @@ def __find_tertiary_contacts():
     # after the CSV for tertiary contacts are made we need to go through and extract all unique pairs in CSV
     # File path
     tert_contact_csv_path = "tertiary_contact_list.csv"
-
-    # Read the CSV into a DF
-    # tert_contact_csv_df = pd.read_csv(tert_contact_csv_path)
-
-    # Check if the file has data (excluding the header)
-    #try:
     tert_contact_csv_df = pd.read_csv(tert_contact_csv_path, skiprows=[0])
-    #except pd.errors.EmptyDataError:
-    #    print("Tertiary contact CSV is empty.")
-    #    return
 
     # Check if the required columns are present
     required_columns = ['motif_1', 'motif_2']
@@ -436,28 +470,51 @@ def __find_tertiary_contacts():
         print(f"A line in the CSV is blank. If this shows only once, it is working as intended.")
         return
 
-    # Check if the DataFrame has any data
-    #if tert_contact_csv_df.empty:
-    #    print("Tertiary contact CSV has no data.")
-    #    return
-
     motifs_1 = tert_contact_csv_df['motif_1'].tolist()
     motifs_2 = tert_contact_csv_df['motif_2'].tolist()
 
+    types_1 = tert_contact_csv_df['type_1'].tolist()
+    types_2 = tert_contact_csv_df['type_2'].tolist()
+
+    ress_1 = tert_contact_csv_df['res_1'].tolist()
+    ress_2 = tert_contact_csv_df['res_2'].tolist()
+
     # Create a list of tuples
-    motif_pairs = [(motif1, motif2) for motif1, motif2 in zip(motifs_1, motifs_2)]
+    motif_pairs = [(motif1, motif2, types1, types2, ress1, ress2) for motif1, motif2, types1, types2, ress1, ress2 in
+                   zip(motifs_1, motifs_2, types_1, types_2, ress_1, ress_2)]
 
-    # Convert each tuple to frozenset and create a set
-    unique_set = set(frozenset(t) for t in motif_pairs)
+    # Count occurrences of each unique pair
+    pair_counts = Counter(motif_pairs)
 
-    # Convert the set back to a list of tuples
-    unique_motif_pairs = [tuple(fs) for fs in unique_set]
+    # Create a list of tuples with the third element specifying the count
+    unique_motif_pairs_with_count = [
+        (pair[0], pair[1], pair[2], pair[3], pair[4], pair[5], pair_counts[frozenset(pair)]) for pair in
+        set(motif_pairs)]
+
+    # Specify the file path
+    csv_file_path = "unique_tert_contacts.csv"
+
+    # Open the file for writing
+    file = open(csv_file_path, mode='w', newline='')
+
+    # Create a CSV writer object
+    writer = csv.writer(file)
+
+    # Write the header
+    writer.writerow(["motif_1", "motif_2", "type_1", "type_2", "res_1", "res_2", "count"])
+
+    # Write the unique motif pairs along with their counts
+    for pair in unique_motif_pairs_with_count:
+        writer.writerow([pair[0], pair[1], pair[2], pair[3], pair[4], pair[5], pair[6]])
+
+    # Close the file
+    file.close()
 
     # make directory for tert contacts
     __safe_mkdir("tertiary_contacts")
 
-    # for each motif_pair of tertiary interactions:
-    for motif_pair in unique_motif_pairs:
+    # combine the CIFs of tertiary interactions
+    for motif_pair in unique_motif_pairs_with_count:
         motif_1 = motif_pair[0]
         motif_2 = motif_pair[1]
 
@@ -473,7 +530,6 @@ def __find_tertiary_contacts():
         tert_contact_name = motif_1 + "." + motif_2
         # debug
 
-        print("this is being run")
         # classifying them based on motif type
         motif_1_type = motif_1.split(".")[0]
         motif_2_type = motif_2.split(".")[0]
@@ -481,12 +537,6 @@ def __find_tertiary_contacts():
         motif_types_sorted = sorted(motif_types_list)
 
         motif_types = str(motif_types_sorted[0]) + "-" + str(motif_types_sorted[1])
-
-        print(motif_1_type)
-        print(motif_2_type)
-        print(motif_types_list)
-        print(motif_types_sorted)
-        print(motif_types)
 
         if motif_types:
             __safe_mkdir("tertiary_contacts/" + motif_types + "/")
@@ -504,12 +554,11 @@ def __find_tertiary_contacts():
 # calculate heatmap for twoway junctions
 # function here
 
-def __twoway_junction_processing():
+def __heatmap_creation():
     # need a CIF of all the twoway junctions to be made upstream
     # motif_name, motif_type (NWAY/TWOWAY), nucleotides_in_strand_1, nucleotides_in_strand_2
 
     # the classification is done so we just need to import the CSV and build the heatmap
-
     # Read the CSV data into a DataFrame
     csv_path = "twoway_motif_list.csv"
 
@@ -521,21 +570,15 @@ def __twoway_junction_processing():
             print("No data in the CSV file. Skipping twoway junction processing.")
             return
     except pd.errors.EmptyDataError:
-        print("EmptyDataError: No data in the CSV file. Skipping twoway junction processing.")
+        print(
+            "EmptyDataError: No data in the CSV file regarding twoway junctions. Skipping twoway junction processing.")
         return
-
-    # Extract data from the DataFrame
-    a_values = df['bridging_nts_0']
-    b_values = df['bridging_nts_1']
-
-    # Combine the data into a list of tuples
-    data = list(zip(a_values, b_values))
 
     # Create a DataFrame for the heatmap
     heatmap_df = df.pivot_table(index='bridging_nts_0', columns='bridging_nts_1', aggfunc='size', fill_value=0)
 
     # Create a heatmap using seaborn
-    sns.heatmap(heatmap_df, cmap='gray_r', fmt='g', norm=LogNorm())
+    sns.heatmap(heatmap_df, cmap='gray_r', fmt='g')
 
     # Add these lines:
     plt.gca().set_aspect('equal', adjustable='box')
@@ -551,14 +594,127 @@ def __twoway_junction_processing():
     plt.title("Twoway Motif Heatmap")
 
     # Save the heatmap as a PNG file
-    plt.savefig("twoway_motif_heatmap.png", dpi=1000)
+    plt.savefig("twoway_motif_heatmap.png", dpi=250)
 
     # Don't display the plot
     plt.close()
 
+    # need to create lists to create a final histogram
+    heatmap_res_names = []
+    heatmap_atom_names = []
 
-# Interactions between nucleotides and amino acids
-# A breakdown of types of hydrogen bonds. A break down between is its base-base interaction base-sugar etc
+    # TODO heatmaps all the H-bonds
+    # we need a heatmap for all the H-bonds present in the data
+
+    # first, take all the h-bonds present in CSV
+    hbond_df = pd.read_csv("interactions_detailed.csv")
+    # now delete all non-canonical residues
+    filtered_hbond_df = hbond_df[
+        hbond_df['res_1_name'].isin(canon_res_list) & hbond_df['res_2_name'].isin(canon_res_list)]
+
+    # next, group by (res_1_name, res_2_name) as well as by atoms involved in the interaction
+    grouped_hbond_df = filtered_hbond_df.groupby(["res_1_name", "res_2_name", "atom_1", "atom_2"])
+
+    # finally, for each group, make heatmaps of (distance,angle)
+    for group in grouped_hbond_df:
+        # group[0] = tuple (type_1,type_2), both strings
+        # group[1] = dataframe
+        group_name = group[0]
+
+        type_1 = str(group_name[0])
+        type_2 = str(group_name[1])
+
+        atom_1 = str(group_name[2])
+        atom_2 = str(group_name[3])
+
+        print(f"Processing {type_1}-{type_2} {atom_1}-{atom_2}")
+        hbonds = group[1]
+        # dataframe with the data
+        hbonds_subset = hbonds[['distance', 'angle']]
+        hbonds_subset = hbonds_subset.reset_index(drop=True)
+
+        if (len(hbonds_subset) >= 100) & (len(hbonds_subset) <= 400):
+
+            # Define the bin intervals for distance and angle
+            distance_bins = [i / 4 for i in range(17)]  # Bins from 0 to 4 in increments of 0.25
+            angle_bins = [i for i in range(0, 181, 5)]  # Bins from 0 to 180 in increments of 5
+
+            # Bin the data
+            hbonds_subset['distance_bin'] = pd.cut(hbonds_subset['distance'], bins=distance_bins)
+            hbonds_subset['angle_bin'] = pd.cut(hbonds_subset['angle'], bins=angle_bins)
+
+            # Count the frequency of data points in each bin
+            heatmap_data = hbonds_subset.groupby(['angle_bin', 'distance_bin']).size().unstack(fill_value=0)
+
+            # Create the heatmap
+            plt.figure(figsize=(6, 10))  # Adjust the figure size as needed
+            heatmap = sns.heatmap(heatmap_data, cmap='gray_r', xticklabels=1, yticklabels=range(0, 181, 5), square=True)
+
+            # Set the plot labels and title
+            plt.xlabel("Distance (angstroms)")
+            plt.ylabel("Angle (degrees)")
+            map_name = type_1 + "-" + type_2 + " " + atom_1 + "-" + atom_2
+            plt.title(map_name + " H-bond heatmap")
+
+            print(len(type_1))
+            print(len(type_2))
+
+            if len(type_1) == 1 and len(type_2) == 1:
+                map_dir = "heatmaps/RNA-RNA"
+            else:
+                map_dir = "heatmaps/RNA-PROT"
+
+            __safe_mkdir(map_dir)
+
+            map_dir = map_dir + "/" + map_name
+            # Save the heatmap as a PNG file
+            plt.savefig(f"{map_dir}.png", dpi=250)
+            # Sometimes the terminal might kill the process
+            # if that happens lower the DPI setting above
+
+            # Don't display the plot
+            plt.close()
+
+            # Also print a CSV of the appropriate data
+            heatmap_csv_path = "heatmap_data"
+            __safe_mkdir(heatmap_csv_path)
+
+            # set name
+            heat_data_csv_path = heatmap_csv_path + "/" + map_name + ".csv"
+
+            # print data
+            hbonds.to_csv(heat_data_csv_path, index=False)
+
+            # need to print a histogram of the number of data points in each heatmap
+            # so need to collect this data first
+
+            heatmap_res_names.append(map_name)
+            heatmap_atom_names.append(len(hbonds_subset))
+
+        else:
+            print(f"Skipping {type_1}-{type_2} {atom_1}-{atom_2} due to insufficient or too many data points.")
+
+    # after collecting data make the final histogram of all the data in heatmaps
+    # first compile the list into a df
+    histo_df = pd.DataFrame({"heatmap": heatmap_res_names, "count": heatmap_atom_names})
+
+    # plot histogram
+    plt.hist(histo_df.iloc[:, 1], bins=400)  # Adjust the number of bins as needed
+
+    # set labels
+    plt.xlabel('# of datapoints inside a heatmap')
+    plt.ylabel('# of heatmaps with X datapoints')
+    plt.title('1d_histogram')
+
+    # set y-axis limit
+    #plt.ylim(0, max(df.iloc[:, 1]) * 0.9)
+
+    plt.savefig('1d_histo.png')
+    plt.close()
+
+# else:
+# print(f"Skipping {type_1}-{type_2} {atom_1}-{atom_2} due to insufficient data points.")
+
 
 # calculate some final statistics
 def __final_statistics():
@@ -584,20 +740,6 @@ def __final_statistics():
         print(folder_counts)
     except Exception as e:
         print(f"Error processing folders in directory '{motif_directory}': {e}")
-
-    # plotting the 2x2 motifs (filled with random data for now)
-
-    # Example data (replace this with your actual data)
-    data = np.random.random((100, 100))
-
-    # Create a heatmap using seaborn
-    sns.heatmap(data, cmap='viridis', annot=False, linewidths=.5)
-
-    # Save the plot as a PNG file
-    plt.savefig('heatmap.png')
-
-    # Close the plot window
-    plt.close()
 
 
 # merges the contents of CIF files (for concatenation because the old way was trash)
@@ -659,85 +801,91 @@ def main():
     current_time = datetime.datetime.now()
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
 
-    csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.320_3.5A.csv"
-
     # start of program
+
+    # the download of a redundant set
+    #__download_redundant_cif_files()
+    # redundant and nonredundant sets are mutually exclusive and must be run on separate runs
+    # with contents cleaned out between runs
+
+    # the download of a nonredundant set
+    csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.320_3.5A.csv"
     #__download_cif_files(csv_path)
     print('''
-╔════════════════════════════════════╗
-║                                    ║
-║                                    ║
-║                                    ║
-║                                    ║
-║                                    ║
-║       CIF FILES DOWNLOADED         ║
-║                                    ║
-╚════════════════════════════════════╝
-''')
+    ╔════════════════════════════════════╗
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║       CIF FILES DOWNLOADED         ║
+    ║                                    ║
+    ╚════════════════════════════════════╝
+    ''')
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
     #__get_dssr_files()
     print('''
-╔════════════════════════════════════╗
-║                                    ║
-║                                    ║
-║                                    ║
-║                                    ║
-║                                    ║
-║       DSSR FILES FINISHED          ║
-║                                    ║
-╚════════════════════════════════════╝
-''')
+    ╔════════════════════════════════════╗
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║       DSSR FILES FINISHED          ║
+    ║                                    ║
+    ╚════════════════════════════════════╝
+    ''')
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
     #__get_snap_files()
     print('''
-╔════════════════════════════════════╗
-║                                    ║
-║                                    ║
-║                                    ║
-║                                    ║
-║                                    ║
-║       SNAP FILES FINISHED          ║
-║                                    ║
-╚════════════════════════════════════╝
-''')
+    ╔════════════════════════════════════╗
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║       SNAP FILES FINISHED          ║
+    ║                                    ║
+    ╚════════════════════════════════════╝
+    ''')
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
     #__generate_motif_files()
     print('''
-╔════════════════════════════════════╗
-║                                    ║
-║                                    ║
-║                                    ║
-║                                    ║
-║                                    ║
-║      MOTIF FILES FINISHED          ║
-║                                    ║
-╚════════════════════════════════════╝
-''')
+    ╔════════════════════════════════════╗
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║      MOTIF FILES FINISHED          ║
+    ║                                    ║
+    ╚════════════════════════════════════╝
+    ''')
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    __find_tertiary_contacts()
+    #__find_tertiary_contacts()
     print('''
-╔════════════════════════════════════╗
-║                                    ║
-║                                    ║
-║                                    ║
-║                                    ║
-║                                    ║
-║      TERTIARY CONTACTS FINISHED    ║
-║                                    ║
-╚════════════════════════════════════╝
-    ''')
+    ╔════════════════════════════════════╗
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║                                    ║
+    ║      TERTIARY CONTACTS FINISHED    ║
+    ║                                    ║
+    ╚════════════════════════════════════╝
+        ''')
 
     ### make a heatmap of the 2way junction data
-    print("Printing 2-way junction heatmap...")
-    __twoway_junction_processing()
+    print("Printing heatmaps of data...")
+    __heatmap_creation()
 
     print("Final statistics incoming...")
     __final_statistics()
