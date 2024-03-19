@@ -504,7 +504,7 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
         residue_id = extract_longest_numeric_sequence(nt_spl[1])
 
         if "/" in nt_spl[1]:
-            print("run")
+            # print("run")
             sub_spl = nt_spl[1].split("/")
             residue_id = sub_spl[1]
 
@@ -566,16 +566,24 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
             basepair_ends = count_connections(result_df, motif_name=motif_name,
                                               twoway_jct_csv=twoway_csv)  # you need a master DF of residues here
             # Write # of BP ends to the motif name (labeling of n-way junction)
-            new_path = dir[0] + "/" + str(basepair_ends) + "ways" + "/" + dir[2] + "/" + sub_dir[
-                2] + "/" + sub_dir[3]
-            name_path = new_path + "/" + motif_name
-            # writing the file to its place
-            make_dir(new_path)
+            if not (basepair_ends == 1):
+                new_path = dir[0] + "/" + str(basepair_ends) + "ways" + "/" + dir[2] + "/" + sub_dir[
+                    2] + "/" + sub_dir[3]
+                name_path = new_path + "/" + motif_name
+                # writing the file to its place
+                make_dir(new_path)
+            else:
+                # this should be reclassified as a hairpin
+                sub_dir[0] = "HAIRPIN"
+                # count the number of nucleotides, then -2
+                #pass
+
+
         if (sub_dir[0] == "HAIRPIN"):
             # hairpins classified by the # of looped nucleotides at the top of the pin
             # two NTs in a hairpin are always canonical pairs so just: (len nts - 2)
             hairpin_bridge_length = len(nts) - 2
-            # after clasification into tri/tetra/etc
+            # after classification into tri/tetra/etc
             hairpin_path = dir[0] + "/hairpins/" + str(hairpin_bridge_length)
             make_dir(hairpin_path)
             name_path = hairpin_path + "/" + motif_name
@@ -1181,8 +1189,6 @@ def __assign_hbonds_to_motifs(motifs, hbonds, shared):
         # this specifies the class of interaction (aa:base, aa:aa, etc)
         hbond_classes = __assign_hbond_class(atom1, atom2, rt1, rt2)
 
-        print(hbond_classes)
-
         # this counts the # of hydrogen bonds in each category
         if m1 is not None:
             if m1.name not in motif_hbonds:
@@ -1207,8 +1213,6 @@ def __assign_hbonds_to_motifs(motifs, hbonds, shared):
                 hbond_class = hbond_classes[0] + ":" + hbond_classes[1]
             motif_hbonds[m2.name][hbond_class] += 1
             motif_interactions[m2.name].append(res1)
-
-            print(motif_interactions)
 
     return motif_hbonds, motif_interactions, hbonds_in_motif
 

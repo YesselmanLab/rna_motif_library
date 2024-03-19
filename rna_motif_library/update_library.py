@@ -85,7 +85,7 @@ def __safe_mkdir(directory):
 
 
 # download the redundant set (may not actually work)
-def __download_redundant_cif_files():
+"""def __download_redundant_cif_files():
     # Define the directory to save the PDB files
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     if not os.path.exists(pdb_dir):
@@ -96,8 +96,8 @@ def __download_redundant_cif_files():
     # Perform the search and download the PDB files (actually CIF but screw it)
     response = requests.post(search_url, data=json.dumps(settings.QUERY_TERM))
 
-    #print(response)
-    #exit(0)
+    # print(response)
+    # exit(0)
     results = response.json()["result_set"]
     # iterates over each item in the results list obtained from the search response
     for result in results:
@@ -113,7 +113,7 @@ def __download_redundant_cif_files():
             # content of the response is then written to the pdb_file
             with open(pdb_file, "wb") as f:
                 f.write(response.content)
-
+"""
 
 def __download_cif_files(csv_path):
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
@@ -246,7 +246,7 @@ def __generate_motif_files():
         s = os.path.getsize(pdb_path)
         name = pdb_path.split("/")[-1][:-4]
         json_path = settings.LIB_PATH + "/data/dssr_output/" + name + ".json"
-        if s < 10000000:  # size-limit on PDB; need more RAM for higher limits; run on a 16 GB machine
+        if s < 10000000:  # size-limit on PDB; need more RAM for higher limits; this was run on a 16 GB machine
             count += 1
             print(count, pdb_path, name)
             pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
@@ -462,13 +462,13 @@ def __find_tertiary_contacts():
     # after the CSV for tertiary contacts are made we need to go through and extract all unique pairs in CSV
     # File path
     tert_contact_csv_path = "tertiary_contact_list.csv"
-    tert_contact_csv_df = pd.read_csv(tert_contact_csv_path, skiprows=[0])
+    tert_contact_csv_df = pd.read_csv(tert_contact_csv_path)
 
     # Check if the required columns are present
     required_columns = ['motif_1', 'motif_2']
     if not set(required_columns).issubset(tert_contact_csv_df.columns):
         print(f"A line in the CSV is blank. If this shows only once, it is working as intended.")
-        return
+        # return # return if you don't want to print tert contacts
 
     motifs_1 = tert_contact_csv_df['motif_1'].tolist()
     motifs_2 = tert_contact_csv_df['motif_2'].tolist()
@@ -482,6 +482,9 @@ def __find_tertiary_contacts():
     # Create a list of tuples
     motif_pairs = [(motif1, motif2, types1, types2, ress1, ress2) for motif1, motif2, types1, types2, ress1, ress2 in
                    zip(motifs_1, motifs_2, types_1, types_2, ress_1, ress_2)]
+
+    print("Motif pairs:")
+    print(motif_pairs)
 
     # Count occurrences of each unique pair
     pair_counts = Counter(motif_pairs)
@@ -539,7 +542,7 @@ def __find_tertiary_contacts():
         motif_types = str(motif_types_sorted[0]) + "-" + str(motif_types_sorted[1])
 
         if motif_types:
-            __safe_mkdir("tertiary_contacts/" + motif_types + "/")
+            __safe_mkdir("tertiary_contacts/" + motif_types)
             tert_contact_out_path = "tertiary_contacts/" + motif_types + "/" + tert_contact_name
 
         else:
@@ -574,24 +577,48 @@ def __heatmap_creation():
             "EmptyDataError: No data in the CSV file regarding twoway junctions. Skipping twoway junction processing.")
         return
 
+    # now make a heatmap for twoway JCTs
+
     # Create a DataFrame for the heatmap
-    heatmap_df = df.pivot_table(index='bridging_nts_0', columns='bridging_nts_1', aggfunc='size', fill_value=0)
+    twoway_heatmap_df = df.pivot_table(index='bridging_nts_0', columns='bridging_nts_1', aggfunc='size', fill_value=0)
 
-    # Create a heatmap using seaborn
-    sns.heatmap(heatmap_df, cmap='gray_r', fmt='g')
+    # Extract the data from the DataFrame
+    x = twoway_heatmap_df.columns.astype(float)
+    y = twoway_heatmap_df.index.astype(float)
+    z = twoway_heatmap_df.values
 
-    # Add these lines:
+    # Reshape the data for hist2d
+    x_mesh, y_mesh = np.meshgrid(x, y)
+
+    # Determine the range of x and y
+    x_range = np.arange(int(x.min()), min(int(x.max()) + 1, 12))  # Limit to 10 on x-axis
+    y_range = np.arange(int(y.min()), min(int(y.max()) + 1, 12))  # Limit to 10 on y-axis
+
+    # Create the 2D histogram
+    plt.figure(figsize=(14, 14))
+    plt.hist2d(x_mesh.ravel(), y_mesh.ravel(), weights=z.ravel(), bins=[x_range, y_range], cmap='gray_r')
+
+    # Add labels and title
+    plt.rcParams.update({'font.size': 32})
+    plt.xlabel("X", fontsize=32)
+    plt.ylabel("Y", fontsize=32)
+    plt.title("Figure 2(e): 2-way junctions (X-Y)", fontsize=32)
+
+    # Add colorbar for frequency scale
+    plt.colorbar(label='Frequency')
+
+    # Set ticks on x-axis
+    plt.xticks(np.arange(x_range.min() + 0.5, x_range.max() + 1.5, 1),
+               [f'{int(tick - 0.5)}' for tick in np.arange(x_range.min() + 0.5, x_range.max() + 1.5, 1)],
+               fontsize=32)  # Set font size for x-axis ticks
+
+    # Set ticks on y-axis
+    plt.yticks(np.arange(y_range.min() + 0.5, y_range.max() + 1.5, 1),
+               [f'{int(tick - 0.5)}' for tick in np.arange(y_range.min() + 0.5, y_range.max() + 1.5, 1)],
+               fontsize=32)  # Set font size for y-axis ticks
+
+    # Set aspect ratio to square
     plt.gca().set_aspect('equal', adjustable='box')
-    plt.axis('scaled')
-
-    # Set the x and y axis labels to numeric scale
-    plt.xticks(range(len(heatmap_df.columns)), heatmap_df.columns)
-    plt.yticks(range(len(heatmap_df.index)), heatmap_df.index)
-
-    # Set the plot labels and title
-    plt.xlabel("x")
-    plt.ylabel("y")
-    plt.title("Twoway Motif Heatmap")
 
     # Save the heatmap as a PNG file
     plt.savefig("twoway_motif_heatmap.png", dpi=250)
@@ -599,12 +626,9 @@ def __heatmap_creation():
     # Don't display the plot
     plt.close()
 
-    # need to create lists to create a final histogram
+    # need to create lists to create a final histogram for h-bonds
     heatmap_res_names = []
     heatmap_atom_names = []
-
-    # TODO heatmaps all the H-bonds
-    # we need a heatmap for all the H-bonds present in the data
 
     # first, take all the h-bonds present in CSV
     hbond_df = pd.read_csv("interactions_detailed.csv")
@@ -615,49 +639,41 @@ def __heatmap_creation():
     # next, group by (res_1_name, res_2_name) as well as by atoms involved in the interaction
     grouped_hbond_df = filtered_hbond_df.groupby(["res_1_name", "res_2_name", "atom_1", "atom_2"])
 
-    # finally, for each group, make heatmaps of (distance,angle)
+    # Finally, for each group, make heatmaps of (distance,angle)
     for group in grouped_hbond_df:
-        # group[0] = tuple (type_1,type_2), both strings
-        # group[1] = dataframe
         group_name = group[0]
-
         type_1 = str(group_name[0])
         type_2 = str(group_name[1])
-
         atom_1 = str(group_name[2])
         atom_2 = str(group_name[3])
 
         print(f"Processing {type_1}-{type_2} {atom_1}-{atom_2}")
         hbonds = group[1]
-        # dataframe with the data
         hbonds_subset = hbonds[['distance', 'angle']]
         hbonds_subset = hbonds_subset.reset_index(drop=True)
 
         if (len(hbonds_subset) >= 100) & (len(hbonds_subset) <= 400):
+            # Set global font size
+            plt.rc('font', size=14)  # Adjust the font size as needed
 
-            # Define the bin intervals for distance and angle
-            distance_bins = [i / 4 for i in range(17)]  # Bins from 0 to 4 in increments of 0.25
-            angle_bins = [i for i in range(0, 181, 5)]  # Bins from 0 to 180 in increments of 5
+            distance_bins = [i / 10 for i in range(20, 41)]  # Bins from 0 to 4 in increments of 0.1
+            angle_bins = [i for i in range(0, 181, 10)]  # Bins from 0 to 180 in increments of 10
 
-            # Bin the data
             hbonds_subset['distance_bin'] = pd.cut(hbonds_subset['distance'], bins=distance_bins)
             hbonds_subset['angle_bin'] = pd.cut(hbonds_subset['angle'], bins=angle_bins)
 
-            # Count the frequency of data points in each bin
             heatmap_data = hbonds_subset.groupby(['angle_bin', 'distance_bin']).size().unstack(fill_value=0)
 
-            # Create the heatmap
-            plt.figure(figsize=(6, 10))  # Adjust the figure size as needed
-            heatmap = sns.heatmap(heatmap_data, cmap='gray_r', xticklabels=1, yticklabels=range(0, 181, 5), square=True)
+            plt.figure(figsize=(10, 10))
+            sns.heatmap(heatmap_data, cmap='gray_r', xticklabels=1, yticklabels=range(0, 181, 10), square=True)
 
-            # Set the plot labels and title
+            plt.xticks(np.arange(len(distance_bins)) + 0.5, [f'{bin_val:.1f}' for bin_val in distance_bins], rotation=0)
+            plt.yticks(np.arange(len(angle_bins)) + 0.5, angle_bins, rotation=0)
+
             plt.xlabel("Distance (angstroms)")
             plt.ylabel("Angle (degrees)")
             map_name = type_1 + "-" + type_2 + " " + atom_1 + "-" + atom_2
             plt.title(map_name + " H-bond heatmap")
-
-            print(len(type_1))
-            print(len(type_2))
 
             if len(type_1) == 1 and len(type_2) == 1:
                 map_dir = "heatmaps/RNA-RNA"
@@ -667,13 +683,41 @@ def __heatmap_creation():
             __safe_mkdir(map_dir)
 
             map_dir = map_dir + "/" + map_name
-            # Save the heatmap as a PNG file
+            plt.savefig(f"{map_dir}.png", dpi=250)
+            plt.close()
+
+            heatmap_csv_path = "heatmap_data"
+            __safe_mkdir(heatmap_csv_path)
+
+            heat_data_csv_path = heatmap_csv_path + "/" + map_name + ".csv"
+            hbonds.to_csv(heat_data_csv_path, index=False)
+
+            heatmap_res_names.append(map_name)
+            heatmap_atom_names.append(len(hbonds_subset))
+
+            # Insert the code for the 2D histogram here
+            plt.figure(figsize=(10, 8))
+            plt.hist2d(hbonds_subset['distance'], hbonds_subset['angle'], bins=[distance_bins, angle_bins],
+                       cmap='gray_r')
+            plt.xlabel("Distance (angstroms)")
+            plt.ylabel("Angle (degrees)")
+            plt.colorbar(label='Frequency')
+            map_name = type_1 + "-" + type_2 + " " + atom_1 + "-" + atom_2
+            plt.title(map_name + " H-bond heatmap")
+
+            if len(type_1) == 1 and len(type_2) == 1:
+                map_dir = "heatmaps/RNA-RNA"
+            else:
+                map_dir = "heatmaps/RNA-PROT"
+
+            __safe_mkdir(map_dir)
+            map_dir = map_dir + "/" + map_name
+            # Save the 2D histogram as a PNG file
             plt.savefig(f"{map_dir}.png", dpi=250)
             # Sometimes the terminal might kill the process
             # if that happens lower the DPI setting above
 
-            # Don't display the plot
-            plt.close()
+            plt.close()  # Close the plot to prevent overlapping plots
 
             # Also print a CSV of the appropriate data
             heatmap_csv_path = "heatmap_data"
@@ -690,7 +734,6 @@ def __heatmap_creation():
 
             heatmap_res_names.append(map_name)
             heatmap_atom_names.append(len(hbonds_subset))
-
         else:
             print(f"Skipping {type_1}-{type_2} {atom_1}-{atom_2} due to insufficient or too many data points.")
 
@@ -707,16 +750,17 @@ def __heatmap_creation():
     plt.title('1d_histogram')
 
     # set y-axis limit
-    #plt.ylim(0, max(df.iloc[:, 1]) * 0.9)
+    # plt.ylim(0, max(df.iloc[:, 1]) * 0.9)
 
     plt.savefig('1d_histo.png')
     plt.close()
+
 
 # else:
 # print(f"Skipping {type_1}-{type_2} {atom_1}-{atom_2} due to insufficient data points.")
 
 
-# calculate some final statistics
+# calculate some final statistics (Figure 2)
 def __final_statistics():
     motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/motifs"
 
@@ -737,7 +781,171 @@ def __final_statistics():
                 # Store the count in the dictionary
                 folder_counts[item_name] = file_count
 
-        print(folder_counts)
+        # make a bar graph of all types of motifs
+        folder_names = list(folder_counts.keys())
+        file_counts = list(folder_counts.values())
+
+        # Sort the folder names and file counts alphabetically
+        folder_names_sorted, file_counts_sorted = zip(*sorted(zip(folder_names, file_counts)))
+
+        # Set consistent parameters
+        plt.rcParams.update({'font.size': 32})  # Set text size to 12
+
+        plt.figure(figsize=(20, 20))
+        plt.bar(folder_names_sorted, file_counts_sorted, edgecolor='black', width=1)
+
+        plt.xlabel('Junctions')
+        plt.ylabel('Count')
+        plt.title('A') # Presence of N-way Junctions
+        plt.xticks(rotation=45, ha='right')  # Rotate x-axis labels for better readability
+
+        # Save the graph as a PNG file
+        plt.savefig('bar_graph_motif_counts.png', dpi=600)
+
+        # Don't display the plot
+        plt.close()
+
+        # of the hairpins, how long are they (histogram)
+        hairpin_directory = motif_directory + "/hairpins"
+
+        hairpin_counts = {}
+
+        # Iterate over all items in the specified directory
+        for item_name in os.listdir(hairpin_directory):
+            item_path = os.path.join(hairpin_directory, item_name)
+
+            # Check if the current item is a directory
+            if os.path.isdir(item_path):
+                # Perform your action for each folder
+                file_count = count_files_with_extension(item_path, ".cif")
+
+                # Store the count in the dictionary
+                hairpin_counts[item_name] = file_count
+
+        # Convert hairpin folder names to integers and sort them
+        sorted_hairpin_counts = dict(sorted(hairpin_counts.items(), key=lambda item: int(item[0])))
+
+        # Extract sorted keys and values
+        hairpin_folder_names_sorted = list(sorted_hairpin_counts.keys())
+        hairpin_file_counts_sorted = list(sorted_hairpin_counts.values())
+
+        # Convert hairpin folder names to integers
+        hairpin_bins = sorted([int(name) for name in hairpin_folder_names_sorted])
+
+        # Calculate the positions for the tick marks (midpoints between bins)
+        tick_positions = np.arange(min(hairpin_bins), max(hairpin_bins) + 1)
+
+        plt.figure(figsize=(20, 20))
+        plt.hist(hairpin_bins, bins=np.arange(min(hairpin_bins) - 0.5, max(hairpin_bins) + 1.5, 1),
+                 weights=hairpin_file_counts_sorted, edgecolor='black', align='mid')
+        plt.xlabel('Hairpin Lengths')
+        plt.ylabel('Frequency')
+        plt.title('C') #  Hairpins with Given Length
+        # Set custom tick positions and labels
+        plt.xticks(tick_positions, tick_positions)
+
+        plt.xticks(np.arange(min(hairpin_bins), max(hairpin_bins) + 1, 5))  # Display ticks every 5 integers
+
+        plt.xticks(rotation=45, ha='right')  # Rotate x-axis labels for better readability
+        plt.tight_layout()  # Adjust layout to prevent clipping of labels
+
+        # Save the bar graph as a PNG file
+        plt.savefig('hairpin_counts_bar_graph.png', dpi=600)
+
+        # Don't display the plot
+        plt.close()
+
+        # of the helices, how long are they (bar graph)
+        helix_directory = motif_directory + "/helices"
+
+        helix_counts = {}
+
+        # Iterate over all items in the specified directory
+        for item_name in os.listdir(helix_directory):
+            item_path = os.path.join(helix_directory, item_name)
+
+            # Check if the current item is a directory
+            if os.path.isdir(item_path):
+                # Perform your action for each folder
+                file_count = count_files_with_extension(item_path, ".cif")
+
+                # Store the count in the dictionary
+                helix_counts[item_name] = file_count
+
+        # Convert helix folder names to integers and sort them
+        sorted_helix_counts = dict(sorted(helix_counts.items(), key=lambda item: int(item[0])))
+
+        # Extract sorted keys and values
+        helix_folder_names_sorted = list(sorted_helix_counts.keys())
+        helix_file_counts_sorted = list(sorted_helix_counts.values())
+
+        # Convert helix folder names to integers
+        helix_bins = sorted([int(name) for name in helix_folder_names_sorted])
+
+        # Calculate the positions for the tick marks (midpoints between bins)
+        tick_positions = np.arange(min(helix_bins), max(helix_bins) + 1)
+
+        plt.figure(figsize=(20, 20))
+        plt.hist(helix_bins, bins=np.arange(min(helix_bins) - 0.5, max(helix_bins) + 1.5, 1),
+                 weights=helix_file_counts_sorted, edgecolor='black', align='mid')
+        plt.xlabel('Helix Lengths')
+        plt.ylabel('Frequency')
+        plt.title('D') # Helices with Given Length
+
+        # Set custom tick positions and labels
+        plt.xticks(tick_positions, tick_positions)
+
+        plt.xticks(rotation=45, ha='right')  # Rotate x-axis labels for better readability
+        plt.tight_layout()  # Adjust layout to prevent clipping of labels
+
+        # Save the bar graph as a PNG file
+        plt.savefig('helix_counts_bar_graph.png', dpi=600)
+
+        # Don't display the plot
+        plt.close()
+
+        # create a bar graph of how many tertiary contacts are present
+        tert_motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/tertiary_contacts"
+
+        # Create a dictionary to store counts for each folder
+        tert_folder_counts = {}
+
+        # Iterate over all items in the specified directory
+        for item_name in os.listdir(tert_motif_directory):
+            item_path = os.path.join(tert_motif_directory, item_name)
+
+            # Check if the current item is a directory
+            if os.path.isdir(item_path):
+                # Perform your action for each folder
+                file_count = count_files_with_extension(item_path, ".cif")
+
+                # Store the count in the dictionary
+                tert_folder_counts[item_name] = file_count
+
+        # make a bar graph of all types of motifs
+        tert_folder_names = list(tert_folder_counts.keys())
+        tert_file_counts = list(tert_folder_counts.values())
+
+        # Sort the folder names and file counts alphabetically
+        tert_folder_names_sorted, tert_file_counts_sorted = zip(*sorted(zip(tert_folder_names, tert_file_counts)))
+
+        plt.figure(figsize=(20, 20))
+        plt.bar(tert_folder_names_sorted, tert_file_counts_sorted, edgecolor='black', width=1.0)
+
+        plt.xlabel('Tertiary Contact Type')
+        plt.ylabel('Count')
+        plt.title('B') # tertiary contact types
+        plt.xticks(rotation=45, ha='right')  # Rotate x-axis labels for better readability
+
+        # Adjust x-axis ticks for a tight fit
+        plt.autoscale(enable=True, axis='x', tight=True)
+
+        # Save the graph as a PNG file
+        plt.savefig('tertiary_motif_counts.png', dpi=600)
+
+        # Don't display the plot
+        plt.close()
+
     except Exception as e:
         print(f"Error processing folders in directory '{motif_directory}': {e}")
 
@@ -804,13 +1012,13 @@ def main():
     # start of program
 
     # the download of a redundant set
-    #__download_redundant_cif_files()
+    # __download_redundant_cif_files()
     # redundant and nonredundant sets are mutually exclusive and must be run on separate runs
     # with contents cleaned out between runs
 
     # the download of a nonredundant set
     csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.320_3.5A.csv"
-    #__download_cif_files(csv_path)
+    # __download_cif_files(csv_path)
     print('''
     ╔════════════════════════════════════╗
     ║                                    ║
@@ -825,7 +1033,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    #__get_dssr_files()
+    # __get_dssr_files()
     print('''
     ╔════════════════════════════════════╗
     ║                                    ║
@@ -840,7 +1048,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    #__get_snap_files()
+    # __get_snap_files()
     print('''
     ╔════════════════════════════════════╗
     ║                                    ║
@@ -855,7 +1063,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    #__generate_motif_files()
+    __generate_motif_files()
     print('''
     ╔════════════════════════════════════╗
     ║                                    ║
@@ -870,7 +1078,8 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    #__find_tertiary_contacts()
+
+    __find_tertiary_contacts()
     print('''
     ╔════════════════════════════════════╗
     ║                                    ║
