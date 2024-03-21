@@ -115,6 +115,7 @@ def __safe_mkdir(directory):
                 f.write(response.content)
 """
 
+
 def __download_cif_files(csv_path):
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     count = 0
@@ -762,192 +763,212 @@ def __heatmap_creation():
 
 # calculate some final statistics (Figure 2)
 def __final_statistics():
+    # graphs
     motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/motifs"
 
     # Create a dictionary to store counts for each folder
-    folder_counts = {}
+    folder_counts = {"TWOWAY": 0, "NWAY": 0, "HAIRPIN": 0, "HELIX": 0}  # Initialize counts
 
     # for folder in directory, count numbers:
-    try:
-        # Iterate over all items in the specified directory
-        for item_name in os.listdir(motif_directory):
-            item_path = os.path.join(motif_directory, item_name)
+    # try:
+    # Iterate over all items in the specified directory
+    for item_name in os.listdir(motif_directory):
+        item_path = os.path.join(motif_directory, item_name)
 
-            # Check if the current item is a directory
-            if os.path.isdir(item_path):
-                # Perform your action for each folder
-                file_count = count_files_with_extension(item_path, ".cif")
+        # Check if the current item is a directory
+        if os.path.isdir(item_path):
+            # Perform your action for each folder
+            file_count = count_files_with_extension(item_path, ".cif")
 
-                # Store the count in the dictionary
+            # Check if the folder name is "2ways"
+            if item_name == "2ways":
+                # If folder name is "2ways", register the count as TWOWAY
+                folder_counts["TWOWAY"] += file_count
+            elif "ways" in item_name:
+                # If folder name contains "ways" but is not "2ways", register the count as NWAY
+                folder_counts["NWAY"] += file_count
+            elif item_name == "hairpins":
+                # If folder name is "hairpins", register the count as HAIRPIN
+                folder_counts["HAIRPIN"] += file_count
+            elif item_name == "helices":
+                # If folder name is "helices", register the count as HELIX
+                folder_counts["HELIX"] += file_count
+            else:
+                # If the folder name doesn't match any condition, use it as is
                 folder_counts[item_name] = file_count
 
-        # make a bar graph of all types of motifs
-        folder_names = list(folder_counts.keys())
-        file_counts = list(folder_counts.values())
+    # make a bar graph of all types of motifs
+    folder_names = list(folder_counts.keys())
+    file_counts = list(folder_counts.values())
 
-        # Sort the folder names and file counts alphabetically
-        folder_names_sorted, file_counts_sorted = zip(*sorted(zip(folder_names, file_counts)))
+    # Sort the folder names and file counts alphabetically
+    folder_names_sorted, file_counts_sorted = zip(*sorted(zip(folder_names, file_counts)))
 
-        # Set consistent parameters
-        plt.rcParams.update({'font.size': 32})  # Set text size to 12
+    # Set consistent parameters
+    plt.rcParams.update({'font.size': 14})  # Set overall text size
+    plt.figure(figsize=(8, 8))
+    plt.bar(folder_names_sorted, file_counts_sorted, edgecolor='black', width=1)
 
-        plt.figure(figsize=(20, 20))
-        plt.bar(folder_names_sorted, file_counts_sorted, edgecolor='black', width=1)
+    plt.xlabel('Motif Types')
+    plt.ylabel('Count')
+    plt.title('')  # Presence of N-way Junctions
+    plt.xticks(rotation=15, ha='right')  # Rotate x-axis labels for better readability
 
-        plt.xlabel('Junctions')
-        plt.ylabel('Count')
-        plt.title('A') # Presence of N-way Junctions
-        plt.xticks(rotation=45, ha='right')  # Rotate x-axis labels for better readability
+    plt.tight_layout()
 
-        # Save the graph as a PNG file
-        plt.savefig('bar_graph_motif_counts.png', dpi=600)
+    # Save the graph as a PNG file
+    plt.savefig('bar_graph_motif_counts.png', dpi=600)
 
-        # Don't display the plot
-        plt.close()
+    # Don't display the plot
+    plt.close()
 
-        # of the hairpins, how long are they (histogram)
-        hairpin_directory = motif_directory + "/hairpins"
+    # of the hairpins, how long are they (histogram)
+    hairpin_directory = motif_directory + "/hairpins"
 
-        hairpin_counts = {}
+    hairpin_counts = {}
 
-        # Iterate over all items in the specified directory
-        for item_name in os.listdir(hairpin_directory):
-            item_path = os.path.join(hairpin_directory, item_name)
+    # Iterate over all items in the specified directory
+    for item_name in os.listdir(hairpin_directory):
+        item_path = os.path.join(hairpin_directory, item_name)
 
-            # Check if the current item is a directory
-            if os.path.isdir(item_path):
-                # Perform your action for each folder
-                file_count = count_files_with_extension(item_path, ".cif")
+        # Check if the current item is a directory
+        if os.path.isdir(item_path):
+            # Perform your action for each folder
+            file_count = count_files_with_extension(item_path, ".cif")
 
-                # Store the count in the dictionary
-                hairpin_counts[item_name] = file_count
+            # Store the count in the dictionary
+            hairpin_counts[item_name] = file_count
 
-        # Convert hairpin folder names to integers and sort them
-        sorted_hairpin_counts = dict(sorted(hairpin_counts.items(), key=lambda item: int(item[0])))
+    # Convert hairpin folder names to integers and sort them
+    sorted_hairpin_counts = dict(sorted(hairpin_counts.items(), key=lambda item: int(item[0])))
 
-        # Extract sorted keys and values
-        hairpin_folder_names_sorted = list(sorted_hairpin_counts.keys())
-        hairpin_file_counts_sorted = list(sorted_hairpin_counts.values())
+    # Extract sorted keys and values
+    hairpin_folder_names_sorted = list(sorted_hairpin_counts.keys())
+    hairpin_file_counts_sorted = list(sorted_hairpin_counts.values())
 
-        # Convert hairpin folder names to integers
-        hairpin_bins = sorted([int(name) for name in hairpin_folder_names_sorted])
+    # Convert hairpin folder names to integers
+    hairpin_bins = sorted([int(name) for name in hairpin_folder_names_sorted])
 
-        # Calculate the positions for the tick marks (midpoints between bins)
-        tick_positions = np.arange(min(hairpin_bins), max(hairpin_bins) + 1)
+    # Calculate the positions for the tick marks (midpoints between bins)
+    tick_positions = np.arange(min(hairpin_bins), max(hairpin_bins) + 1)
 
-        plt.figure(figsize=(20, 20))
-        plt.hist(hairpin_bins, bins=np.arange(min(hairpin_bins) - 0.5, max(hairpin_bins) + 1.5, 1),
-                 weights=hairpin_file_counts_sorted, edgecolor='black', align='mid')
-        plt.xlabel('Hairpin Lengths')
-        plt.ylabel('Frequency')
-        plt.title('C') #  Hairpins with Given Length
-        # Set custom tick positions and labels
-        plt.xticks(tick_positions, tick_positions)
+    plt.figure(figsize=(8, 8))
+    plt.hist(hairpin_bins, bins=np.arange(min(hairpin_bins) - 0.5, max(hairpin_bins) + 1.5, 1),
+             weights=hairpin_file_counts_sorted, edgecolor='black', align='mid')
+    plt.xlabel('Hairpin Lengths')
+    plt.ylabel('Frequency')
+    plt.title('')  # Hairpins with Given Length
+    # Set custom tick positions and labels
+    plt.xticks(tick_positions, tick_positions)
 
-        plt.xticks(np.arange(min(hairpin_bins), max(hairpin_bins) + 1, 5))  # Display ticks every 5 integers
+    plt.xticks(np.arange(min(hairpin_bins), max(hairpin_bins) + 1, 5))  # Display ticks every 5 integers
 
-        plt.xticks(rotation=45, ha='right')  # Rotate x-axis labels for better readability
-        plt.tight_layout()  # Adjust layout to prevent clipping of labels
+    plt.xticks(rotation=15, ha='right')  # Rotate x-axis labels for better readability
+    plt.tight_layout()  # Adjust layout to prevent clipping of labels
 
-        # Save the bar graph as a PNG file
-        plt.savefig('hairpin_counts_bar_graph.png', dpi=600)
+    # Save the bar graph as a PNG file
+    plt.savefig('hairpin_counts_bar_graph.png', dpi=600)
 
-        # Don't display the plot
-        plt.close()
+    # Don't display the plot
+    plt.close()
 
-        # of the helices, how long are they (bar graph)
-        helix_directory = motif_directory + "/helices"
+    # of the helices, how long are they (bar graph)
+    helix_directory = motif_directory + "/helices"
 
-        helix_counts = {}
+    helix_counts = {}
 
-        # Iterate over all items in the specified directory
-        for item_name in os.listdir(helix_directory):
-            item_path = os.path.join(helix_directory, item_name)
+    # Iterate over all items in the specified directory
+    for item_name in os.listdir(helix_directory):
+        item_path = os.path.join(helix_directory, item_name)
 
-            # Check if the current item is a directory
-            if os.path.isdir(item_path):
-                # Perform your action for each folder
-                file_count = count_files_with_extension(item_path, ".cif")
+        # Check if the current item is a directory
+        if os.path.isdir(item_path):
+            # Perform your action for each folder
+            file_count = count_files_with_extension(item_path, ".cif")
 
-                # Store the count in the dictionary
-                helix_counts[item_name] = file_count
+            # Store the count in the dictionary
+            helix_counts[item_name] = file_count
 
-        # Convert helix folder names to integers and sort them
-        sorted_helix_counts = dict(sorted(helix_counts.items(), key=lambda item: int(item[0])))
+    # Convert helix folder names to integers and sort them
+    sorted_helix_counts = dict(sorted(helix_counts.items(), key=lambda item: int(item[0])))
 
-        # Extract sorted keys and values
-        helix_folder_names_sorted = list(sorted_helix_counts.keys())
-        helix_file_counts_sorted = list(sorted_helix_counts.values())
+    # Extract sorted keys and values
+    helix_folder_names_sorted = list(sorted_helix_counts.keys())
+    helix_file_counts_sorted = list(sorted_helix_counts.values())
 
-        # Convert helix folder names to integers
-        helix_bins = sorted([int(name) for name in helix_folder_names_sorted])
+    # Convert helix folder names to integers
+    helix_bins = sorted([int(name) for name in helix_folder_names_sorted])
 
-        # Calculate the positions for the tick marks (midpoints between bins)
-        tick_positions = np.arange(min(helix_bins), max(helix_bins) + 1)
+    # Calculate the positions for the tick marks (midpoints between bins)
+    tick_positions = np.arange(min(helix_bins), max(helix_bins) + 1)
 
-        plt.figure(figsize=(20, 20))
-        plt.hist(helix_bins, bins=np.arange(min(helix_bins) - 0.5, max(helix_bins) + 1.5, 1),
-                 weights=helix_file_counts_sorted, edgecolor='black', align='mid')
-        plt.xlabel('Helix Lengths')
-        plt.ylabel('Frequency')
-        plt.title('D') # Helices with Given Length
+    plt.figure(figsize=(8, 8))
+    plt.hist(helix_bins, bins=np.arange(min(helix_bins) - 0.5, max(helix_bins) + 1.5, 1),
+             weights=helix_file_counts_sorted, edgecolor='black', align='mid')
+    plt.xlabel('Helix Lengths')
+    plt.ylabel('Frequency')
+    plt.title('')  # Helices with Given Length
 
-        # Set custom tick positions and labels
-        plt.xticks(tick_positions, tick_positions)
+    # Set custom tick positions and labels
+    plt.xticks(tick_positions, tick_positions)
 
-        plt.xticks(rotation=45, ha='right')  # Rotate x-axis labels for better readability
-        plt.tight_layout()  # Adjust layout to prevent clipping of labels
+    plt.xticks(np.arange(min(helix_bins), max(helix_bins) + 1, 5))  # Display ticks every 5 integers
 
-        # Save the bar graph as a PNG file
-        plt.savefig('helix_counts_bar_graph.png', dpi=600)
+    plt.xticks(rotation=15, ha='right')  # Rotate x-axis labels for better readability
+    plt.tight_layout()  # Adjust layout to prevent clipping of labels
 
-        # Don't display the plot
-        plt.close()
+    # Save the bar graph as a PNG file
+    plt.savefig('helix_counts_bar_graph.png', dpi=600)
 
-        # create a bar graph of how many tertiary contacts are present
-        tert_motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/tertiary_contacts"
+    # Don't display the plot
+    plt.close()
 
-        # Create a dictionary to store counts for each folder
-        tert_folder_counts = {}
+    # create a bar graph of how many tertiary contacts are present
+    tert_motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/tertiary_contacts"
 
-        # Iterate over all items in the specified directory
-        for item_name in os.listdir(tert_motif_directory):
-            item_path = os.path.join(tert_motif_directory, item_name)
+    # Create a dictionary to store counts for each folder
+    tert_folder_counts = {}
 
-            # Check if the current item is a directory
-            if os.path.isdir(item_path):
-                # Perform your action for each folder
-                file_count = count_files_with_extension(item_path, ".cif")
+    # Iterate over all items in the specified directory
+    for item_name in os.listdir(tert_motif_directory):
+        item_path = os.path.join(tert_motif_directory, item_name)
 
-                # Store the count in the dictionary
-                tert_folder_counts[item_name] = file_count
+        # Check if the current item is a directory
+        if os.path.isdir(item_path):
+            # Perform your action for each folder
+            file_count = count_files_with_extension(item_path, ".cif")
 
-        # make a bar graph of all types of motifs
-        tert_folder_names = list(tert_folder_counts.keys())
-        tert_file_counts = list(tert_folder_counts.values())
+            # Store the count in the dictionary
+            tert_folder_counts[item_name] = file_count
 
-        # Sort the folder names and file counts alphabetically
-        tert_folder_names_sorted, tert_file_counts_sorted = zip(*sorted(zip(tert_folder_names, tert_file_counts)))
+    # make a bar graph of all types of motifs
+    tert_folder_names = list(tert_folder_counts.keys())
+    tert_file_counts = list(tert_folder_counts.values())
 
-        plt.figure(figsize=(20, 20))
-        plt.bar(tert_folder_names_sorted, tert_file_counts_sorted, edgecolor='black', width=1.0)
+    # Sort the folder names and file counts alphabetically
+    tert_folder_names_sorted, tert_file_counts_sorted = zip(*sorted(zip(tert_folder_names, tert_file_counts)))
 
-        plt.xlabel('Tertiary Contact Type')
-        plt.ylabel('Count')
-        plt.title('B') # tertiary contact types
-        plt.xticks(rotation=45, ha='right')  # Rotate x-axis labels for better readability
+    plt.figure(figsize=(8, 8))
+    plt.barh(tert_folder_names_sorted, tert_file_counts_sorted, edgecolor='black', height=1.0)#, width=1.0)
 
-        # Adjust x-axis ticks for a tight fit
-        plt.autoscale(enable=True, axis='x', tight=True)
+    plt.xlabel('Count')
+    plt.ylabel('Tertiary Contact Type')
 
-        # Save the graph as a PNG file
-        plt.savefig('tertiary_motif_counts.png', dpi=600)
+    plt.title('')  # tertiary contact types
+    plt.xticks(rotation=15, ha='right')  # Rotate x-axis labels for better readability
+    # Adjust x-axis ticks for a tight fit
+    # plt.autoscale(enable=True, axis='x', tight=True)
+    plt.tight_layout()
 
-        # Don't display the plot
-        plt.close()
+    # Save the graph as a PNG file
+    plt.savefig('tertiary_motif_counts.png', dpi=600)
 
-    except Exception as e:
-        print(f"Error processing folders in directory '{motif_directory}': {e}")
+    # Don't display the plot
+    plt.close()
+
+
+# except Exception as e:
+#    print(f"Error processing folders in directory '{motif_directory}': {e}")
 
 
 # merges the contents of CIF files (for concatenation because the old way was trash)
@@ -1063,7 +1084,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
-    __generate_motif_files()
+    # __generate_motif_files()
     print('''
     ╔════════════════════════════════════╗
     ║                                    ║
@@ -1079,7 +1100,7 @@ def main():
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
 
-    __find_tertiary_contacts()
+    # __find_tertiary_contacts()
     print('''
     ╔════════════════════════════════════╗
     ║                                    ║
@@ -1094,7 +1115,7 @@ def main():
 
     ### make a heatmap of the 2way junction data
     print("Printing heatmaps of data...")
-    __heatmap_creation()
+    # __heatmap_creation()
 
     print("Final statistics incoming...")
     __final_statistics()
