@@ -24,7 +24,7 @@ def safe_delete_dir(directory_path):
             print(f"Error deleting directory '{directory_path}': {e}")
 
 
-# separates CIF and PDB files after all is said and done (deprecated)
+"""# separates CIF and PDB files after all is said and done (deprecated)
 def cif_pdb_sort(directory):
     # Create a copy of the directory with "_PDB" suffix
     directory_copy = directory + '_PDB'
@@ -50,7 +50,7 @@ def cif_pdb_sort(directory):
                 # Delete the file
                 os.remove(file_path)
 
-    print(f".pdb files deleted from {directory}")
+    print(f".pdb files deleted from {directory}")"""
 
 
 # takes data from a dataframe and writes it to a CIF
@@ -92,13 +92,13 @@ def dataframe_to_cif(df, file_path, motif_name):
                 ))
 
 
-# takes data from a dataframe and writes it to a PDB (deprecated)
+"""# takes data from a dataframe and writes it to a PDB (deprecated)
 def dataframe_to_pdb(df, file_path):
     with open(file_path, 'w') as f:
         for row in df.itertuples(index=False):
             f.write("{:<5}{:>6}  {:<3} {:>3}{:>2}  {:>2}     {:>7} {:>7} {:>7}   {:>3} {:>3}         {:>3}\n".format(
                 row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9],
-                row[10], row[11]))
+                row[10], row[11]))"""
 
 
 # remove empty dataframes
@@ -321,16 +321,11 @@ def count_connections(master_res_df, motif_name, twoway_jct_csv):
 
     # final_refined_chains = combine_remaining_chains(ultra_refined_chains)
 
-    # Step 8: count lens and return
+    # Step 8: count lens
     len_chains = len(ultra_refined_chains)
 
-    # we need to set up a function that continuously refines strands until all the possible nucleotides have been joined
-    # do we though? put a pin in this because I need to check something
-    """if len_chains == 8:
-        print(ultra_refined_chains)
-        exit(0)"""
-
     # Step 9: print the contents of 2-way motifs into a CSV (nucleotide data, motif names)
+    # also change the names to make them match TWOWAY motifs, this will cause problems if you don't!
     if len_chains == 2:
 
         # Concatenate all inner lists and keep only unique values
@@ -352,14 +347,23 @@ def count_connections(master_res_df, motif_name, twoway_jct_csv):
         class_0 = len_0 - 2
         class_1 = len_1 - 2
 
+        # change all NWAY names to TWOWAY
         motif_type_list = motif_name.split(".")
         motif_type = motif_type_list[0]
+
+        if motif_type == "NWAY":
+            new_motif_type = "TWOWAY"
+            new_motif_class = str(class_0) + "-" + str(class_1)
+            new_motif_name = new_motif_type + "." + motif_type_list[1] + "." + new_motif_class + "." + motif_type_list[
+                2] + "." + motif_type_list[3]
+            motif_name = new_motif_name
+
         # motif_name, motif_type (NWAY/TWOWAY), nucleotides_in_strand_1, nucleotides_in_strand_2
         twoway_jct_csv.write(
             motif_name + "," + motif_type + "," + str(len_0) + "," + str(len_1) + "," + str(class_0) + "," + str(
-                class_1) + "\n")  # + number of nucleotides, which can be found by length of each element in ultra refined chanins
+                class_1) + "\n")  # + number of nucleotides, which can be found by length of each element in ultra refined chains
 
-    return len_chains
+    return len_chains, motif_name
 
 
 ### extract -> connect -> refine_continuous_chains are part of a 3-step process that counts RNA strands to determine the # of basepair ends
@@ -516,11 +520,6 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
     nucleotide_list_sorted, chain_list_sorted = group_residues_by_chain(
         nt_list)  # nt_list_sorted is a list of lists
 
-    # print list of residues in motif to CSV
-    # print(nts)
-
-    residue_csv_list.write(motif_name + ',' + ','.join(nts) + '\n')
-
     # this list is for strand-counting purposes
     list_of_chains = []
 
@@ -563,7 +562,7 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
 
         # this is for NWAY/2WAY jcts
         if ((sub_dir[0] == "NWAY") or (sub_dir[0] == "TWOWAY")):
-            basepair_ends = count_connections(result_df, motif_name=motif_name,
+            basepair_ends, motif_name = count_connections(result_df, motif_name=motif_name,
                                               twoway_jct_csv=twoway_csv)  # you need a master DF of residues here
             # Write # of BP ends to the motif name (labeling of n-way junction)
             if not (basepair_ends == 1):
@@ -573,12 +572,8 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
                 # writing the file to its place
                 make_dir(new_path)
             else:
-                # this should be reclassified as a hairpin
+                # if only 1 basepair end it should be reclassified as a hairpin
                 sub_dir[0] = "HAIRPIN"
-                # count the number of nucleotides, then -2
-                #pass
-
-
         if (sub_dir[0] == "HAIRPIN"):
             # hairpins classified by the # of looped nucleotides at the top of the pin
             # two NTs in a hairpin are always canonical pairs so just: (len nts - 2)
@@ -600,6 +595,11 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
 
         # all results will use this, but the specific paths are changed above depending on what the motif is
         dataframe_to_cif(df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name)
+
+    # print list of residues in motif to CSV
+    # print(nts)
+    residue_csv_list.write(motif_name + ',' + ','.join(nts) + '\n')
+
 
     # if there are interactions, do this:
     if interactions != None:
@@ -937,7 +937,6 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
         # calculate planar bond angle
         bond_angle_degrees, o_atom_data, n_atom_data, c_atom_data = calculate_bond_angle(
             oxygen_atom, second_atom, carbon_atom, fourth_atom)
-
 
         # setting the name
         # then set extension for name

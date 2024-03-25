@@ -459,7 +459,6 @@ def __find_tertiary_contacts():
                         f_tert.write(
                             name_of_source_motif + "," + motif_name + "," + source_motif_type + "," + motif_name_type + "," + res_1 + "," + res_2 + "," + hairpin_length_1 + "," + hairpin_length_2 + "\n")
 
-    # (maybe filter the CSV first to keep those with 2+ interactions)
     # after the CSV for tertiary contacts are made we need to go through and extract all unique pairs in CSV
     # File path
     tert_contact_csv_path = "tertiary_contact_list.csv"
@@ -483,9 +482,6 @@ def __find_tertiary_contacts():
     # Create a list of tuples
     motif_pairs = [(motif1, motif2, types1, types2, ress1, ress2) for motif1, motif2, types1, types2, ress1, ress2 in
                    zip(motifs_1, motifs_2, types_1, types_2, ress_1, ress_2)]
-
-    print("Motif pairs:")
-    print(motif_pairs)
 
     # Count occurrences of each unique pair
     pair_counts = Counter(motif_pairs)
@@ -797,6 +793,12 @@ def __final_statistics():
                 # If the folder name doesn't match any condition, use it as is
                 folder_counts[item_name] = file_count
 
+    # TODO supplements to the figure
+    # size of twoway junctions in tert contacts (get 2way size NTs info and put in histogram)
+    # size of hairpins in tert contacts (get hairpin length info and put in histogram)
+    # how many hydrogen bonds in tert contacts
+    # (find how many interactions are between each residue and print a # next to unique_tert_contacts, then find the frequency of each #)
+
     # make a bar graph of all types of motifs
     folder_names = list(folder_counts.keys())
     file_counts = list(folder_counts.values())
@@ -949,7 +951,7 @@ def __final_statistics():
     tert_folder_names_sorted, tert_file_counts_sorted = zip(*sorted(zip(tert_folder_names, tert_file_counts)))
 
     plt.figure(figsize=(8, 8))
-    plt.barh(tert_folder_names_sorted, tert_file_counts_sorted, edgecolor='black', height=1.0)#, width=1.0)
+    plt.barh(tert_folder_names_sorted, tert_file_counts_sorted, edgecolor='black', height=1.0)  # , width=1.0)
 
     plt.xlabel('Count')
     plt.ylabel('Tertiary Contact Type')
@@ -1032,12 +1034,7 @@ def main():
 
     # start of program
 
-    # the download of a redundant set
-    # __download_redundant_cif_files()
-    # redundant and nonredundant sets are mutually exclusive and must be run on separate runs
-    # with contents cleaned out between runs
-
-    # the download of a nonredundant set
+    # download of a nonredundant set
     csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.320_3.5A.csv"
     # __download_cif_files(csv_path)
     print('''
@@ -1100,7 +1097,7 @@ def main():
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
     print("Job finished on", time_string)
 
-    # __find_tertiary_contacts()
+    __find_tertiary_contacts()
     print('''
     ╔════════════════════════════════════╗
     ║                                    ║
@@ -1115,7 +1112,7 @@ def main():
 
     ### make a heatmap of the 2way junction data
     print("Printing heatmaps of data...")
-    # __heatmap_creation()
+    __heatmap_creation()
 
     print("Final statistics incoming...")
     __final_statistics()
