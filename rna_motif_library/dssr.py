@@ -578,10 +578,15 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
             # hairpins classified by the # of looped nucleotides at the top of the pin
             # two NTs in a hairpin are always canonical pairs so just: (len nts - 2)
             hairpin_bridge_length = len(nts) - 2
-            # after classification into tri/tetra/etc
-            hairpin_path = dir[0] + "/hairpins/" + str(hairpin_bridge_length)
-            make_dir(hairpin_path)
-            name_path = hairpin_path + "/" + motif_name
+            sub_dir[2] = str(hairpin_bridge_length)
+            motif_name = '.'.join(sub_dir)
+            if (hairpin_bridge_length >= 3):
+                # after classification into tri/tetra/etc
+                hairpin_path = dir[0] + "/hairpins/" + str(hairpin_bridge_length)
+                make_dir(hairpin_path)
+                name_path = hairpin_path + "/" + motif_name
+            else:
+                sub_dir[0] = "SSTRAND"
         if (sub_dir[0] == "HELIX"):
             # helices should be classified into folders by their # of basepairs
             # this should be very simple as the lengths are given in the motif names
@@ -593,8 +598,9 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
             make_dir(helix_path)
             name_path = helix_path + "/" + motif_name
 
-        # all results will use this, but the specific paths are changed above depending on what the motif is
-        dataframe_to_cif(df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name)
+        if (sub_dir[0] != "SSTRAND"):
+            # all results will use this, but the specific paths are changed above depending on what the motif is
+            dataframe_to_cif(df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name)
 
     # print list of residues in motif to CSV
     # print(nts)
@@ -676,8 +682,9 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
                 inter_name_path = inter_helix_path + "/" + motif_name + ".inter"
                 make_dir(inter_helix_path)
 
-            # writes interactions to CIF
-            dataframe_to_cif(df=total_result_df, file_path=f"{inter_name_path}.cif", motif_name=motif_name)
+            if (sub_dir[0] != "SSTRAND"):
+                # writes interactions to CIF
+                dataframe_to_cif(df=total_result_df, file_path=f"{inter_name_path}.cif", motif_name=motif_name)
 
         # extracting individual interactions:
         find_matching_interactions(interactions_filtered, motif_bond_list, model_df, motif_name,
