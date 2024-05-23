@@ -551,6 +551,7 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
                                        'auth_atom_id', 'pdbx_PDB_model_num'])
             df_list.append(df)
             # constructs PDB DF (deprecated)
+            # I HATE PDBS I HATE PDBS I HATE PDBS I HATE PDBS
             """pdb_columns = ['group_PDB', 'id', 'label_atom_id', 'label_comp_id',
                                    'auth_asym_id', 'auth_seq_id', 'Cartn_x', 'Cartn_y', 'Cartn_z',
                                    'occupancy', 'B_iso_or_equiv', 'type_symbol']
@@ -710,6 +711,8 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
     # then, of those interactions, find the appropriate residues and print them
     for interaction in list_of_matching_interactions:
         # interaction format: ('f.ARG54', '3.G167', 'NH2', 'O6', '3.977')
+        # That's for debug purposes but fuck it I'll leave it there
+        # Maybe someone will need it in 15 years
 
         # Obtains residues
         res_1 = interaction[0]
@@ -720,7 +723,7 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
         res_1_chain_id, res_1_res_data = res_1.split(".")
         res_2_chain_id, res_2_res_data = res_2.split(".")
 
-        # if there are slashes present:
+        # if there are slashes present: (because for some fucking reason there are slashes in certain residue IDs)
         if "/" in res_1:
             res_1_split = res_1.split(".")
             res_1_inside = res_1_split[1]
@@ -768,7 +771,13 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
 
         # calculate the angle in the interaction
         # find which residue contains the oxygen atom
-
+        # You may be asking, "What the fuck is this fucking shit below?"
+        # Because for some fucking reason labels for oxygens connected to the phosphorous atoms
+        # in the phosphate backbone are not consistent so you end up with shit like "O1P" when it should be "OP1", etc
+        # And the computer is too retarded to know what it's looking at so you need to tell it
+        # "Why are there three cases?" Depends on where the oxygen shows up, for angle math purposes
+        # If there are two oxygens I just take the first one; I try to take the oxygen first
+        # In cases where there are no oxygens I just take the first atom
         if "O" in interaction[2]:  # case for O-O/O-N interactions
 
             # interaction[0] is the oxygen residue
@@ -1353,7 +1362,7 @@ def __name_junction(motif, pdb_name):
     name += "-".join(strs)
     return name
 
-
+# name the motifs (helix, strand, junction, etc)
 def __name_motifs(motifs, name):
     for m in motifs:
         m.nts_long = sorted(m.nts_long, key=__sorted_res_int)
