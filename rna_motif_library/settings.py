@@ -5,8 +5,8 @@ import json
 
 def get_lib_path():
     file_path = os.path.realpath(__file__)
-    spl = file_path.split(os.sep)
-    base_dir = os.path.join(*spl[:-2])
+    spl = file_path.split("/")
+    base_dir = "/".join(spl[:-2])
     return base_dir
 
 def get_os():
@@ -26,13 +26,11 @@ def get_query_term(json_query_path):
     return json_data
 
 LIB_PATH = get_lib_path()
-UNITTEST_PATH = os.path.join(LIB_PATH, "test")
-RESOURCES_PATH = os.path.join(LIB_PATH, "rna_motif_library", "resources")
-DSSR_EXE = os.path.join(RESOURCES_PATH, "snap", get_os(), "x3dna-dssr")
+UNITTEST_PATH = LIB_PATH + "/test/"
+RESOURCES_PATH = LIB_PATH + "/rna_motif_library/resources/"
+DSSR_EXE = RESOURCES_PATH + "snap/%s/x3dna-dssr " % (get_os())
 
-QUERY_TERM = get_query_term(json_query_path=os.path.join(LIB_PATH, "rna_motif_library", "json_query.json"))
-
-
+QUERY_TERM = get_query_term(json_query_path=get_lib_path() + "/rna_motif_library/json_query.json")
 
 # unrefactored code
 """def get_lib_path():

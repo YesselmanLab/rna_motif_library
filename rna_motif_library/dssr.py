@@ -509,8 +509,7 @@ def extract_individual_interactions(inter_from_PDB, list_of_inters, pdb_model_df
                 list_of_matching_interactions.append(hbond_inter)
 
     # make directories just in case
-    # make_dir("interactions/all")
-    make_dir(os.path.join("interactions", "all"))
+    make_dir("interactions/all")
 
     # then, of those interactions, find the appropriate residues and print them
     for interaction in list_of_matching_interactions:
@@ -772,22 +771,13 @@ def extract_individual_interactions(inter_from_PDB, list_of_inters, pdb_model_df
             # folder assignment
             folder_name = alpha_sorted_types[0] + "-" + alpha_sorted_types[1]
 
-            ind_folder_path = os.path.join("interactions", "all", folder_name)
-            make_dir(ind_folder_path)
-
-            # Replace strings
-            name_inter_2 = name_inter.replace("/", "-")
-
-            # File path; ind_folder_path = the folder path
-            ind_inter_path = os.path.join(ind_folder_path, name_inter_2)
-
-            """ind_folder_path = "interactions/all/" + folder_name + "/"
+            ind_folder_path = "interactions/all/" + folder_name + "/"
             make_dir(ind_folder_path)
             # replace strings
             name_inter_2 = name_inter.replace("/", "-")
 
             # file path; ind_folder_path = the folder path
-            ind_inter_path = ind_folder_path + name_inter_2"""
+            ind_inter_path = ind_folder_path + name_inter_2
 
             # print(name_inter_2)
             # NWAY.7PKQ.7-14-1.GGUAAUAUU-GAUGGAAAGCCGAAGG-CAC.0.3.A119.3.U193

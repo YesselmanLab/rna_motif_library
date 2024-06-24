@@ -375,16 +375,18 @@ def __generate_motif_files():
             count = 0
             for pdb_path in pdbs:
                 # limit so we can test some stuff at a smaller scale
-                """if count > 50:
-                    continue"""
+                if count > 35:
+                    continue
                 name = os.path.basename(pdb_path).replace(".cif", "")
                 count += 1
                 print(count, pdb_path, name)
 
                 s = os.path.getsize(pdb_path)
+
                 json_path = os.path.join(settings.LIB_PATH, "data/dssr_output", name + ".json")
 
                 rnp_out_path = os.path.join(settings.LIB_PATH, "data/snap_output", name + ".out")
+
                 rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
                 rnp_data = [(interaction.nt_atom.split("@")[1], interaction.aa_atom.split("@")[1],
                              interaction.nt_atom.split("@")[0], interaction.aa_atom.split("@")[0],
@@ -968,18 +970,12 @@ def __find_tertiary_contacts():
             motif_types_list = [motif_1_type, motif_2_type]
             motif_types_sorted = sorted(motif_types_list)
             motif_types = str(motif_types_sorted[0]) + "-" + str(motif_types_sorted[1])
-            """
+
             if motif_types:
                 __safe_mkdir("tertiary_contacts/" + motif_types)
                 tert_contact_out_path = "tertiary_contacts/" + motif_types + "/" + tert_contact_name
             else:
                 tert_contact_out_path = "tertiary_contacts/" + tert_contact_name
-            """
-            if motif_types:
-                __safe_mkdir(os.path.join("tertiary_contacts", motif_types))
-                tert_contact_out_path = os.path.join("tertiary_contacts", motif_types, tert_contact_name)
-            else:
-                tert_contact_out_path = os.path.join("tertiary_contacts", tert_contact_name)
 
             print(tert_contact_name)
             # take the CIF files and merge them
@@ -1450,7 +1446,7 @@ def __heatmap_creation():
             map_name = f"{type_1}-{type_2} {atom_1}-{atom_2}"
             # plt.title(f"{map_name} H-bond heatmap")
 
-            """
+
             map_dir = "heatmaps/RNA-RNA" if len(type_1) == 1 and len(type_2) == 1 else "heatmaps/RNA-PROT"
             __safe_mkdir(map_dir)
 
@@ -1462,21 +1458,6 @@ def __heatmap_creation():
             __safe_mkdir(heatmap_csv_path)
 
             heat_data_csv_path = f"{heatmap_csv_path}/{map_name}.csv"
-            hbonds.to_csv(heat_data_csv_path, index=False)
-            """
-
-            map_dir = os.path.join("heatmaps", "RNA-RNA") if len(type_1) == 1 and len(type_2) == 1 else os.path.join(
-                "heatmaps", "RNA-PROT")
-            __safe_mkdir(map_dir)
-
-            map_path = os.path.join(map_dir, f"{map_name}.png")
-            plt.savefig(map_path, dpi=250)
-            plt.close()
-
-            heatmap_csv_path = "heatmap_data"
-            __safe_mkdir(heatmap_csv_path)
-
-            heat_data_csv_path = os.path.join(heatmap_csv_path, f"{map_name}.csv")
             hbonds.to_csv(heat_data_csv_path, index=False)
 
             # 2D histogram
@@ -1524,9 +1505,7 @@ def __heatmap_creation():
 def __final_statistics():
     print("Plotting...")
     # graphs
-    # motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/motifs"
-    motif_directory = os.path.join("Users", "jyesselm", "PycharmProjects", "rna_motif_library", "rna_motif_library",
-                                   "motifs")
+    motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/motifs"
 
     # Create a dictionary to store counts for each folder
     folder_counts = {"TWOWAY": 0, "NWAY": 0, "HAIRPIN": 0, "HELIX": 0, "SSTRAND": 0}  # Initialize counts
@@ -1581,8 +1560,7 @@ def __final_statistics():
     plt.close()
 
     # of the hairpins, how long are they (histogram)
-    # hairpin_directory = motif_directory + "/hairpins"
-    hairpin_directory = os.path.join(motif_directory, "hairpins")
+    hairpin_directory = motif_directory + "/hairpins"
 
     hairpin_counts = {}
     # Iterate over all items in the specified directory
@@ -1620,8 +1598,7 @@ def __final_statistics():
     plt.close()
 
     # of the helices, how long are they (bar graph)
-    # helix_directory = motif_directory + "/helices"
-    helix_directory = os.path.join(motif_directory, "helices")
+    helix_directory = motif_directory + "/helices"
 
     helix_counts = {}
     # Iterate over all items in the specified directory
@@ -1659,8 +1636,7 @@ def __final_statistics():
     plt.close()
 
     # Of the single strands, how long are they (bar graph)
-    # sstrand_directory = motif_directory + "/sstrand"
-    sstrand_directory = os.path.join(motif_directory, "sstrand")
+    sstrand_directory = motif_directory + "/sstrand"
 
     sstrand_counts = {}
     # Iterate over all items in the specified directory
@@ -1698,9 +1674,7 @@ def __final_statistics():
     plt.close()
 
     # create a bar graph of how many tertiary contacts are present
-    # tert_motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/tertiary_contacts"
-    tert_motif_directory = os.path.join("Users", "jyesselm", "PycharmProjects", "rna_motif_library",
-                                        "rna_motif_library", "tertiary_contacts")
+    tert_motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/tertiary_contacts"
 
     # Create a dictionary to store counts for each folder
     tert_folder_counts = {}
@@ -1831,8 +1805,7 @@ def main():
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
 
     # Download of a nonredundant set
-    # csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.320_3.5A.csv"
-    csv_path = os.path.join(settings.LIB_PATH, "data", "csvs", "nrlist_3.320_3.5A.csv")
+    csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.320_3.5A.csv"
 
     # __download_cif_files(csv_path)
     print("!!!!! CIF FILES DOWNLOADED !!!!!")
@@ -1862,16 +1835,16 @@ def main():
     print("Motif extraction finished on", time_string)
 
     # Finding tertiary contacts
-    __find_tertiary_contacts()
+    # __find_tertiary_contacts()
     print("!!!!! TERTIARY CONTACT PROCESSING FINISHED !!!!!")
 
     # Printing heatmaps/plotting
     print("Printing heatmaps of data...")
-    __heatmap_creation()
+    # __heatmap_creation()
 
     # More plotting of other general data
     print("Plotting data...")
-    __final_statistics()
+    # __final_statistics()
     print("!!!!! PLOTS COMPLETED !!!!!")
 
     current_time = datetime.datetime.now()
