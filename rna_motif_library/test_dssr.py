@@ -10,17 +10,17 @@ from pydssr import dssr
 def test_get_motifs_from_structure():
     json_path = rna_motif_library.settings.UNITTEST_PATH + "/resources/1GID.json"
     pdb_path = rna_motif_library.settings.UNITTEST_PATH + "/resources/1GID.pdb"
-    motifs = rna_motif_library.dssr_lib.get_motifs_from_structure(json_path)
-    rna_motif_library.dssr_lib.write_motif_coords_to_pdbs(motifs, pdb_path)
+    motifs = rna_motif_library.dssr.get_motifs_from_structure(json_path)
+    rna_motif_library.dssr.write_res_coords_to_pdb(motifs, pdb_path)
 
 def test_dssr_res():
     s1 = 'H.A9'
     s2 = 'B.ARG270'
-    r1 = rna_motif_library.dssr_lib.DSSRRes(s1)
+    r1 = rna_motif_library.dssr.DSSRRes(s1)
     assert r1.res_id == 'A'
     assert r1.chain_id == 'H'
     assert r1.num == 9
-    r2 = rna_motif_library.dssr_lib.DSSRRes(s2)
+    r2 = rna_motif_library.dssr.DSSRRes(s2)
     assert r2.res_id == 'ARG'
     assert r2.num == 270
 
@@ -32,7 +32,7 @@ def test_from_lib():
     print(pdb_path)
     print(json_path)
 
-    motifs, motif_hbonds, motif_interactions = rna_motif_library.dssr_lib.get_motifs_from_structure(json_path)
+    motifs, motif_hbonds, motif_interactions = rna_motif_library.dssr.get_motifs_from_structure(json_path)
     pdb_model = PandasPdb().read_pdb(path=pdb_path)
     for m in motifs:
         if m.name not in motif_interactions:

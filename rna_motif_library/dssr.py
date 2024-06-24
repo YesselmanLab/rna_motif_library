@@ -2,11 +2,20 @@ import os
 import re
 import shutil
 import math
+from collections import Counter
 
 import pandas as pd
 import numpy as np
 from pydssr.dssr import DSSROutput
 from update_library import PandasMmcifOverride
+from snap import get_rnp_interactions
+
+# Declare the global counter; for debugging purposes
+total_motifs_count = 0
+removed_motifs_count = 0
+
+canon_amino_acid_list = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS',
+                         'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
 
 
 # make new directories if they don't exist
@@ -22,35 +31,6 @@ def safe_delete_dir(directory_path):
             shutil.rmtree(directory_path)
         except Exception as e:
             print(f"Error deleting directory '{directory_path}': {e}")
-
-
-"""# separates CIF and PDB files after all is said and done (deprecated)
-def cif_pdb_sort(directory):
-    # Create a copy of the directory with "_PDB" suffix
-    directory_copy = directory + '_PDB'
-    shutil.copytree(directory, directory_copy)
-
-    # Iterate over the files in the copied directory
-    for root, dirs, files in os.walk(directory_copy):
-        for file in files:
-            if file.endswith('.cif'):
-                # Construct the file path
-                file_path = os.path.join(root, file)
-                # Delete the file
-                os.remove(file_path)
-
-    print(f".cif files deleted from {directory_copy}")
-
-    # Iterate over the files in the original directory
-    for root, dirs, files in os.walk(directory):
-        for file in files:
-            if file.endswith('.pdb'):
-                # Construct the file path
-                file_path = os.path.join(root, file)
-                # Delete the file
-                os.remove(file_path)
-
-    print(f".pdb files deleted from {directory}")"""
 
 
 # takes data from a dataframe and writes it to a CIF
@@ -92,149 +72,8 @@ def dataframe_to_cif(df, file_path, motif_name):
                 ))
 
 
-"""# takes data from a dataframe and writes it to a PDB (deprecated)
-def dataframe_to_pdb(df, file_path):
-    with open(file_path, 'w') as f:
-        for row in df.itertuples(index=False):
-            f.write("{:<5}{:>6}  {:<3} {:>3}{:>2}  {:>2}     {:>7} {:>7} {:>7}   {:>3} {:>3}         {:>3}\n".format(
-                row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9],
-                row[10], row[11]))"""
-
-
-# remove empty dataframes
-def remove_empty_dataframes(dataframes_list):
-    dataframes_list = [df for df in dataframes_list if not df.empty]
-    return dataframes_list
-
-
-# extracts residue IDs properly from strings (protein extractions)
-def extract_longest_numeric_sequence(input_string):
-    longest_sequence = ""
-    current_sequence = ""
-    for c in input_string:
-        if c.isdigit() or (c == '-' and (not current_sequence or current_sequence[0] == '-')):
-            current_sequence += c
-            if len(current_sequence) >= len(longest_sequence):
-                longest_sequence = current_sequence
-        else:
-            current_sequence = ""
-
-    return longest_sequence
-
-
-def extract_longest_letter_sequence(input_string):
-    # Find all sequences of letters using regular expression
-    letter_sequences = re.findall('[a-zA-Z]+', input_string)
-
-    # If there are no letter sequences, return an empty string
-    if not letter_sequences:
-        return ""
-
-    # Find the longest letter sequence
-    longest_sequence = max(letter_sequences, key=len)
-
-    return longest_sequence
-
-
-# removes duplicate items in a list, meant for removing duplicate residues in a chain
-def remove_duplicate_strings(original_list):
-    unique_list = []
-    for item in original_list:
-        if item not in unique_list:
-            unique_list.append(item)
-    return unique_list
-
-
-# groups residues into their own chains for sequence counting
-def group_residues_by_chain(input_list):
-    # Create a dictionary to hold grouped and sorted residue IDs by chain ID
-    chain_residues = {}
-
-    # Create a dictionary to hold chain IDs for the grouped residues
-    chain_ids_for_residues = {}
-
-    # Iterate through the input_list
-    for item in input_list:
-        chain_id, residue_id = item.split(".")
-        if residue_id != "None":
-            residue_id = int(residue_id)
-
-            # Create a list for the current chain_id if not already present
-            if chain_id not in chain_residues:
-                chain_residues[chain_id] = []
-
-            # Append the residue_id to the corresponding chain_id's list
-            chain_residues[chain_id].append(residue_id)
-
-            # Store the chain_id for this residue in the dictionary
-            if residue_id not in chain_ids_for_residues:
-                chain_ids_for_residues[residue_id] = []
-            chain_ids_for_residues[residue_id].append(chain_id)
-
-    # Sort each chain's residue IDs and store them in the list of lists
-    sorted_chain_residues = []
-    sorted_chain_ids = []
-
-    # Sort the chain IDs based on the order they appeared in the input
-    unique_chain_ids = list(chain_residues.keys())
-
-    # Sort the chain IDs in the order of appearance
-    sorted_unique_chain_ids = unique_chain_ids
-
-    for chain_id in sorted_unique_chain_ids:
-        sorted_residues = sorted(set(chain_residues[chain_id]))
-        sorted_chain_residues.append(sorted_residues)
-        sorted_chain_ids.append(chain_id)
-
-    return sorted_chain_residues, sorted_chain_ids
-
-
-# calculates distance between atoms
-def euclidean_distance_dataframe(df1, df2):
-    # Calculate the Euclidean distance between two points represented by DataFrames.
-    if {'Cartn_x', 'Cartn_y', 'Cartn_z'} != set(df1.columns) or {'Cartn_x', 'Cartn_y',
-                                                                 'Cartn_z'} != set(df2.columns):
-        raise ValueError("DataFrames must have 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns")
-
-    try:
-        point1 = df1[['Cartn_x', 'Cartn_y', 'Cartn_z']].values[0]
-        point2 = df2[['Cartn_x', 'Cartn_y', 'Cartn_z']].values[0]
-        squared_distances = [(float(x) - float(y)) ** 2 for x, y in zip(point1, point2)]
-        distance = math.sqrt(sum(squared_distances))
-    except IndexError:
-        distance = 10
-
-    return distance
-
-
-# Define a function to check if two residues are connected
-def calc_residue_distances(res_1, res_2):
-    residue1 = res_1[1]
-    residue2 = res_2[1]
-
-    # Convert 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns to numeric
-    residue1[['Cartn_x', 'Cartn_y', 'Cartn_z']] = residue1[['Cartn_x', 'Cartn_y', 'Cartn_z']].apply(
-        pd.to_numeric)
-    residue2[['Cartn_x', 'Cartn_y', 'Cartn_z']] = residue2[['Cartn_x', 'Cartn_y', 'Cartn_z']].apply(
-        pd.to_numeric)
-
-    # Extract relevant atom data for both residues
-    atom1 = residue1[residue1['auth_atom_id'].str.contains("O3'", regex=True)]
-    # delete hydrogens in the selection if there are any
-    atom1 = atom1[~atom1['auth_atom_id'].str.contains("H", regex=False)]
-
-    atom2 = residue2[residue2['auth_atom_id'].isin(["P"])]
-
-    # Calculate the Euclidean distance between the two atoms
-
-    distance = np.linalg.norm(atom2[['Cartn_x', 'Cartn_y', 'Cartn_z']].values - atom1[
-        ['Cartn_x', 'Cartn_y', 'Cartn_z']].values)
-
-    return distance
-
-
 # counts # of strands given a table of residues (this is the initial count)
-def count_connections(master_res_df, motif_name, twoway_jct_csv):
+def count_strands(master_res_df, motif_name, twoway_jct_csv):
     # debug, prints master DF to a CSV for closer inspection
     # master_res_df.to_csv("model.csv", index=False)
 
@@ -314,36 +153,27 @@ def count_connections(master_res_df, motif_name, twoway_jct_csv):
 
     # Step 7: take the list of pairs and extract chains from them
     chains = extract_continuous_chains(list_of_ids)
-
     refined_chains = connect_continuous_chains(chains)
-
     ultra_refined_chains = refine_continuous_chains(refined_chains)
-
-    # final_refined_chains = combine_remaining_chains(ultra_refined_chains)
-
-    # Step 8: count lens
+    # Step 8: count # of junctions
     len_chains = len(ultra_refined_chains)
 
     # Step 9: print the contents of 2-way motifs into a CSV (nucleotide data, motif names)
     # also change the names to make them match TWOWAY motifs, this will cause problems if you don't!
     if len_chains == 2:
-
         # Concatenate all inner lists and keep only unique values
         result_0 = []
         for inner_list in ultra_refined_chains[0]:
             result_0.extend(inner_list)
-
         result_1 = []
         for inner_list in ultra_refined_chains[1]:
             result_1.extend(inner_list)
-
         # lists unique NTs inside each strand
         unique_nucleotides_0 = list(set(result_0))
         unique_nucleotides_1 = list(set(result_1))
 
         len_0 = len(unique_nucleotides_0)
         len_1 = len(unique_nucleotides_1)
-
         class_0 = len_0 - 2
         class_1 = len_1 - 2
 
@@ -366,30 +196,38 @@ def count_connections(master_res_df, motif_name, twoway_jct_csv):
     return len_chains, motif_name
 
 
-### extract -> connect -> refine_continuous_chains are part of a 3-step process that counts RNA strands to determine the # of basepair ends
-### a basepair end is just a basepair at the end of two strands
-### number of strands = number of basepair ends
-
+# extract -> connect -> refine_continuous_chains are part of a 3-step process that counts RNA strands to determine
+# the # of basepair ends; a basepair end is just a basepair at the end of two strands; number of strands = number of
+# basepair ends
 # Extracts continuous chains from a list
 def extract_continuous_chains(pair_list):
     chains = []
+    chain_map = {}  # Dictionary to map the end points to their respective chains
 
     for pair in pair_list:
-        matched_chain = None
+        start, end = pair
+        matched_chain_start = chain_map.get(start)
+        matched_chain_end = chain_map.get(end)
 
-        for chain in chains:
-            if chain[-1][1] == pair[0] or chain[0][0] == pair[1]:
-                matched_chain = chain
-                break
-            elif chain[-1][1] == pair[1] or chain[0][0] == pair[0]:
-                matched_chain = chain
-                break
-
-        if matched_chain:
-            matched_chain.append(pair)
-
+        if matched_chain_start and matched_chain_end:
+            if matched_chain_start is not matched_chain_end:
+                matched_chain_start.extend(matched_chain_end)
+                for item in matched_chain_end:
+                    chain_map[item[0]] = matched_chain_start
+                    chain_map[item[1]] = matched_chain_start
+                chains.remove(matched_chain_end)
+            matched_chain_start.append(pair)
+        elif matched_chain_start:
+            matched_chain_start.append(pair)
+            chain_map[end] = matched_chain_start
+        elif matched_chain_end:
+            matched_chain_end.append(pair)
+            chain_map[start] = matched_chain_end
         else:
-            chains.append([pair])
+            new_chain = [pair]
+            chains.append(new_chain)
+            chain_map[start] = new_chain
+            chain_map[end] = new_chain
 
     return chains
 
@@ -397,247 +235,202 @@ def extract_continuous_chains(pair_list):
 # Puts together some continuous chains (don't get rid of commented out yet)
 def connect_continuous_chains(chains):
     connected_chains = []
+    start_map = {}  # Maps starting points of chains to the chain index in connected_chains
+    end_map = {}  # Maps ending points of chains to the chain index in connected_chains
 
     for chain in chains:
+        start, end = chain[0][0], chain[-1][1]
         connected = False
-        for current_chain in connected_chains:
-            # chain is appended to current_chain
 
-            if current_chain[-1][1] == chain[0][0]:
-                current_chain.extend(chain)
-                connected = True
-                break
-            elif current_chain[0][0] == chain[-1][1]:
-                current_chain.insert(0, chain)
-                connected = True
-                break
-            elif current_chain[-1][0] == chain[-1][1]:
-                current_chain.extend(chain)
-                connected = True
-                break
-            elif current_chain[0][1] == chain[-1][0]:
-                current_chain.extend(chain)
-                connected = True
-                break
-            elif current_chain[0][0] == chain[-1][0]:
-                current_chain.extend(chain)
-                connected = True
-                break
-            elif current_chain[-1][0] == chain[0][1]:
-                current_chain.extend(chain)
-                connected = True
-                break
-            elif current_chain[-1][1] == chain[-1][0]:
-                current_chain.extend(chain)
-                connected = True
-                break
-
-        if not connected:
+        if start in end_map:
+            index = end_map[start]
+            connected_chains[index].extend(chain)
+            end_map[connected_chains[index][-1][1]] = index
+            connected = True
+        elif end in start_map:
+            index = start_map[end]
+            connected_chains[index] = chain + connected_chains[index]
+            start_map[connected_chains[index][0][0]] = index
+            connected = True
+        else:
             connected_chains.append(chain)
+            index = len(connected_chains) - 1
+            start_map[start] = index
+            end_map[end] = index
+            connected = True
 
     return connected_chains
 
 
 # Finds all the remaining possible connections of chains to return a final list of all the present strands
 def refine_continuous_chains(input_lists):
-    merged = []
+    parent = {}
+    rank = {}
 
-    def merge_lists(list1, list2):
-        for sub_list1 in list1:
-            for sub_list2 in list2:
-                if any(item1 in sub_list2 for item1 in sub_list1):
-                    list1.extend(sub_list2)
-                    list2.clear()
-                    return list1
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
 
-    for i in range(len(input_lists)):
-        current_list = input_lists[i]
-        for j in range(i + 1, len(input_lists)):
-            item = input_lists[j]
-            if merge_lists(current_list, item):
-                break
+    def union(x, y):
+        rootX = find(x)
+        rootY = find(y)
+        if rootX != rootY:
+            if rank[rootX] > rank[rootY]:
+                parent[rootY] = rootX
+            elif rank[rootX] < rank[rootY]:
+                parent[rootX] = rootY
+            else:
+                parent[rootY] = rootX
+                rank[rootX] += 1
 
-        if current_list:  # Check if current_list is not empty
-            merged.append(current_list)
+    # Initialize the union-find structure
+    for sublist in input_lists:
+        for item in sublist:
+            for element in item:
+                if element not in parent:
+                    parent[element] = element
+                    rank[element] = 0
+
+    # Union all connected items
+    for sublist in input_lists:
+        first_item = sublist[0][0]
+        for item in sublist:
+            for element in item:
+                union(first_item, element)
+
+    # Group all items by their root
+    clusters = {}
+    for sublist in input_lists:
+        for item in sublist:
+            for element in item:
+                root = find(element)
+                if root not in clusters:
+                    clusters[root] = set()
+                clusters[root].add(element)
+
+    # Convert sets back to lists
+    merged = [list(cluster) for cluster in clusters.values()]
 
     return merged
 
 
-# Take the remaining chains, and process them continuously in a loop until they have all been combined into their final states
-def combine_remaining_chains():
-    pass
-
-
+# fair to say that this is the heart of the code
 # writes extracted residue data into the proper output PDB files
+# do NOT delete old code!!!
 def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_list, csv_file, residue_csv_list,
-                            twoway_csv):
+                            twoway_csv, interactions_overview_csv):
     # directory setup for later
-    dir = pdb_path.split("/")
-    sub_dir = dir[3].split(".")
-    motif_name = dir[3]
-    # motif extraction
+    dir_parts = pdb_path.split("/")
+    sub_dir_parts = dir_parts[3].split(".")
+    motif_name = dir_parts[3]
+
     nt_list = []
-    # list of residues
     res = []
-    # convert the MMCIF to a dictionary, and the resulting dictionary to a Dataframe
-    model_df_first = pdb_model.df
-    # df to CSV for debug
-    model_df_first.to_csv("model_df.csv", index=False)
-    # keep only needed DF columns so further functions don't error
-    columns_to_keep = ['group_PDB', 'id', 'type_symbol', 'label_atom_id',
-                       'label_alt_id', 'label_comp_id', 'label_asym_id',
-                       'label_entity_id', 'label_seq_id',
-                       'pdbx_PDB_ins_code', 'Cartn_x', 'Cartn_y', 'Cartn_z',
-                       'occupancy', 'B_iso_or_equiv', 'pdbx_formal_charge',
-                       'auth_seq_id', 'auth_comp_id', 'auth_asym_id',
-                       'auth_atom_id', 'pdbx_PDB_model_num']
+    model_df = pdb_model.df[['group_PDB', 'id', 'type_symbol', 'label_atom_id', 'label_alt_id',
+                             'label_comp_id', 'label_asym_id', 'label_entity_id', 'label_seq_id',
+                             'pdbx_PDB_ins_code', 'Cartn_x', 'Cartn_y', 'Cartn_z', 'occupancy',
+                             'B_iso_or_equiv', 'pdbx_formal_charge', 'auth_seq_id', 'auth_comp_id',
+                             'auth_asym_id', 'auth_atom_id', 'pdbx_PDB_model_num']]
 
-    model_df = model_df_first[columns_to_keep]
-
-    model_df.to_csv("model_df.csv", index=False)
-
-    # extracts identification data from nucleotide list
+    # Extract identification data from nucleotide list
     for nt in nts:
-        # r = DSSRRes(nt)
-        # splits nucleotide names (chain_id, type + res_id)
         nt_spl = nt.split(".")
-        # purify IDs
         chain_id = nt_spl[0]
-        # if nt_spl[1] contains a /, split it
-        # of that, the first one is the chain_id and te second the res_id
         residue_id = extract_longest_numeric_sequence(nt_spl[1])
-
         if "/" in nt_spl[1]:
-            # print("run")
-            sub_spl = nt_spl[1].split("/")
-            residue_id = sub_spl[1]
+            residue_id = nt_spl[1].split("/")[1]
+        nt_list.append(chain_id + "." + residue_id)
 
-        # define nucleotide ID
-        new_nt = chain_id + "." + residue_id
-        # add it to the list of nucleotides being processed
-        nt_list.append(new_nt)
-    # sorts nucleotide list for further processing
-    nucleotide_list_sorted, chain_list_sorted = group_residues_by_chain(
-        nt_list)  # nt_list_sorted is a list of lists
-
-    # this list is for strand-counting purposes
+    nucleotide_list_sorted, chain_list_sorted = group_residues_by_chain(nt_list)
     list_of_chains = []
 
-    # extraction of residues into dataframes
     for chain_number, residue_list in zip(chain_list_sorted, nucleotide_list_sorted):
         for residue in residue_list:
-            # Find residue in the PDB model, first it picks the chain
             chain_res = model_df[model_df['auth_asym_id'].astype(str) == str(chain_number)]
-            res_subset = chain_res[
-                chain_res['auth_seq_id'].astype(str) == str(residue)]  # then it find the atoms
-            res.append(res_subset)  # "res" is a list with all the residue DFs inside
+            res_subset = chain_res[chain_res['auth_seq_id'].astype(str) == str(residue)]
+            res.append(res_subset)
         list_of_chains.append(res)
 
-    df_list = []  # List to store the DataFrames for each line (type = 'list')
+    df_list = [pd.DataFrame([line.split()], columns=model_df.columns) for r in remove_empty_dataframes(res) for line in
+               r.to_string(index=False, header=False).split('\n')]
 
-    res = remove_empty_dataframes(res)
-    for r in res:
-        # Data reprocessing stuff, this loop is moving it into a DF
-        lines = r.to_string(index=False, header=False).split('\n')
-        for line in lines:
-            values = line.split()  # (type 'values' = list)
-            df = pd.DataFrame([values],
-                              columns=['group_PDB', 'id', 'type_symbol', 'label_atom_id',
-                                       'label_alt_id', 'label_comp_id', 'label_asym_id',
-                                       'label_entity_id', 'label_seq_id',
-                                       'pdbx_PDB_ins_code', 'Cartn_x', 'Cartn_y', 'Cartn_z',
-                                       'occupancy', 'B_iso_or_equiv', 'pdbx_formal_charge',
-                                       'auth_seq_id', 'auth_comp_id', 'auth_asym_id',
-                                       'auth_atom_id', 'pdbx_PDB_model_num'])
-            df_list.append(df)
-            # constructs PDB DF (deprecated)
-            # I HATE PDBS I HATE PDBS I HATE PDBS I HATE PDBS
-            """pdb_columns = ['group_PDB', 'id', 'label_atom_id', 'label_comp_id',
-                                   'auth_asym_id', 'auth_seq_id', 'Cartn_x', 'Cartn_y', 'Cartn_z',
-                                   'occupancy', 'B_iso_or_equiv', 'type_symbol']
-            pdb_df = df[pdb_columns]
-            pdb_df_list.append(pdb_df)"""
-    if df_list:  # i.e. if there are things inside df_list:
-        # Concatenate all DFs into a single DF
+    if df_list:
         result_df = pd.concat(df_list, axis=0, ignore_index=True)
 
-        # this is for NWAY/2WAY jcts
-        if ((sub_dir[0] == "NWAY") or (sub_dir[0] == "TWOWAY")):
-            basepair_ends, motif_name = count_connections(result_df, motif_name=motif_name,
-                                              twoway_jct_csv=twoway_csv)  # you need a master DF of residues here
-            # Write # of BP ends to the motif name (labeling of n-way junction)
-            if not (basepair_ends == 1):
-                new_path = dir[0] + "/" + str(basepair_ends) + "ways" + "/" + dir[2] + "/" + sub_dir[
-                    2] + "/" + sub_dir[3]
-                name_path = new_path + "/" + motif_name
-                # writing the file to its place
+        if sub_dir_parts[0] in ["NWAY", "TWOWAY"]:
+            basepair_ends, motif_name = count_strands(result_df, motif_name=motif_name, twoway_jct_csv=twoway_csv)
+            if basepair_ends != 1:
+                new_path = os.path.join(dir_parts[0], f"{basepair_ends}ways", dir_parts[2], motif_name.split(".")[2],
+                                        sub_dir_parts[3])
+                name_path = os.path.join(new_path, motif_name)
                 make_dir(new_path)
+                cif_path = f"{name_path}.cif"
             else:
-                # if only 1 basepair end it should be reclassified as a hairpin
-                sub_dir[0] = "HAIRPIN"
-        if (sub_dir[0] == "HAIRPIN"):
-            # hairpins classified by the # of looped nucleotides at the top of the pin
-            # two NTs in a hairpin are always canonical pairs so just: (len nts - 2)
+                sub_dir_parts[0] = "HAIRPIN"
+        if sub_dir_parts[0] == "HAIRPIN":
             hairpin_bridge_length = len(nts) - 2
-            sub_dir[2] = str(hairpin_bridge_length)
-            motif_name = '.'.join(sub_dir)
-            if (hairpin_bridge_length >= 3):
-                # after classification into tri/tetra/etc
-                hairpin_path = dir[0] + "/hairpins/" + str(hairpin_bridge_length)
+            sub_dir_parts[2] = str(hairpin_bridge_length)
+            motif_name = '.'.join(sub_dir_parts)
+            if hairpin_bridge_length >= 3:
+                hairpin_path = os.path.join(dir_parts[0], "hairpins", str(hairpin_bridge_length), sub_dir_parts[3])
                 make_dir(hairpin_path)
-                name_path = hairpin_path + "/" + motif_name
+                name_path = os.path.join(hairpin_path, motif_name)
+                cif_path = f"{name_path}.cif"
             else:
-                sub_dir[0] = "SSTRAND"
-        if (sub_dir[0] == "HELIX"):
-            # helices should be classified into folders by their # of basepairs
-            # this should be very simple as the lengths are given in the motif names
-            # also classify further by the sequence composition, this is also given in motif name
-            helix_count = str(sub_dir[2])
-            helix_comp = str(sub_dir[3])
-            # after classification put em in the folders
-            helix_path = dir[0] + "/helices/" + helix_count + "/" + helix_comp
+                sub_dir_parts[0] = "SSTRAND"
+        if sub_dir_parts[0] == "HELIX":
+            helix_path = os.path.join(dir_parts[0], "helices", sub_dir_parts[2], sub_dir_parts[3])
             make_dir(helix_path)
-            name_path = helix_path + "/" + motif_name
+            name_path = os.path.join(helix_path, motif_name)
+            cif_path = f"{name_path}.cif"
+        # need to add SSTRAND
+        if sub_dir_parts[0] == "SSTRAND":
+            sstrand_length = len(nts)
+            sstrand_path = os.path.join(dir_parts[0], "sstrand", str(sstrand_length), sub_dir_parts[3])
+            make_dir(sstrand_path)
+            name_path = os.path.join(sstrand_path, motif_name)
+            cif_path = f"{name_path}.cif"
 
-        if (sub_dir[0] != "SSTRAND"):
-            # all results will use this, but the specific paths are changed above depending on what the motif is
+        if not os.path.exists(cif_path):  # if motif already exists, don't bother overwriting
             dataframe_to_cif(df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name)
 
-    # print list of residues in motif to CSV
-    # print(nts)
     residue_csv_list.write(motif_name + ',' + ','.join(nts) + '\n')
 
-
-    # if there are interactions, do this:
-    if interactions != None:
-        # removes duplicate amino acids
-        interactions_filtered = remove_duplicate_strings(interactions)
-
-        # interaction processing
+    if interactions is not None:
+        interactions_filtered = remove_duplicate_residues_in_chain(interactions)
+        # TODO maybe optimize; inject interactions from SNAP?
+        """        # interaction processing list initialization
         inter_list = []
         inter_res = []
+
+        # for each protein in the list of proteins
         for inter in interactions_filtered:
             inter_spl = inter.split(".")
             # purify IDs
-            inter_chain_id = inter_spl[0]
-            inter_protein_id = extract_longest_numeric_sequence(inter_spl[1])
-
+            inter_chain_id = inter_spl[0]  # get the chain ID of the protein
+            inter_protein_id = extract_longest_numeric_sequence(inter_spl[1])  # get the residue ID of the protein
+            # sometimes there is a slash for some reason
             if "/" in inter_spl[1]:
                 sub_spl = inter_spl[1].split("/")
                 inter_protein_id = sub_spl[1]
 
-            # define protein ID
+            # define new protein ID
             new_inter = inter_chain_id + "." + inter_protein_id
-            # add it to the list of proteins
+            # add it to the list of new proteins
             inter_list.append(new_inter)
+
+            # new protein ID; making a list (chain, res)
             inter_id = new_inter.split(".")
-            # Find proteins in the PDB model
+            # First find the right chain
             inter_chain = model_df[
-                model_df['auth_asym_id'].astype(str) == inter_id[0]]  # first the chain
-            inter_res_subset = inter_chain[inter_chain['auth_seq_id'].astype(str) == str(
-                inter_id[1])]  # then it find the atoms
-            inter_res.append(
-                inter_res_subset)  # "res" is a list with all the needed dataframes inside it
+                model_df['auth_asym_id'].astype(str) == inter_id[0]]
+            # Then find the right atoms
+            inter_res_subset = inter_chain[inter_chain['auth_seq_id'].astype(str) == str(inter_id[1])]
+            # "inter_res" is a list with all the needed dataframes inside it (of the individual atoms of the 
+            # appropriate residues)
+            inter_res.append(inter_res_subset)
+
         inter_df_list = []  # List to store the DataFrames for each line (type = 'list')
         inter_res = remove_empty_dataframes(inter_res)
 
@@ -664,38 +457,48 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
             total_result_df = pd.concat([result_df, result_inter_df], ignore_index=True)
 
             # for JCTs
-            if ((sub_dir[0] == "NWAY") or (sub_dir[0] == "TWOWAY")):
+            if ((sub_dir_parts[0] == "NWAY") or (sub_dir_parts[0] == "TWOWAY")):
                 # set a path for the interactions
                 inter_new_path = "motif_interactions/" + str(basepair_ends) + "ways/" + dir[
                     2] + "/" + \
-                                 sub_dir[2] + "/" + sub_dir[3]
+                                 sub_dir_parts[2] + "/" + sub_dir_parts[3]
                 inter_name_path = inter_new_path + "/" + motif_name + ".inter"
                 make_dir(inter_new_path)
             # for hairpins
-            if (sub_dir[0] == "HAIRPIN"):
+            if (sub_dir_parts[0] == "HAIRPIN"):
                 inter_hairpin_path = "motif_interactions/hairpins"
                 inter_name_path = inter_hairpin_path + "/" + motif_name + ".inter"
                 make_dir(inter_hairpin_path)
             # for helices
-            if (sub_dir[0] == "HELIX"):
-                inter_helix_path = "motif_interactions/helices/" + str(helix_count) + "/" + str(
-                    helix_comp)
+            if (sub_dir_parts[0] == "HELIX"):
+                inter_helix_path = "motif_interactions/helices/" + str(sub_dir_parts[2]) + "/" + str(
+                    sub_dir_parts[3])
                 inter_name_path = inter_helix_path + "/" + motif_name + ".inter"
                 make_dir(inter_helix_path)
+            # for sstrands
+            if (sub_dir_parts[0] == "SSTRAND"):
+                inter_sstrand_path = "motif_interactions/sstrands/" + str(sstrand_length) + sub_dir_parts[3]
+                inter_name_path = inter_sstrand_path + "/" + motif_name + ".inter"
 
-            if (sub_dir[0] != "SSTRAND"):
-                # writes interactions to CIF
-                dataframe_to_cif(df=total_result_df, file_path=f"{inter_name_path}.cif", motif_name=motif_name)
-
-        # extracting individual interactions:
-        find_matching_interactions(interactions_filtered, motif_bond_list, model_df, motif_name,
-                                   csv_file)
+            # writes interactions to CIF
+            dataframe_to_cif(df=total_result_df, file_path=f"{inter_name_path}.cif", motif_name=motif_name)
+"""
+        extract_individual_interactions(interactions_filtered, motif_bond_list, model_df, motif_name, csv_file, interactions_overview_csv, nts)
 
 
-# extracts individual interactions out
-# of the individual interactions, check if they are in the same motif
-def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, motif_name, csv_file):
-    # csv_file is f.inter
+# extracts individual interactions out (this includes H-bonds found from SNAP)
+# of the individual interactions, check if they are in the same motif for tertiary contact
+# tertiary contact = two motifs which have 2 or more h-bonds
+def extract_individual_interactions(inter_from_PDB, list_of_inters, pdb_model_df, motif_name, csv_file, interactions_overview_csv, list_of_nts_in_motif):
+
+    # for writing to interactions.csv
+    start_interactions_dict = {
+        'base:base': 0, 'base:sugar': 0, 'base:phos': 0,
+        'sugar:base': 0, 'sugar:sugar': 0, 'sugar:phos': 0, 'phos:base': 0, 'phos:sugar': 0,
+        'phos:phos': 0, 'base:aa': 0, 'sugar:aa': 0, 'phos:aa': 0
+    }
+
+    # csv_file is f_inter
     list_of_matching_interactions = []
 
     # find everything the interacting residues are interacting with
@@ -706,13 +509,15 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
                 list_of_matching_interactions.append(hbond_inter)
 
     # make directories just in case
-    make_dir("interactions/all")
+    # make_dir("interactions/all")
+    make_dir(os.path.join("interactions", "all"))
 
     # then, of those interactions, find the appropriate residues and print them
     for interaction in list_of_matching_interactions:
-        # interaction format: ('f.ARG54', '3.G167', 'NH2', 'O6', '3.977')
-        # That's for debug purposes but fuck it I'll leave it there
+        # 'interaction' format: ('A.ASP126', 'A.GNP402', 'OD2', 'N2', '2.824', 'base', 'aa')
+        # That's for debug purposes but I'll leave it there for reference
         # Maybe someone will need it in 15 years
+        # Actually it has come in handy quite a bit
 
         # Obtains residues
         res_1 = interaction[0]
@@ -723,7 +528,7 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
         res_1_chain_id, res_1_res_data = res_1.split(".")
         res_2_chain_id, res_2_res_data = res_2.split(".")
 
-        # if there are slashes present: (because for some fucking reason there are slashes in certain residue IDs)
+        # if there are slashes present: (because for some reason there are slashes in certain residue IDs)
         if "/" in res_1:
             res_1_split = res_1.split(".")
             res_1_inside = res_1_split[1]
@@ -771,10 +576,11 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
 
         # calculate the angle in the interaction
         # find which residue contains the oxygen atom
-        # You may be asking, "What the fuck is this fucking shit below?"
-        # Because for some fucking reason labels for oxygens connected to the phosphorous atoms
-        # in the phosphate backbone are not consistent so you end up with shit like "O1P" when it should be "OP1", etc
-        # And the computer is too retarded to know what it's looking at so you need to tell it
+
+        # You may be asking, "What is this stuff below?"
+        # Because for some reason labels for oxygen connected to phosphorous atoms
+        # in the phosphate backbone are not consistent so you end up with "O1P" when it should be "OP1", etc
+
         # "Why are there three cases?" Depends on where the oxygen shows up, for angle math purposes
         # If there are two oxygens I just take the first one; I try to take the oxygen first
         # In cases where there are no oxygens I just take the first atom
@@ -947,7 +753,6 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
                         second_residue['auth_atom_id'].str.contains(split_interaction_2[0])]
 
         carbon_atom = find_closest_atom(oxygen_atom, res_1_res_2_result_df)
-
         fourth_atom = find_closest_atom(second_atom, res_1_res_2_result_df)
 
         # calculate planar bond angle
@@ -966,34 +771,73 @@ def find_matching_interactions(inter_from_PDB, list_of_inters, pdb_model_df, mot
                 (len(alpha_sorted_types[0]) > 1 and len(alpha_sorted_types[1]) > 1)):
             # folder assignment
             folder_name = alpha_sorted_types[0] + "-" + alpha_sorted_types[1]
-            ind_folder_path = "interactions/all/" + folder_name + "/"
+
+            ind_folder_path = os.path.join("interactions", "all", folder_name)
+            make_dir(ind_folder_path)
+
+            # Replace strings
+            name_inter_2 = name_inter.replace("/", "-")
+
+            # File path; ind_folder_path = the folder path
+            ind_inter_path = os.path.join(ind_folder_path, name_inter_2)
+
+            """ind_folder_path = "interactions/all/" + folder_name + "/"
             make_dir(ind_folder_path)
             # replace strings
             name_inter_2 = name_inter.replace("/", "-")
 
             # file path; ind_folder_path = the folder path
-            ind_inter_path = ind_folder_path + name_inter_2
+            ind_inter_path = ind_folder_path + name_inter_2"""
 
             # print(name_inter_2)
             # NWAY.7PKQ.7-14-1.GGUAAUAUU-GAUGGAAAGCCGAAGG-CAC.0.3.A119.3.U193
 
-            # fill blanks
+            # fill blanks, will break otherwise
             res_1_res_2_result_df.fillna(0, inplace=True)
 
-            dataframe_to_cif(res_1_res_2_result_df, file_path=f"{ind_inter_path}.cif", motif_name=name_inter)
+            cif_path = f"{ind_inter_path}.cif"
+
+            if not os.path.exists(cif_path):  # if the interaction cif already exists, then it doesn't print it
+                dataframe_to_cif(res_1_res_2_result_df, file_path=f"{ind_inter_path}.cif", motif_name=name_inter)
 
             if len(res_1_type) == 1:
                 nt_1 = "nt"
             else:
                 nt_1 = "aa"
+
             if len(res_2_type) == 1:
                 nt_2 = "nt"
             else:
                 nt_2 = "aa"
 
-            # f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
+            type_1 = assign_res_type(atom_1, nt_1)
+            type_2 = assign_res_type(atom_2, nt_2)
+
+            # Here we count the stuff for interactions.csv
+            # first set the class
+            if type_1 is not "aa":
+                hbond_class = type_1 + ":" + type_2
+            else:
+                hbond_class = type_2 + ":" + type_1
+            # then increment the dictionary
+            start_interactions_dict[hbond_class] += 1
+
             csv_file.write(
-                motif_name + ',' + res_1 + ',' + res_2 + ',' + res_1_type + ',' + res_2_type + ',' + atom_1 + ',' + atom_2 + ',' + distance_ext + ',' + bond_angle_degrees + ',' + nt_1 + ',' + nt_2 + "\n")
+                motif_name + ',' + res_1 + ',' + res_2 + ',' + res_1_type + ',' + res_2_type + ',' + atom_1 + ',' + atom_2 + ',' + distance_ext + ',' + bond_angle_degrees + ',' + nt_1 + ',' + nt_2 + ',' + type_1 + ',' + type_2 + "\n")
+
+    """# writing to interactions.csv
+    f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
+    vals = [str(motif_hbonds[m.name][x]) if m.name in motif_hbonds else "0" for x in hbond_vals]
+    f.write(",".join(vals) + "\n")"""
+
+    hbond_vals = [
+        "base:base", "base:sugar", "base:phos", "sugar:base", "sugar:sugar", "sugar:phos",
+        "phos:base", "phos:sugar", "phos:phos", "base:aa", "sugar:aa", "phos:aa"
+    ]
+    motif_name_spl = motif_name.split(".")
+    vals = [str(start_interactions_dict[x]) for x in hbond_vals]
+    # When all is said and done incrementing the dictionary, we write it to interactions.csv aka interactions_overview_csv
+    interactions_overview_csv.write(motif_name + ',' + motif_name_spl[0] + ',' + str(len(list_of_nts_in_motif)) + ',' + ','.join(vals) + '\n')
 
 
 # find the closest atom for 3rd point in angle
@@ -1061,6 +905,7 @@ def calculate_bond_angle(center_atom, second_atom, carbon_atom, fourth_atom):
     angle_deg = str(np.degrees(angle_rad))
 
     if np.degrees(angle_rad) > 180.0:
+        print("dihedral angle over 180 for some reason, double check and add math as needed")
         exit(0)
 
     # need to label and return the atoms that are used in calculation
@@ -1097,6 +942,140 @@ def calc_distance(atom_df1, atom_df2):
     return distance
 
 
+# remove empty dataframes
+def remove_empty_dataframes(dataframes_list):
+    dataframes_list = [df for df in dataframes_list if not df.empty]
+    return dataframes_list
+
+
+# extracts residue IDs properly from strings (protein extractions)
+def extract_longest_numeric_sequence(input_string):
+    longest_sequence = ""
+    current_sequence = ""
+    for c in input_string:
+        if c.isdigit() or (c == '-' and (not current_sequence or current_sequence[0] == '-')):
+            current_sequence += c
+            if len(current_sequence) >= len(longest_sequence):
+                longest_sequence = current_sequence
+        else:
+            current_sequence = ""
+
+    return longest_sequence
+
+
+# to extract residue type (protein/RNA)
+def extract_longest_letter_sequence(input_string):
+    # Find all sequences of letters using regular expression
+    letter_sequences = re.findall('[a-zA-Z]+', input_string)
+
+    # If there are no letter sequences, return an empty string
+    if not letter_sequences:
+        return ""
+
+    # Find the longest letter sequence
+    longest_sequence = max(letter_sequences, key=len)
+
+    return longest_sequence
+
+
+# removes duplicate items in a list, meant for removing duplicate residues in a chain
+def remove_duplicate_residues_in_chain(original_list):
+    unique_list = []
+    for item in original_list:
+        if item not in unique_list:
+            unique_list.append(item)
+    return unique_list
+
+
+# groups residues into their own chains for sequence counting
+def group_residues_by_chain(input_list):
+    # Create a dictionary to hold grouped and sorted residue IDs by chain ID
+    chain_residues = {}
+
+    # Create a dictionary to hold chain IDs for the grouped residues
+    chain_ids_for_residues = {}
+
+    # Iterate through the input_list
+    for item in input_list:
+        chain_id, residue_id = item.split(".")
+        if residue_id != "None":
+            residue_id = int(residue_id)
+
+            # Create a list for the current chain_id if not already present
+            if chain_id not in chain_residues:
+                chain_residues[chain_id] = []
+
+            # Append the residue_id to the corresponding chain_id's list
+            chain_residues[chain_id].append(residue_id)
+
+            # Store the chain_id for this residue in the dictionary
+            if residue_id not in chain_ids_for_residues:
+                chain_ids_for_residues[residue_id] = []
+            chain_ids_for_residues[residue_id].append(chain_id)
+
+    # Sort each chain's residue IDs and store them in the list of lists
+    sorted_chain_residues = []
+    sorted_chain_ids = []
+
+    # Sort the chain IDs based on the order they appeared in the input
+    unique_chain_ids = list(chain_residues.keys())
+
+    # Sort the chain IDs in the order of appearance
+    sorted_unique_chain_ids = unique_chain_ids
+
+    for chain_id in sorted_unique_chain_ids:
+        sorted_residues = sorted(set(chain_residues[chain_id]))
+        sorted_chain_residues.append(sorted_residues)
+        sorted_chain_ids.append(chain_id)
+
+    return sorted_chain_residues, sorted_chain_ids
+
+
+# calculates distance between atoms
+def euclidean_distance_dataframe(df1, df2):
+    # Calculate the Euclidean distance between two points represented by DataFrames.
+    if {'Cartn_x', 'Cartn_y', 'Cartn_z'} != set(df1.columns) or {'Cartn_x', 'Cartn_y',
+                                                                 'Cartn_z'} != set(df2.columns):
+        raise ValueError("DataFrames must have 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns")
+
+    try:
+        point1 = df1[['Cartn_x', 'Cartn_y', 'Cartn_z']].values[0]
+        point2 = df2[['Cartn_x', 'Cartn_y', 'Cartn_z']].values[0]
+        squared_distances = [(float(x) - float(y)) ** 2 for x, y in zip(point1, point2)]
+        distance = math.sqrt(sum(squared_distances))
+    except IndexError:
+        distance = 10
+
+    return distance
+
+
+# Define a function to check if two residues are connected
+def calc_residue_distances(res_1, res_2):
+    residue1 = res_1[1]
+    residue2 = res_2[1]
+
+    # Convert 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns to numeric
+    residue1[['Cartn_x', 'Cartn_y', 'Cartn_z']] = residue1[['Cartn_x', 'Cartn_y', 'Cartn_z']].apply(
+        pd.to_numeric)
+    residue2[['Cartn_x', 'Cartn_y', 'Cartn_z']] = residue2[['Cartn_x', 'Cartn_y', 'Cartn_z']].apply(
+        pd.to_numeric)
+
+    # Extract relevant atom data for both residues
+    atom1 = residue1[residue1['auth_atom_id'].str.contains("O3'", regex=True)]
+    # delete hydrogens in the selection if there are any
+    atom1 = atom1[~atom1['auth_atom_id'].str.contains("H", regex=False)]
+
+    atom2 = residue2[residue2['auth_atom_id'].isin(["P"])]
+
+    # Calculate the Euclidean distance between the two atoms
+
+    distance = np.linalg.norm(atom2[['Cartn_x', 'Cartn_y', 'Cartn_z']].values - atom1[
+        ['Cartn_x', 'Cartn_y', 'Cartn_z']].values)
+
+    return distance
+
+
+# class to hold residue data
 class DSSRRes(object):
     def __init__(self, s):
         s = s.split("^")[0]
@@ -1119,14 +1098,18 @@ class DSSRRes(object):
         self.res_id = spl[1][0:i_num]
 
 
+# Obtains motifs from DSSR
 def get_motifs_from_structure(json_path):
-    name = os.path.splitext(json_path.split("/")[-1])[0]
+    #name = os.path.splitext(json_path.split("/")[-1])[0]
+    name = os.path.splitext(os.path.basename(json_path))[0]
     d_out = DSSROutput(json_path=json_path)
     motifs = d_out.get_motifs()
     motifs = __merge_singlet_seperated(motifs)
     __name_motifs(motifs, name)
     shared = __find_motifs_that_share_basepair(motifs)
     hbonds = d_out.get_hbonds()
+    # need to append hydrogen bonds from snap to 'hbonds' to ensure they are counted in interactions.csv
+
     motif_hbonds, motif_interactions, hbonds_in_motif = __assign_hbonds_to_motifs(motifs, hbonds,
                                                                                   shared)
     motifs = __remove_duplicate_motifs(motifs)
@@ -1134,8 +1117,24 @@ def get_motifs_from_structure(json_path):
     return motifs, motif_hbonds, motif_interactions, hbonds_in_motif
 
 
+# assign base, phos, sugar, aa in interactions_detailed.csv
+def assign_res_type(name, type):
+    if type == "aa":
+        return "aa"
+    else:
+        if name in canon_amino_acid_list:
+            return "aa"
+        elif 'P' in name:
+            return "phos"
+        elif name.endswith('\''):
+            return "sugar"
+        else:
+            return "base"
+
+
+# assigns atom groups (base, sugar, phos); this is for making interactions.csv
 def __assign_atom_group(name):
-    if name == 'OP1' or name == 'OP2' or name == 'P':
+    if 'P' in name:
         return "phos"
     elif name.endswith('\''):
         return "sugar"
@@ -1153,7 +1152,7 @@ def __assign_hbond_class(atom1, atom2, rt1, rt2):
     return classes
 
 
-# assign interactions to motifs
+# assign interactions to motifs; from DSSR
 def __assign_hbonds_to_motifs(motifs, hbonds, shared):
     # all the data about the hbonds in this
     hbonds_in_motif = []
@@ -1165,25 +1164,30 @@ def __assign_hbonds_to_motifs(motifs, hbonds, shared):
         'sugar:base': 0, 'sugar:sugar': 0, 'sugar:phos': 0, 'phos:base': 0, 'phos:sugar': 0,
         'phos:phos': 0, 'base:aa': 0, 'sugar:aa': 0, 'phos:aa': 0
     }
+
+    hbond_quality_list = []
+
     for hbond in hbonds:
-        # This retrives the data from the JSON extracted by DSSR
+        # delete unknown/questionable from consideration
+        hbond_quality_list.append(hbond.donAcc_type)
+        # If questionable then skip this entire loop
+        if hbond.donAcc_type == "questionable" or hbond.donAcc_type == "unknown":
+            continue
+
+        # This retrieves the data from the JSON extracted by DSSR
         # res 1/res 2 are the data we need, they define the actual residues/proteins in the interaction
         atom1, res1 = hbond.atom1_id.split("@")
         atom2, res2 = hbond.atom2_id.split("@")
 
         distance_bonds = str(hbond.distance)
 
-        # write residue pairs for exports
-        hbond_res_pair = (res1, res2, atom1, atom2, distance_bonds)
-        hbonds_in_motif.append(hbond_res_pair)
-
         # Specifies what kind of biomolecules they are
         rt1, rt2 = hbond.residue_pair.split(":")
-        # not really needed ^ (for the process I want to build)
+        # not really needed ^ (for the process I was building at the time)
 
         m1, m2 = None, None
 
-        # m1 and m2 are the actual motifs where
+        # m1 and m2 are the actual motifs where:
         for m in motifs:
             # if one of the hbond residues interact with a residue in the motif then copy the hbond residue in
             if res1 in m.nts_long:
@@ -1201,8 +1205,12 @@ def __assign_hbonds_to_motifs(motifs, hbonds, shared):
             key = names[0] + "-" + names[1]
             if key in shared:
                 continue
-        # this specifies the class of interaction (aa:base, aa:aa, etc)
+        # this will specify the class of interaction (base/sugar/phos:aa, etc)
         hbond_classes = __assign_hbond_class(atom1, atom2, rt1, rt2)
+
+        # write residue pairs for export
+        hbond_res_pair = (res1, res2, atom1, atom2, distance_bonds, str(hbond_classes[0]), str(hbond_classes[1]))
+        hbonds_in_motif.append(hbond_res_pair)
 
         # this counts the # of hydrogen bonds in each category
         if m1 is not None:
@@ -1229,25 +1237,41 @@ def __assign_hbonds_to_motifs(motifs, hbonds, shared):
             motif_hbonds[m2.name][hbond_class] += 1
             motif_interactions[m2.name].append(res1)
 
+    # Count the occurrences of each element
+    """hbond_counts = Counter(hbond_quality_list)
+    # Print the counts
+    for hbond_type, count in hbond_counts.items():
+        print(f"{hbond_type}: {count}")"""
+
     return motif_hbonds, motif_interactions, hbonds_in_motif
 
 
+# removes duplicate motifs
 def __remove_duplicate_motifs(motifs):
+    # list of duplicates
     duplicates = []
     for m1 in motifs:
+        # skips motifs marked as duplicate
         if m1 in duplicates:
             continue
+
         m1_nts = []
+        # extracts nucleotides from m1
         for nt in m1.nts_long:
             m1_nts.append(nt.split(".")[1])
+        # compares motif m1 with every other motif m2 in 'motifs' list
         for m2 in motifs:
             if m1 == m2:
                 continue
+
             m2_nts = []
+            # extracts nucleotides from m2
             for nt in m2.nts_long:
                 m2_nts.append(nt.split(".")[1])
+            # check if nt sequences of m1 and m2 are identical
             if m1_nts == m2_nts:
                 duplicates.append(m2)
+    # list that stores unique motifs
     unique_motifs = []
     for m in motifs:
         if m in duplicates:
@@ -1256,67 +1280,89 @@ def __remove_duplicate_motifs(motifs):
     return unique_motifs
 
 
+# removes motifs larger than 35 nucleotides
 def __remove_large_motifs(motifs):
+    global removed_motifs_count
     new_motifs = []
     for m in motifs:
         if len(m.nts_long) > 35:
+            removed_motifs_count += 1
             continue
         new_motifs.append(m)
     return new_motifs
 
 
 def __merge_singlet_seperated(motifs):
+    # Initialize two lists to categorize motifs
     junctions = []
     others = []
+    # classify each motif into "junctions" or "others"
     for m in motifs:
         if m.mtype == 'STEM' or m.mtype == 'HAIRPIN' or m.mtype == 'SINGLE_STRAND':
             others.append(m)
         else:
             junctions.append(m)
+    # lists to keep track of merged motifs and those that were used
     merged = []
     used = []
+    # iterate through each motif in 'junctions' to attempt merging
     for m1 in junctions:
         m1_nts = m1.nts_long
         if m1 in used:
             continue
+        # compare m1 with every motif (m2) in 'junctions'
         for m2 in junctions:
             if m1 == m2:
                 continue
+            # count the # of nucleotide sequences in 'm2' that are also in 'm1'
             included = 0
             for r in m2.nts_long:
                 if r in m1_nts:
                     included += 1
+            # only consider merging if at least 2 sequences are common
             if included < 2:
                 continue
+            # add unique nucleotide sequences from m2 to m1
             for nt in m2.nts_long:
                 if nt not in m1.nts_long:
                     m1.nts_long.append(nt)
+            # mark both 'm1' and 'm2' as used and add 'm2' to 'merged' list
             used.append(m1)
             used.append(m2)
             merged.append(m2)
+    # create a list "new_motifs" that includes "others" and non-merged junctions
     new_motifs = others
     for m in junctions:
         if m in merged:
             continue
         new_motifs.append(m)
+    # return the list that contains merged and non-merged motifs
     return new_motifs
 
 
+# finds motifs that share a basepairs
 def __find_motifs_that_share_basepair(motifs):
+    # initialize empty dict to store motif pairs
     pairs = {}
+    # iterate through each motif (m1) in 'motifs' list
     for m1 in motifs:
         m1_nts = m1.nts_long
+        # for each 'm1' compare it with every motif (m2) in 'motifs'
         for m2 in motifs:
             if m1 == m2:
                 continue
+            # count the number of nt sequences in m2 that are also in m1
             included = 0
             for r in m2.nts_long:
                 if r in m1_nts:
                     included += 1
+            # only consider m1 and m2 as sharing base pairs if at least 2 sequences are common
             if included < 2:
                 continue
+            # create key for pair using names (in ABC order)
             names = sorted([m1.name, m2.name])
             key = names[0] + "-" + names[1]
+            # store key in "pairs" dict w/ value of 1 (indicating shared BP)
             pairs[key] = 1
     return pairs
 
@@ -1362,6 +1408,7 @@ def __name_junction(motif, pdb_name):
     name += "-".join(strs)
     return name
 
+
 # name the motifs (helix, strand, junction, etc)
 def __name_motifs(motifs, name):
     for m in motifs:
@@ -1402,11 +1449,371 @@ def __name_motifs(motifs, name):
         m.name = m_name + "." + str(count[m_name])
 
 
+# small sort functions for larger operations
 def __sorted_res_int(item):
     spl = item.split(".")
-    return (spl[0], spl[1][1:])
+    return spl[0], spl[1][1:]
 
 
 def __sort_res(item):
     spl = item.nts_long[0].split(".")
-    return (spl[0], spl[1][1:])
+    return spl[0], spl[1][1:]
+
+    # old code I didn't want to fully delete
+
+    # constructs PDB DF
+    """
+    pdb_columns = ['group_PDB', 'id', 'label_atom_id', 'label_comp_id',
+                           'auth_asym_id', 'auth_seq_id', 'Cartn_x', 'Cartn_y', 'Cartn_z',
+                           'occupancy', 'B_iso_or_equiv', 'type_symbol']
+    pdb_df = df[pdb_columns]
+    pdb_df_list.append(pdb_df)
+    """
+
+    # separates CIF and PDB files after all is said and done
+    """
+    def cif_pdb_sort(directory):
+        # Create a copy of the directory with "_PDB" suffix
+        directory_copy = directory + '_PDB'
+        shutil.copytree(directory, directory_copy)
+
+        # Iterate over the files in the copied directory
+        for root, dirs, files in os.walk(directory_copy):
+            for file in files:
+                if file.endswith('.cif'):
+                    # Construct the file path
+                    file_path = os.path.join(root, file)
+                    # Delete the file
+                    os.remove(file_path)
+
+        print(f".cif files deleted from {directory_copy}")
+
+        # Iterate over the files in the original directory
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                if file.endswith('.pdb'):
+                    # Construct the file path
+                    file_path = os.path.join(root, file)
+                    # Delete the file
+                    os.remove(file_path)
+
+        print(f".pdb files deleted from {directory}")"""
+
+    # takes data from a dataframe and writes it to a PDB (deprecated)
+    """
+    def dataframe_to_pdb(df, file_path):
+        with open(file_path, 'w') as f:
+            for row in df.itertuples(index=False):
+                f.write("{:<5}{:>6}  {:<3} {:>3}{:>2}  {:>2}     {:>7} {:>7} {:>7}   {:>3} {:>3}         {:>3}\n".format(
+                    row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9],
+                    row[10], row[11]))"""
+
+
+# old code, restore if broken
+"""def extract_continuous_chains(pair_list):
+    chains = []
+
+    for pair in pair_list:
+        matched_chain = None
+
+        for chain in chains:
+            if chain[-1][1] == pair[0] or chain[0][0] == pair[1]:
+                matched_chain = chain
+                break
+            elif chain[-1][1] == pair[1] or chain[0][0] == pair[0]:
+                matched_chain = chain
+                break
+
+        if matched_chain:
+            matched_chain.append(pair)
+
+        else:
+            chains.append([pair])
+
+    return chains
+"""
+
+"""def connect_continuous_chains(chains):
+    connected_chains = []
+
+    for chain in chains:
+        connected = False
+        for current_chain in connected_chains:
+            # chain is appended to current_chain
+
+            if current_chain[-1][1] == chain[0][0]:
+                current_chain.extend(chain)
+                connected = True
+                break
+            elif current_chain[0][0] == chain[-1][1]:
+                current_chain.insert(0, chain)
+                connected = True
+                break
+            elif current_chain[-1][0] == chain[-1][1]:
+                current_chain.extend(chain)
+                connected = True
+                break
+            elif current_chain[0][1] == chain[-1][0]:
+                current_chain.extend(chain)
+                connected = True
+                break
+            elif current_chain[0][0] == chain[-1][0]:
+                current_chain.extend(chain)
+                connected = True
+                break
+            elif current_chain[-1][0] == chain[0][1]:
+                current_chain.extend(chain)
+                connected = True
+                break
+            elif current_chain[-1][1] == chain[-1][0]:
+                current_chain.extend(chain)
+                connected = True
+                break
+
+        if not connected:
+            connected_chains.append(chain)
+
+    return connected_chains
+"""
+
+"""def refine_continuous_chains(input_lists):
+    merged = []
+
+    def merge_lists(list1, list2):
+        for sub_list1 in list1:
+            for sub_list2 in list2:
+                if any(item1 in sub_list2 for item1 in sub_list1):
+                    list1.extend(sub_list2)
+                    list2.clear()
+                    return list1
+
+    for i in range(len(input_lists)):
+        current_list = input_lists[i]
+        for j in range(i + 1, len(input_lists)):
+            item = input_lists[j]
+            if merge_lists(current_list, item):
+                break
+
+        if current_list:  # Check if current_list is not empty
+            merged.append(current_list)
+
+    return merged"""
+
+"""def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_list, csv_file, residue_csv_list,
+                            twoway_csv):
+    # directory setup for later
+    dir = pdb_path.split("/")
+    sub_dir = dir[3].split(".")
+    motif_name = dir[3]
+    # motif extraction
+    nt_list = []
+    # list of residues
+    res = []
+    # convert the MMCIF to a dictionary, and the resulting dictionary to a Dataframe
+    model_df_first = pdb_model.df
+    # df to CSV for debug
+    model_df_first.to_csv("model_df.csv", index=False)
+    # keep only needed DF columns so further functions don't error
+    columns_to_keep = ['group_PDB', 'id', 'type_symbol', 'label_atom_id',
+                       'label_alt_id', 'label_comp_id', 'label_asym_id',
+                       'label_entity_id', 'label_seq_id',
+                       'pdbx_PDB_ins_code', 'Cartn_x', 'Cartn_y', 'Cartn_z',
+                       'occupancy', 'B_iso_or_equiv', 'pdbx_formal_charge',
+                       'auth_seq_id', 'auth_comp_id', 'auth_asym_id',
+                       'auth_atom_id', 'pdbx_PDB_model_num']
+
+    # keeps necessary columns from PDB file
+    model_df = model_df_first[columns_to_keep]
+    # model_df.to_csv("model_df.csv", index=False)
+    # extracts identification data from nucleotide list
+    for nt in nts:
+        # r = DSSRRes(nt)
+        # splits nucleotide names (chain_id, type + res_id)
+        nt_spl = nt.split(".")
+        # purify IDs; the first one is the chain_id, the second the res_id
+        chain_id = nt_spl[0]
+        residue_id = extract_longest_numeric_sequence(nt_spl[1])
+        # if nt_spl[1] contains a '/' split; sometimes it's weird so this is here
+        if "/" in nt_spl[1]:
+            sub_spl = nt_spl[1].split("/")
+            residue_id = sub_spl[1]
+        # define nucleotide ID
+        new_nt = chain_id + "." + residue_id
+        # add it to the list of nucleotides being processed
+        nt_list.append(new_nt)
+    # sorts nucleotide list for further processing
+    nucleotide_list_sorted, chain_list_sorted = group_residues_by_chain(
+        nt_list)  # nt_list_sorted is a list of lists
+
+    # this list is for strand-counting purposes; will help when determining N-way jcts
+    list_of_chains = []
+    # extraction of residues into dataframes
+    for chain_number, residue_list in zip(chain_list_sorted, nucleotide_list_sorted):
+        for residue in residue_list:
+            # Find residue in the PDB model, first it picks the chain
+            chain_res = model_df[model_df['auth_asym_id'].astype(str) == str(chain_number)]
+            res_subset = chain_res[
+                chain_res['auth_seq_id'].astype(str) == str(residue)]  # then it find the atoms
+            res.append(res_subset)  # "res" is a list with all the residue DFs inside
+        list_of_chains.append(res)
+
+    df_list = []  # List to store the DataFrames for each line (type = 'list')
+    res = remove_empty_dataframes(res)  # delete blank space
+    for r in res:
+        # Data reprocessing stuff, this loop is moving it into a DF
+        lines = r.to_string(index=False, header=False).split('\n')
+        for line in lines:
+            values = line.split()  # (type 'values' = list)
+            df = pd.DataFrame([values],
+                              columns=['group_PDB', 'id', 'type_symbol', 'label_atom_id',
+                                       'label_alt_id', 'label_comp_id', 'label_asym_id',
+                                       'label_entity_id', 'label_seq_id',
+                                       'pdbx_PDB_ins_code', 'Cartn_x', 'Cartn_y', 'Cartn_z',
+                                       'occupancy', 'B_iso_or_equiv', 'pdbx_formal_charge',
+                                       'auth_seq_id', 'auth_comp_id', 'auth_asym_id',
+                                       'auth_atom_id', 'pdbx_PDB_model_num'])
+            df_list.append(df)
+
+    if df_list:  # i.e. if there are things inside df_list:
+        # Concatenate all DFs into a single DF
+        result_df = pd.concat(df_list, axis=0, ignore_index=True)
+
+        # this is for NWAY/2WAY jcts
+        if (sub_dir[0] == "NWAY") or (sub_dir[0] == "TWOWAY"):
+            basepair_ends, motif_name = count_strands(result_df, motif_name=motif_name,
+                                                      twoway_jct_csv=twoway_csv)  # you need a master DF of
+            # residues here
+            # Write # of BP ends to the motif name (labeling of n-way junction)
+            if not (basepair_ends == 1):
+                motif_name_spl = motif_name.split(".")  # size reclassification using data from count_connections
+                new_path = dir[0] + "/" + str(basepair_ends) + "ways" + "/" + dir[2] + "/" + motif_name_spl[2] + "/" + \
+                           sub_dir[3]
+                name_path = new_path + "/" + motif_name
+                # writing the file to its place
+                make_dir(new_path)
+            else:
+                # if only 1 basepair end it should be reclassified as a hairpin
+                sub_dir[0] = "HAIRPIN"
+        if sub_dir[0] == "HAIRPIN":
+            # hairpins classified by the # of looped nucleotides at the top of the pin
+            # two NTs in a hairpin are always canonical pairs so just: (len nts - 2)
+            hairpin_bridge_length = len(nts) - 2
+            sub_dir[2] = str(hairpin_bridge_length)
+            motif_name = '.'.join(sub_dir)
+            if hairpin_bridge_length >= 3:
+                # after classification into tri/tetra/etc
+                hairpin_path = dir[0] + "/hairpins/" + str(hairpin_bridge_length)
+                make_dir(hairpin_path)
+                name_path = hairpin_path + "/" + motif_name
+            else:
+                sub_dir[0] = "SSTRAND"
+        if sub_dir[0] == "HELIX":
+            # helices should be classified into folders by their # of basepairs
+            # this should be very simple as the lengths are given in the motif names
+            # also classify further by the sequence composition, this is also given in motif name
+            helix_count = str(sub_dir[2])
+            helix_comp = str(sub_dir[3])
+            # after classification put em in the folders
+            helix_path = dir[0] + "/helices/" + helix_count + "/" + helix_comp
+            make_dir(helix_path)
+            name_path = helix_path + "/" + motif_name
+
+        if sub_dir[0] != "SSTRAND":  # if the motif type is NOT a single strand
+            # all results will use this, but the specific paths are changed above depending on what the motif is
+            dataframe_to_cif(df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name)
+
+    # print list of residues in motif to CSV
+    residue_csv_list.write(motif_name + ',' + ','.join(nts) + '\n')
+    # VERY important for later when we need to find what residues belong where
+
+    # TODO replace with RNP interactions obtained from snap
+    # if there are interactions, do this:
+    if interactions is not None:
+        # remove duplicate amino acids (otherwise it breaks)
+        # TODO inject data from snap here if need be
+        interactions_filtered = remove_duplicate_residues_in_chain(interactions)
+        ...
+        # interaction processing list initialization
+        inter_list = []
+        inter_res = []
+
+        # for each protein in the list of proteins
+        for inter in interactions_filtered:
+            inter_spl = inter.split(".")
+            # purify IDs
+            inter_chain_id = inter_spl[0]  # get the chain ID of the protein
+            inter_protein_id = extract_longest_numeric_sequence(inter_spl[1])  # get the residue ID of the protein
+            # sometimes there is a slash for some reason
+            if "/" in inter_spl[1]:
+                sub_spl = inter_spl[1].split("/")
+                inter_protein_id = sub_spl[1]
+
+            # define new protein ID
+            new_inter = inter_chain_id + "." + inter_protein_id
+            # add it to the list of new proteins
+            inter_list.append(new_inter)
+
+            # new protein ID; making a list (chain, res)
+            inter_id = new_inter.split(".")
+            # First find the right chain
+            inter_chain = model_df[
+                model_df['auth_asym_id'].astype(str) == inter_id[0]]
+            # Then find the right atoms
+            inter_res_subset = inter_chain[inter_chain['auth_seq_id'].astype(str) == str(inter_id[1])]
+            # "inter_res" is a list with all the needed dataframes inside it (of the individual atoms of the 
+            # appropriate residues)
+            inter_res.append(inter_res_subset)
+
+        inter_df_list = []  # List to store the DataFrames for each line (type = 'list')
+        inter_res = remove_empty_dataframes(inter_res)
+
+        for inter in inter_res:
+            # Data reprocessing stuff, this loop is moving it into a DF
+            lines = inter.to_string(index=False, header=False).split('\n')
+            for line in lines:
+                values = line.split()  # (type 'values' = list)
+                inter_df = pd.DataFrame([values],
+                                        columns=['group_PDB', 'id', 'type_symbol', 'label_atom_id',
+                                                 'label_alt_id', 'label_comp_id', 'label_asym_id',
+                                                 'label_entity_id', 'label_seq_id',
+                                                 'pdbx_PDB_ins_code', 'Cartn_x', 'Cartn_y',
+                                                 'Cartn_z',
+                                                 'occupancy', 'B_iso_or_equiv',
+                                                 'pdbx_formal_charge',
+                                                 'auth_seq_id', 'auth_comp_id', 'auth_asym_id',
+                                                 'auth_atom_id', 'pdbx_PDB_model_num'])
+                inter_df_list.append(inter_df)
+        if df_list and inter_df_list:
+            # concatenate proteins with RNA
+            result_inter_df = pd.concat(inter_df_list, axis=0, ignore_index=True)  # interactions
+            # result_inter_df.to_csv("inter.csv", index=False)
+            total_result_df = pd.concat([result_df, result_inter_df], ignore_index=True)
+
+            # for JCTs
+            if ((sub_dir[0] == "NWAY") or (sub_dir[0] == "TWOWAY")):
+                # set a path for the interactions
+                inter_new_path = "motif_interactions/" + str(basepair_ends) + "ways/" + dir[
+                    2] + "/" + \
+                                 sub_dir[2] + "/" + sub_dir[3]
+                inter_name_path = inter_new_path + "/" + motif_name + ".inter"
+                make_dir(inter_new_path)
+            # for hairpins
+            if (sub_dir[0] == "HAIRPIN"):
+                inter_hairpin_path = "motif_interactions/hairpins"
+                inter_name_path = inter_hairpin_path + "/" + motif_name + ".inter"
+                make_dir(inter_hairpin_path)
+            # for helices
+            if (sub_dir[0] == "HELIX"):
+                inter_helix_path = "motif_interactions/helices/" + str(helix_count) + "/" + str(
+                    helix_comp)
+                inter_name_path = inter_helix_path + "/" + motif_name + ".inter"
+                make_dir(inter_helix_path)
+
+            if (sub_dir[0] != "SSTRAND"):
+                # writes interactions to CIF
+                dataframe_to_cif(df=total_result_df, file_path=f"{inter_name_path}.cif", motif_name=motif_name)
+        ...
+        # extracting individual interactions:
+        extract_individual_interactions(interactions_filtered, motif_bond_list, model_df, motif_name,
+                                        csv_file)
+"""

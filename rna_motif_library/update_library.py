@@ -1,4 +1,7 @@
+import concurrent.futures
 import csv
+from collections import Counter
+
 import wget
 import glob
 import os
@@ -21,6 +24,28 @@ from biopandas.mmcif.pandas_mmcif import PandasMmcif
 from biopandas.mmcif.mmcif_parser import load_cif_data
 from biopandas.mmcif.engines import mmcif_col_types
 from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
+
+# from dssr import total_motifs_count
+# from dssr import removed_motifs_count
+
+# NOT CODE THINGS but need to do nonetheless
+# read RNA 3d structure database papers
+# figure 3 will be tert contacts
+# fig 4 will be dist-angle stuff
+
+# fix these:
+# TODO increase text sizes on all figures
+# TODO put a gap between the bars on graphs
+# TODO fix interactions.csv so it includes ALL interactions and properly counts them
+
+# done:
+# add a column to unique_tert_contacts.csv that records base/sugar/phos data (which part of things are contacts coming from)
+# add figure that describes types of tertiary contacts by base/sugar/phos
+# deleted "questionable" and "unknown" donAcc type h-bonds
+# merged dist-angle data so reverse orders are the same (might need to minus angle by 180 for those) (this one might need a bit of work)
+# multithreading (may need to undo after testing and evaluation)
+# added single strands and their respective graphs; make sure tert contacts between others and SSTRAND works
+
 
 # amino acid/canonical residue dictionary
 canon_res_dict = {
@@ -50,19 +75,23 @@ canon_res_dict = {
     'VAL': 'Valine'
 }
 
+# list of residue types to filter out
+# may need to include nucleosides and shit
 canon_res_list = ['A', 'ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'C', 'G', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS',
                   'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'U', 'VAL']
+
+canon_amino_acid_list = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS',
+                         'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
 
 
 # Pandas mmCIF override; need it because of ATOM/HETATM inconsistency
 
-# God I fucking hate how there's no universal standard format for CIFs
-# Finding these inconsistencies took forever
+# I hate how there's no universal standard format for CIFs
+# Finding these inconsistencies between CIFs took forever
 # I'm sure there's still some out there ready to ruin my day that haven't been caught that someone somewhere will catch
-# If you see some weird formatting shit going on in the code, I guarantee you this is the reason
-# If you run into issues running this, do fix the CIFs beforehand
+# If you see some weird formatting going on in the code, that is the reason
+# If you run into issues running this, do fix your CIFs beforehand
 # Something like 75% of my time working on this was spent diagnosing and fixing that kind of thing
-# So I understand how much of a royal pain in the ass it can be
 class PandasMmcifOverride(PandasMmcif):
     def _construct_df(self, text: str):
         data = load_cif_data(text)
@@ -90,6 +119,7 @@ def __safe_mkdir(directory):
         os.makedirs(directory)
 
 
+# Download non-redundant set based on CSV
 def __download_cif_files(csv_path):
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     count = 0
@@ -117,6 +147,7 @@ def __download_cif_files(csv_path):
     print(f"{count} pdbs already downloaded!")
 
 
+# Runs DSSR on PDBs to extract secondary structure
 def __get_dssr_files():
     count = 1
     # creates and sets directories
@@ -142,6 +173,7 @@ def __get_dssr_files():
         )
 
 
+# Runs snap to get RNP interactions
 def __get_snap_files():
     # creates and sets directories
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
@@ -153,7 +185,7 @@ def __get_snap_files():
     pdbs = glob.glob(pdb_dir + "/*.cif")
     count = 0
     for pdb_path in pdbs:
-        s = os.path.getsize(pdb_path)
+        # s = os.path.getsize(pdb_path)
         # if s > 10000000:
         #    continue
         print(count, pdb_path)
@@ -164,13 +196,18 @@ def __get_snap_files():
             continue
         print(pdb_path)
         snap.__generate_out_file(pdb_path, out_file)
+    # pdb_dir = settings.LIB_PATH + "/data/pdbs/"
+
+
+# old code
+"""def __generate_motif_files():
+    # defines directories
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
-
-
-def __generate_motif_files():
+    # rnp_dir = settings.LIB_PATH + "/data/snap_output"
+    # grabs all the stuff
+    pdbs = glob.glob(pdb_dir + "/*.cif")  # PDBs
+    # rnps = glob.glob(rnp_dir + "/*.out")  # RNP interactions
     # creates directories
-    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
-    pdbs = glob.glob(pdb_dir + "/*.cif")
     dirs = [
         "motifs",
         "motif_interactions",
@@ -178,7 +215,6 @@ def __generate_motif_files():
     for d in dirs:
         __safe_mkdir(d)
     motif_dir = "motifs/nways/all"
-    # opens the file where information about nucleotide interactions are stored
     hbond_vals = [
         "base:base",
         "base:sugar",
@@ -193,6 +229,7 @@ def __generate_motif_files():
         "sugar:aa",
         "phos:aa",
     ]
+    # opens the file where information about nucleotide interactions are stored
     f = open("interactions.csv", "w")
     f.write("name,type,size")
     # writes to the CSV information about nucleotide interactions
@@ -214,14 +251,34 @@ def __generate_motif_files():
 
     # writes motif/motif interaction information to PDB files
     for pdb_path in pdbs:
+        name = pdb_path.split("/")[-1][:-4]
+        count += 1
+        print(count, pdb_path, name)
+
         # debug, here we define which exact pdb to run (if we need to for whatever reason)
         # if pdb_path == "/Users/jyesselm/PycharmProjects/rna_motif_library/data/pdbs/7PKQ.cif": # change the part before .cif
         s = os.path.getsize(pdb_path)
-        name = pdb_path.split("/")[-1][:-4]
         json_path = settings.LIB_PATH + "/data/dssr_output/" + name + ".json"
         # if s < 100000000:  # size-limit on PDB; enable if machine runs out of RAM
-        count += 1
-        print(count, pdb_path, name)
+
+        # get RNP interactions
+        rnp_out_path = settings.LIB_PATH + "/data/snap_output/" + name + ".out"
+        # is a list of snap.RNPInteraction objects
+        rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
+
+        # prepare list for RNP data
+        rnp_data = []
+
+        for interaction in rnp_interactions:
+            # print(interaction)
+            atom1, res1 = interaction.nt_atom.split("@")
+            atom2, res2 = interaction.aa_atom.split("@")
+
+            # list format: (res1, res2, atom1, atom2, distance)
+            rnp_interaction_tuple = (res1, res2, atom1, atom2, str(interaction.dist))
+            # rnp_data should be imported into interactions
+            rnp_data.append(rnp_interaction_tuple)
+
         pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
         (
             motifs,
@@ -231,9 +288,13 @@ def __generate_motif_files():
 
         # hbonds_in_motif is a list, describing all the chain.res ids with hbonds
         # some are counted twice so we need to purify to make it unique
-
+        # RNP data from snap is injected here
+        hbonds_in_motif.extend(rnp_data)
         unique_inter_motifs = list(set(hbonds_in_motif))
 
+        # counting total motifs present in PDB
+        dssr.total_motifs_count = len(motifs)
+        # process each motif present in PDB
         for m in motifs:
             print(m.name)
             spl = m.name.split(".")  # this is the filename
@@ -256,31 +317,308 @@ def __generate_motif_files():
             try:
                 interactions = motif_interactions[m.name]
             except KeyError:
-                interactions = None  # or any value you want as a default
+                interactions = None  # this means that no interactions are found between the motif and other
             # Writing the residues AND interactions to the CIF files
             dssr.write_res_coords_to_pdb(
                 m.nts_long, interactions, pdb_model,
                 motif_dir + "/" + m.name, unique_inter_motifs, f_inter, f_residues, f_twoways
             )
+        # count motifs found
+        # get the PDB name
+        ...
+        spl_pdbs = pdb_path.split("/")
+        pdb_name = spl_pdbs[6].split(".")[0]
+        print("Motifs removed:")
+        print(dssr.removed_motifs_count)
+
+        if dssr.total_motifs_count != 0:
+            print("Percentage removed:")
+            percentage_removed = (dssr.removed_motifs_count / dssr.total_motifs_count) * 100
+            print(percentage_removed)
+        ...
 
     f.close()
     f_inter.close()
-    f_twoways.close()
+    f_twoways.close()"""
+
+
+# old new code; not multi threaded
+def __generate_motif_files():
+    # defines directories
+    pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
+    # grabs all the stuff
+    pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))  # PDBs
+    # creates directories
+    dirs = ["motifs"] # motif_interactions?
+    for d in dirs:
+        __safe_mkdir(d)
+
+    motif_dir = os.path.join("motifs", "nways", "all")
+    hbond_vals = [
+        "base:base", "base:sugar", "base:phos", "sugar:base", "sugar:sugar", "sugar:phos",
+        "phos:base", "phos:sugar", "phos:phos", "base:aa", "sugar:aa", "phos:aa"
+    ]
+
+    # opens the file where information about nucleotide interactions are stored
+    with open("interactions.csv", "w") as f_inter_overview:
+        f_inter_overview.write("name,type,size," + ",".join(hbond_vals) + "\n")
+        # CSV about individual interactions
+        with open("interactions_detailed.csv", "w") as f_inter, \
+                open("motif_residues_list.csv", "w") as f_residues, \
+                open("twoway_motif_list.csv", "w") as f_twoways:
+
+            f_inter.write("name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2\n")
+            f_residues.write("motif_name,residues\n")
+            f_twoways.write(
+                "motif_name,motif_type,nucleotides_in_strand_1,nucleotides_in_strand_2,bridging_nts_0,bridging_nts_1\n")
+
+            count = 0
+            for pdb_path in pdbs:
+                # limit so we can test some stuff at a smaller scale
+                """if count > 50:
+                    continue"""
+                name = os.path.basename(pdb_path).replace(".cif", "")
+                count += 1
+                print(count, pdb_path, name)
+
+                s = os.path.getsize(pdb_path)
+                json_path = os.path.join(settings.LIB_PATH, "data/dssr_output", name + ".json")
+
+                rnp_out_path = os.path.join(settings.LIB_PATH, "data/snap_output", name + ".out")
+                rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
+                rnp_data = [(interaction.nt_atom.split("@")[1], interaction.aa_atom.split("@")[1],
+                             interaction.nt_atom.split("@")[0], interaction.aa_atom.split("@")[0],
+                             str(interaction.dist), interaction.type.split(":")[0], interaction.type.split(":")[1]) for
+                            interaction in rnp_interactions]
+
+                pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
+                motifs, motif_hbonds, motif_interactions, hbonds_in_motif = dssr.get_motifs_from_structure(json_path)
+
+                # add RNP data
+                hbonds_in_motif.extend(rnp_data)
+                unique_inter_motifs = list(set(hbonds_in_motif))
+                # format of elements in unique_inter_motifs:
+                # ('A.ASP126', 'A.GNP402', 'OD2', 'N2', '2.824', 'base', 'aa')
+
+                dssr.total_motifs_count = len(motifs)
+                for m in motifs:
+                    print(m.name)
+                    spl = m.name.split(".")
+                    if spl[0] not in ["TWOWAY", "NWAY", "HAIRPIN", "HELIX", "SSTRAND"]:
+                        continue
+
+                    interactions = motif_interactions.get(m.name, None)
+                    dssr.write_res_coords_to_pdb(m.nts_long, interactions, pdb_model,
+                                                 os.path.join(motif_dir, m.name),
+                                                 unique_inter_motifs, f_inter, f_residues, f_twoways, f_inter_overview)
+
+                    """# writing to interactions.csv
+                    f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
+                    vals = [str(motif_hbonds[m.name][x]) if m.name in motif_hbonds else "0" for x in hbond_vals]
+                    f.write(",".join(vals) + "\n")"""
+
+
+# new code; multi threaded; multi threads per PDB
+"""def __generate_motif_files():
+    pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
+    pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
+    dirs = ["motifs", "motif_interactions"]
+    for d in dirs:
+        __safe_mkdir(d)
+
+    motif_dir = os.path.join("motifs", "nways", "all")
+    hbond_vals = [
+        "base:base", "base:sugar", "base:phos", "sugar:base", "sugar:sugar", "sugar:phos",
+        "phos:base", "phos:sugar", "phos:phos", "base:aa", "sugar:aa", "phos:aa"
+    ]
+
+    # opens the file where information about nucleotide interactions are stored
+    with open("interactions.csv", "w") as f:
+        f.write("name,type,size," + ",".join(hbond_vals) + "\n")
+        # CSV about individual interactions
+        with open("interactions_detailed.csv", "w") as f_inter, \
+                open("motif_residues_list.csv", "w") as f_residues, \
+                open("twoway_motif_list.csv", "w") as f_twoways:
+
+            f_inter.write("name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2\n")
+            f_residues.write("motif_name,residues\n")
+            f_twoways.write(
+                "motif_name,motif_type,nucleotides_in_strand_1,nucleotides_in_strand_2,bridging_nts_0,bridging_nts_1\n")
+
+            # Use ThreadPoolExecutor for multithreading
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                futures = []
+                count = 0
+                for pdb_path in pdbs:
+                    count += 1
+                    future = executor.submit(process_pdb, pdb_path, motif_dir, hbond_vals, count)
+                    futures.append(future)
+
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        results = future.result()
+                        for row, nts_long, interactions, unique_inter_motifs, pdb_model in results:
+                            f.write(",".join(row) + "\n")
+                            dssr.write_res_coords_to_pdb(nts_long, interactions, pdb_model,
+                                                         os.path.join(motif_dir, row[0]),
+                                                         unique_inter_motifs, f_inter, f_residues, f_twoways)
+                    except Exception as exc:
+                        print(f'Exception processing {future}: {exc}')"""
+
+# new code; multi threads per motif
+"""def __generate_motif_files():
+    # defines directories
+    pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
+    # grabs all the stuff
+    pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))  # PDBs
+    # creates directories
+    dirs = ["motifs", "motif_interactions"]
+    for d in dirs:
+        __safe_mkdir(d)
+
+    motif_dir = os.path.join("motifs", "nways", "all")
+    hbond_vals = [
+        "base:base", "base:sugar", "base:phos", "sugar:base", "sugar:sugar", "sugar:phos",
+        "phos:base", "phos:sugar", "phos:phos", "base:aa", "sugar:aa", "phos:aa"
+    ]
+
+    # opens the file where information about nucleotide interactions are stored
+    with open("interactions.csv", "w") as f:
+        f.write("name,type,size," + ",".join(hbond_vals) + "\n")
+        # CSV about individual interactions
+        with open("interactions_detailed.csv", "w") as f_inter, \
+                open("motif_residues_list.csv", "w") as f_residues, \
+                open("twoway_motif_list.csv", "w") as f_twoways:
+
+            f_inter.write("name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2\n")
+            f_residues.write("motif_name,residues\n")
+            f_twoways.write(
+                "motif_name,motif_type,nucleotides_in_strand_1,nucleotides_in_strand_2,bridging_nts_0,bridging_nts_1\n")
+
+            count = 0
+            for pdb_path in pdbs:
+                name = os.path.basename(pdb_path).replace(".cif", "")
+                count += 1
+                print(count, pdb_path, name)
+
+                s = os.path.getsize(pdb_path)
+                json_path = os.path.join(settings.LIB_PATH, "data/dssr_output", name + ".json")
+
+                rnp_out_path = os.path.join(settings.LIB_PATH, "data/snap_output", name + ".out")
+                rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
+                rnp_data = [(interaction.nt_atom.split("@")[1], interaction.aa_atom.split("@")[1],
+                             interaction.nt_atom.split("@")[0], interaction.aa_atom.split("@")[0],
+                             str(interaction.dist)) for interaction in rnp_interactions]
+
+                pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
+                motifs, motif_hbonds, motif_interactions, hbonds_in_motif = dssr.get_motifs_from_structure(json_path)
+
+                hbonds_in_motif.extend(rnp_data)
+                unique_inter_motifs = list(set(hbonds_in_motif))
+
+                dssr.total_motifs_count = len(motifs)
+
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    futures = []
+                    for m in motifs:
+                        spl = m.name.split(".")
+                        if spl[0] not in ["TWOWAY", "NWAY", "HAIRPIN", "HELIX", "SSTRAND"]:
+                            continue
+
+                        future = executor.submit(process_motif, m, motif_hbonds, motif_interactions,
+                                                 unique_inter_motifs, hbond_vals, pdb_model, motif_dir, f_inter,
+                                                 f_residues, f_twoways)
+                        futures.append(future)
+
+                    for future in concurrent.futures.as_completed(futures):
+                        try:
+                            row = future.result()
+                            f.write(",".join(row) + "\n")
+                        except Exception as exc:
+                            print(f'Exception processing motif: {exc}')"""
+
+"""def process_motif(m, motif_hbonds, motif_interactions, unique_inter_motifs, hbond_vals, pdb_model, motif_dir, f_inter,
+                  f_residues, f_twoways):
+    print(m.name)
+    row = [m.name, m.name.split(".")[0], str(len(m.nts_long))]
+    vals = [str(motif_hbonds[m.name][x]) if m.name in motif_hbonds else "0" for x in hbond_vals]
+    row.extend(vals)
+
+    interactions = motif_interactions.get(m.name, None)
+    dssr.write_res_coords_to_pdb(m.nts_long, interactions, pdb_model,
+                                 os.path.join(motif_dir, m.name),
+                                 unique_inter_motifs, f_inter, f_residues, f_twoways)
+
+    return row
+
+
+def process_pdb(pdb_path, motif_dir, hbond_vals, count):
+    name = os.path.basename(pdb_path).replace(".cif", "")
+    print(count, pdb_path, name)
+
+    json_path = os.path.join(settings.LIB_PATH, "data/dssr_output", name + ".json")
+
+    rnp_out_path = os.path.join(settings.LIB_PATH, "data/snap_output", name + ".out")
+    rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
+
+    rnp_data = [(interaction.nt_atom.split("@")[1], interaction.aa_atom.split("@")[1],
+                 interaction.nt_atom.split("@")[0], interaction.aa_atom.split("@")[0],
+                 str(interaction.dist), interaction.type.split(":")[0], interaction.type.split(":")[1]) for interaction in rnp_interactions]
+
+    # rnp_data is the same format as other interactions
+
+    pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
+    motifs, motif_hbonds, motif_interactions, hbonds_in_motif = dssr.get_motifs_from_structure(json_path)
+
+    hbonds_in_motif.extend(rnp_data)
+    unique_inter_motifs = list(set(hbonds_in_motif))
+
+    print(unique_inter_motifs)
+    exit(0)
+
+    results = []
+
+    for m in motifs:
+        print(m.name)
+        spl = m.name.split(".")
+        if spl[0] not in ["TWOWAY", "NWAY", "HAIRPIN", "HELIX", "SSTRAND"]:
+            continue
+
+        row = [m.name, spl[0], str(len(m.nts_long))]
+        vals = [str(motif_hbonds[m.name][x]) if m.name in motif_hbonds else "0" for x in hbond_vals]
+        row.extend(vals)
+
+        # Process each motif concurrently
+        f_inter = open("interactions_detailed.csv", "a")  # Append mode for concurrent writing
+        f_residues = open("motif_residues_list.csv", "a")  # Append mode for concurrent writing
+        f_twoways = open("twoway_motif_list.csv", "a")  # Append mode for concurrent writing
+
+        interactions = motif_interactions.get(m.name, None)
+        dssr.write_res_coords_to_pdb(m.nts_long, interactions, pdb_model,
+                                     os.path.join(motif_dir, m.name),
+                                     unique_inter_motifs, f_inter, f_residues, f_twoways)
+
+        f_inter.close()
+        f_residues.close()
+        f_twoways.close()
+
+        results.append((row, m.nts_long, interactions, unique_inter_motifs, pdb_model))
+
+    return results"""
 
 
 # tertiary contact detection (interactions between different motifs)
 # basically find if there are any interactions between different motifs
 # more than 1 hydrogen bond between different motifs = tertiary contact
 def __find_tertiary_contacts():
-    # TODO finding starts here, comment out if found already
+    # TODO finding starts here, comment out if found already or need to debug, not actual todo
     print("Finding tertiary contacts...")
-
 
     # create a CSV file to write tertiary contacts to
     f_tert = open("tertiary_contact_list.csv", "w")
-    f_tert.write("motif_1,motif_2,type_1,type_2,res_1,res_2,hairpin_len_1,hairpin_len_2" + "\n")
+    f_tert.write("motif_1,motif_2,type_1,type_2,res_1,res_2,hairpin_len_1,hairpin_len_2,res_type_1,res_type_2" + "\n")
 
-    # also create a CSV to write non-terts to
+    # also create a CSV to write non-tert contacts to
     f_single = open("single_motif_inter_list.csv", "w")
     f_single.write("motif,type_1,type_2,res_1,res_2,nt_1,nt_2,distance,angle" + "\n")
 
@@ -330,7 +668,7 @@ def __find_tertiary_contacts():
 
         # iterate over each interaction in the motif
         for _, row in interaction_data_df.iterrows():
-            # interaction data format: name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle... (don't need the rest)
+            # interaction data format: name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2
             # convert datatype series to list
             interaction_data = row.tolist()
             res_1 = interaction_data[1]
@@ -339,6 +677,9 @@ def __find_tertiary_contacts():
             # only for f_single
             type_1 = interaction_data[3]
             type_2 = interaction_data[4]
+
+            res_type_1 = interaction_data[11]
+            res_type_2 = interaction_data[12]
 
             if len(type_1) == 1:
                 nt_1 = "nt"
@@ -381,7 +722,7 @@ def __find_tertiary_contacts():
                 # not a tert_contact
                 # prints interactions - tert contacts to CSV
                 f_single.write(
-                    name_of_source_motif + "," + type_1 + "," + type_2 + "," + res_1 + "," + res_2 + "," + nt_1 + "," + nt_2 + "," + distance_data + "," + angle_data + "\n")
+                    name_of_source_motif + "," + type_1 + "," + type_2 + "," + res_1 + "," + res_2 + "," + nt_1 + "," + nt_2 + "," + distance_data + "," + angle_data + ',' + res_type_1 + ',' + res_type_2 + "\n")
 
 
             elif (res_1_present == True) and (res_2_present == True):
@@ -409,7 +750,7 @@ def __find_tertiary_contacts():
 
                         # print data to CSV
                         f_tert.write(
-                            name_of_source_motif + "," + motif_name + "," + source_motif_type + "," + motif_name_type + "," + res_1 + "," + res_2 + "," + hairpin_length_1 + "," + hairpin_length_2 + "\n")
+                            name_of_source_motif + "," + motif_name + "," + source_motif_type + "," + motif_name_type + "," + res_1 + "," + res_2 + "," + hairpin_length_1 + "," + hairpin_length_2 + "," + res_type_1 + "," + res_type_2 + "\n")
 
             elif (res_1_present == False) and (res_2_present == True):
                 # tert contact found
@@ -433,13 +774,9 @@ def __find_tertiary_contacts():
 
                         # print data to CSV (only if the motif names are the same)
                         f_tert.write(
-                            name_of_source_motif + "," + motif_name + "," + source_motif_type + "," + motif_name_type + "," + res_1 + "," + res_2 + "," + hairpin_length_1 + "," + hairpin_length_2 + "\n")
+                            name_of_source_motif + "," + motif_name + "," + source_motif_type + "," + motif_name_type + "," + res_1 + "," + res_2 + "," + hairpin_length_1 + "," + hairpin_length_2 + "," + res_type_1 + "," + res_type_2 + "\n")
 
-    
-    # TODO finding ends here
-
-
-
+    # TODO finding ends here; not actual todo
     # after the CSV for tertiary contacts are made we need to go through and extract all unique pairs in CSV
     # File path
     tert_contact_csv_path = "tertiary_contact_list.csv"  # used to make unique list which then is used for everything else
@@ -451,7 +788,7 @@ def __find_tertiary_contacts():
         print(f"A line in the CSV is blank. If this shows only once, it is working as intended.")
         # return # return if you don't want to print tert contacts
 
-    # TODO unique tert contact discovery starts here, not actual todo
+    # TODO unique tert contact discovery starts here; not actual todo
 
     print("Finding unique tertiary contacts...")
     # Count unique tert contacts and print to a CSV
@@ -466,7 +803,9 @@ def __find_tertiary_contacts():
         # Create a CSV writer object
         writer = csv.writer(file)
         # Write the header
-        writer.writerow(["motif_1", "motif_2", "seq_1", "seq_2", "type_1", "type_2", "res_1", "res_2", "count"])
+        writer.writerow(
+            ["motif_1", "motif_2", "seq_1", "seq_2", "type_1", "type_2", "res_1", "res_2", "count", "res_type_1",
+             "res_type_2"])
 
         # Iterate over groups
         for group_name, group_df in grouped_unique_tert_contacts:
@@ -485,7 +824,7 @@ def __find_tertiary_contacts():
                 # Write to CSV, appending the count at the end
                 writer.writerow(
                     [row['motif_1'], row['motif_2'], seq_1, seq_2, row['type_1'], row['type_2'], row['res_1'],
-                     row['res_2'], count])
+                     row['res_2'], count, row['res_type_1'], row['res_type_2']])
 
     # Close the file
     file.close()
@@ -519,7 +858,7 @@ def __find_tertiary_contacts():
     unique_tert_contact_df_new.reset_index(drop=True, inplace=True)
 
     # debug
-    unique_tert_contact_df_new.to_csv("terts_with_duplicates.csv", index=False)
+    # unique_tert_contact_df_new.to_csv("terts_with_duplicates.csv", index=False)
 
     print("Deleting duplicates...")
     # Now delete duplicate interactions (where motif_1 and 2 are switched)
@@ -547,10 +886,8 @@ def __find_tertiary_contacts():
     # Filter out groups with less than 2 rows
     unique_tert_contact_df_for_hbonds = grouped_df.filter(lambda x: len(x) >= 2)
 
-    print("counts")
-
     # Print it for good measure, debug
-    unique_tert_contact_df_for_hbonds.to_csv("unique_tert_contacts.csv", index=False)
+    # unique_tert_contact_df_for_hbonds.to_csv("unique_tert_contacts.csv", index=False)
 
     # Process each group to sum the 'count' column and replace values
     final_data = []
@@ -580,7 +917,7 @@ def __find_tertiary_contacts():
 
     # Print it for good measure
     unique_tert_contact_df.to_csv("unique_tert_contacts.csv", index=False)
-    # this one should be used for everything
+    # TODO this one should be used for everything, not actual todo
 
     # make directory for tert contacts
     __safe_mkdir("tertiary_contacts")
@@ -631,11 +968,19 @@ def __find_tertiary_contacts():
             motif_types_list = [motif_1_type, motif_2_type]
             motif_types_sorted = sorted(motif_types_list)
             motif_types = str(motif_types_sorted[0]) + "-" + str(motif_types_sorted[1])
+            """
             if motif_types:
                 __safe_mkdir("tertiary_contacts/" + motif_types)
                 tert_contact_out_path = "tertiary_contacts/" + motif_types + "/" + tert_contact_name
             else:
                 tert_contact_out_path = "tertiary_contacts/" + tert_contact_name
+            """
+            if motif_types:
+                __safe_mkdir(os.path.join("tertiary_contacts", motif_types))
+                tert_contact_out_path = os.path.join("tertiary_contacts", motif_types, tert_contact_name)
+            else:
+                tert_contact_out_path = os.path.join("tertiary_contacts", tert_contact_name)
+
             print(tert_contact_name)
             # take the CIF files and merge them
             try:
@@ -648,13 +993,14 @@ def __find_tertiary_contacts():
         else:
             continue
 
-    # TODO plotting starts here; not an actual todo
+    # TODO plotting starts here; not actual todo
     print("Plotting...")
     # Group by motif_1 and motif_2 and sum the counts
-    hbond_counts_in_terts = unique_tert_contact_df_for_hbonds.groupby(['motif_1', 'motif_2'])['count'].sum().reset_index()
+    hbond_counts_in_terts = unique_tert_contact_df_for_hbonds.groupby(['motif_1', 'motif_2'])[
+        'count'].sum().reset_index()
 
     # debug
-    hbond_counts_in_terts.to_csv("hbond_counts_in_terts.csv", index=False)
+    # hbond_counts_in_terts.to_csv("hbond_counts_in_terts.csv", index=False)
 
     # Rename the 'count' column to 'sum_hbonds'
     hbond_counts_in_terts.rename(columns={'count': 'sum_hbonds'}, inplace=True)
@@ -676,12 +1022,12 @@ def __find_tertiary_contacts():
     plt.ylabel('Frequency', fontsize=16)
     # Add tick marks on x-axis
     plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]], fontsize=16)
-    plt.xticks(rotation=15, ha='right')  # Rotate x-axis labels for better readability
+    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
     # plt.xticks(np.arange(new_tert_df['hairpin_length'].min(), new_tert_df['hairpin_length'].max() + 1), 5)
 
     plt.yticks(fontsize=16)
     # Save the plot as PNG file
-    plt.savefig('hbonds_per_tert.png', dpi=533)
+    plt.savefig('figure_3_hbonds_per_tert.png', dpi=533)
     # Close the plot
     plt.close()
 
@@ -732,12 +1078,12 @@ def __find_tertiary_contacts():
     plt.ylabel('Frequency', fontsize=16)
     # Add tick marks on x-axis
     plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]], fontsize=16)
-    plt.xticks(rotation=15, ha='right')  # Rotate x-axis labels for better readability
+    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
     # plt.xticks(np.arange(new_tert_df['hairpin_length'].min(), new_tert_df['hairpin_length'].max() + 1), 5)
 
     plt.yticks(fontsize=16)
     # Save the plot as PNG file
-    plt.savefig('hairpins_in_tert.png', dpi=600)
+    plt.savefig('figure_3_hairpins_in_tert.png', dpi=600)
     # Close the plot
     plt.close()
 
@@ -784,12 +1130,64 @@ def __find_tertiary_contacts():
     plt.ylabel('Frequency', fontsize=16)
     # Add tick marks on x-axis
     plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]], fontsize=16)
-    plt.xticks(rotation=15, ha='right')  # Rotate x-axis labels for better readability
+    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
     # plt.xticks(np.arange(new_tert_df['hairpin_length'].min(), new_tert_df['hairpin_length'].max() + 1), 5)
 
     plt.yticks(fontsize=16)
     # Save the plot as PNG file
-    plt.savefig('helices_in_tert.png', dpi=600)
+    plt.savefig('figure_3_helices_in_tert.png', dpi=600)
+    # Close the plot
+    plt.close()
+
+    # sstrands in tertiary contacts
+    # filter to get only sstrands
+    sstrand_cols_1 = ['motif_1', 'type_1', 'res_1']
+    sstrand_tert_contact_df_1 = unique_tert_contact_df[sstrand_cols_1]
+    sstrand_cols_2 = ['motif_2', 'type_2', 'res_2']
+    sstrand_tert_contact_df_2 = unique_tert_contact_df[sstrand_cols_2]
+
+    # Filter rows where types are equal to "SSTRAND"
+    sstrand_tert_contact_df_1 = sstrand_tert_contact_df_1[sstrand_tert_contact_df_1['type_1'] == "SSTRAND"]
+    sstrand_tert_contact_df_2 = sstrand_tert_contact_df_2[sstrand_tert_contact_df_2['type_2'] == "SSTRAND"]
+    # split
+    split_column_1 = sstrand_tert_contact_df_1['motif_1'].str.split('.')
+    split_column_2 = sstrand_tert_contact_df_2['motif_2'].str.split('.')
+    # extract length
+    length_1 = split_column_1.str[2]
+    length_2 = split_column_2.str[2]
+    sstrand_tert_contact_df_1 = sstrand_tert_contact_df_1.assign(length_1=length_1)
+    sstrand_tert_contact_df_2 = sstrand_tert_contact_df_2.assign(length_2=length_2)
+
+    new_tert_df = pd.concat([sstrand_tert_contact_df_1, sstrand_tert_contact_df_2], ignore_index=True, axis=0)
+    new_tert_df.drop_duplicates(subset=['motif_1'], keep='first', inplace=True)
+
+    new_tert_df.to_csv("sstrand_tert.csv", index=False)
+
+    # List of column names to delete
+    columns_to_delete = ['motif_2', 'type_2', 'res_2', 'length_2']
+    # Delete the specified columns
+    new_tert_df.drop(columns=columns_to_delete, inplace=True)
+    new_tert_df.columns = ['motif', 'type', 'res', 'sstrand_length']
+    # Convert 'sstrand_length' column to numeric type
+    new_tert_df['sstrand_length'] = pd.to_numeric(new_tert_df['sstrand_length'], errors='coerce')
+    tick_positions = np.arange(new_tert_df['sstrand_length'].min(), new_tert_df['sstrand_length'].max() + 1)
+
+    # Now make a histogram
+    # Plot histogram
+    plt.figure(figsize=(8, 8))
+    plt.hist(new_tert_df['sstrand_length'],
+             bins=np.arange(new_tert_df['sstrand_length'].min() - 0.5, new_tert_df['sstrand_length'].max() + 1.5, 1),
+             edgecolor='black')  # adjust bins as needed
+    plt.xlabel('Length of sstrands in tertiary contacts', fontsize=16)
+    plt.ylabel('Frequency', fontsize=16)
+    # Add tick marks on x-axis
+    plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]], fontsize=16)
+    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
+    # plt.xticks(np.arange(new_tert_df['hairpin_length'].min(), new_tert_df['hairpin_length'].max() + 1), 5)
+
+    plt.yticks(fontsize=16)
+    # Save the plot as PNG file
+    plt.savefig('figure_3_sstrand_in_tert.png', dpi=600)
     # Close the plot
     plt.close()
 
@@ -871,14 +1269,15 @@ def __heatmap_creation():
     cbar.ax.tick_params(labelsize=16)
 
     # Save the heatmap as a PNG file
-    plt.savefig("twoway_motif_heatmap.png", dpi=480)
+    plt.savefig("figure_2_twoway_motif_heatmap.png", dpi=480)
 
     # Don't display the plot
     plt.close()
 
-    # need to create lists to create a final histogram for h-bonds
-    heatmap_res_names = []
-    heatmap_atom_names = []
+    # TODO need to create lists to create a final histogram for h-bonds; not actual todo
+    # this is for the debugging histogram
+    # heatmap_res_names = []
+    # heatmap_atom_names = []
 
     # first, take all the h-bonds present in CSV
     hbond_df_unfiltered = pd.read_csv("interactions_detailed.csv")
@@ -904,15 +1303,22 @@ def __heatmap_creation():
     # Reset the index of the new DataFrame
     hbond_df.reset_index(drop=True, inplace=True)
 
-    # now delete all non-canonical residues
+    # now delete all non-canonical residues (if we need to keep DA/DC/DU/etc here is where to do it)
     filtered_hbond_df = hbond_df[
         hbond_df['res_1_name'].isin(canon_res_list) & hbond_df['res_2_name'].isin(canon_res_list)]
 
+    # reverse orders are sorted into the same group
+    filtered_hbond_df['res_atom_pair'] = filtered_hbond_df.apply(
+        lambda row: tuple(sorted([(row['res_1_name'], row['atom_1']), (row['res_2_name'], row['atom_2'])])),
+        axis=1
+    )
+
     # next, group by (res_1_name, res_2_name) as well as by atoms involved in the interaction
-    grouped_hbond_df = filtered_hbond_df.groupby(["res_1_name", "res_2_name", "atom_1", "atom_2"])
+    # grouped_hbond_df = filtered_hbond_df.groupby(["res_1_name", "res_2_name", "atom_1", "atom_2"])
+    grouped_hbond_df = filtered_hbond_df.groupby(['res_atom_pair'])
 
     # Finally, for each group, make heatmaps of (distance,angle)
-    for group in grouped_hbond_df:
+    """    for group in grouped_hbond_df:
         group_name = group[0]
         type_1 = str(group_name[0])
         type_2 = str(group_name[1])
@@ -1009,38 +1415,121 @@ def __heatmap_creation():
             heatmap_atom_names.append(len(hbonds_subset))
         else:
             print(f"Skipping {type_1}-{type_2} {atom_1}-{atom_2} due to insufficient or too many data points.")
+    """
+
+    # Process each group to make heatmaps; code above is optimized and this is the OG version
+    # OG version makes more sense after cleaning it up
+    for group_name, hbonds in grouped_hbond_df:
+        # type_1, type_2, atom_1, atom_2 = map(str, group_name)
+        (res_1, atom_1), (res_2, atom_2) = group_name
+        type_1, type_2 = res_1, res_2
+
+        print(f"Processing {type_1}-{type_2} {atom_1}-{atom_2}")
+        hbonds_subset = hbonds[['distance', 'angle']].reset_index(drop=True)
+
+        if len(hbonds_subset) >= 100:  # if there are more than 100 data points
+            # Set global font size
+            plt.rc('font', size=14)
+
+            distance_bins = np.arange(2.0, 4.1, 0.1)  # Bins from 2 to 4 in increments of 0.1
+            angle_bins = np.arange(0, 181, 10)  # Bins from 0 to 180 in increments of 10
+
+            hbonds_subset['distance_bin'] = pd.cut(hbonds_subset['distance'], bins=distance_bins)
+            hbonds_subset['angle_bin'] = pd.cut(hbonds_subset['angle'], bins=angle_bins)
+
+            heatmap_data = hbonds_subset.groupby(['angle_bin', 'distance_bin']).size().unstack(fill_value=0)
+
+            plt.figure(figsize=(10, 10))
+            sns.heatmap(heatmap_data, cmap='gray_r', xticklabels=1, yticklabels=range(0, 181, 10), square=True)
+
+            plt.xticks(np.arange(len(distance_bins)) + 0.5, [f'{bin_val:.1f}' for bin_val in distance_bins], rotation=0)
+            plt.yticks(np.arange(len(angle_bins)) + 0.5, angle_bins, rotation=0)
+
+            plt.xlabel("Distance (angstroms)")
+            plt.ylabel("Angle (degrees)")
+            map_name = f"{type_1}-{type_2} {atom_1}-{atom_2}"
+            # plt.title(f"{map_name} H-bond heatmap")
+
+            """
+            map_dir = "heatmaps/RNA-RNA" if len(type_1) == 1 and len(type_2) == 1 else "heatmaps/RNA-PROT"
+            __safe_mkdir(map_dir)
+
+            map_path = f"{map_dir}/{map_name}.png"
+            plt.savefig(map_path, dpi=250)
+            plt.close()
+
+            heatmap_csv_path = "heatmap_data"
+            __safe_mkdir(heatmap_csv_path)
+
+            heat_data_csv_path = f"{heatmap_csv_path}/{map_name}.csv"
+            hbonds.to_csv(heat_data_csv_path, index=False)
+            """
+
+            map_dir = os.path.join("heatmaps", "RNA-RNA") if len(type_1) == 1 and len(type_2) == 1 else os.path.join(
+                "heatmaps", "RNA-PROT")
+            __safe_mkdir(map_dir)
+
+            map_path = os.path.join(map_dir, f"{map_name}.png")
+            plt.savefig(map_path, dpi=250)
+            plt.close()
+
+            heatmap_csv_path = "heatmap_data"
+            __safe_mkdir(heatmap_csv_path)
+
+            heat_data_csv_path = os.path.join(heatmap_csv_path, f"{map_name}.csv")
+            hbonds.to_csv(heat_data_csv_path, index=False)
+
+            # 2D histogram
+            plt.figure(figsize=(10, 8))
+            plt.hist2d(hbonds_subset['distance'], hbonds_subset['angle'], bins=[distance_bins, angle_bins],
+                       cmap='gray_r')
+            plt.xlabel("Distance (angstroms)")
+            plt.ylabel("Angle (degrees)")
+            plt.colorbar(label='Frequency')
+            plt.title(f"{map_name} H-bond heatmap")
+
+            plt.savefig(map_path, dpi=250)
+            plt.close()
+
+        else:
+            print(f"Skipping {type_1}-{type_2} {atom_1}-{atom_2} due to insufficient data points.")
 
     # after collecting data make the final histogram of all the data in heatmaps
     # first compile the list into a df
-    histo_df = pd.DataFrame({"heatmap": heatmap_res_names, "count": heatmap_atom_names})
+    # gonna comment this out because this is for debug purposes
+    # histo_df = pd.DataFrame({"heatmap": heatmap_res_names, "count": heatmap_atom_names})
 
     # plot histogram
-    plt.hist(histo_df.iloc[:, 1], bins=400)  # Adjust the number of bins as needed
+    # plt.hist(histo_df.iloc[:, 1], bins=400)  # Adjust the number of bins as needed
 
     # set labels
-    plt.xlabel('# of datapoints inside a heatmap')
-    plt.ylabel('# of heatmaps with X datapoints')
-    plt.title('1d_histogram')
+    # plt.xlabel('# of datapoints inside a heatmap')
+    # plt.ylabel('# of heatmaps with X datapoints')
+    # plt.title('1d_histogram')
 
     # set y-axis limit
     # plt.ylim(0, max(df.iloc[:, 1]) * 0.9)
 
-    plt.savefig('1d_histo.png')
-    plt.close()
+    # plt.savefig('1d_histo.png')
+    # plt.close()
 
 
-# else:
-# print(f"Skipping {type_1}-{type_2} {atom_1}-{atom_2} due to insufficient data points.")
+# optimized code
+# added snap data for RNPs
+# revised figures
+# waiting on CSV data to fix heatmap code crashing issue
+# need to start thinking about how to compile/distribute
 
-
-# calculate some final statistics (Figure 2a)
+# calculate some final statistics (i.e. Figure 2)
 def __final_statistics():
     print("Plotting...")
     # graphs
-    motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/motifs"
+    # motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/motifs"
+    motif_directory = os.path.join("Users", "jyesselm", "PycharmProjects", "rna_motif_library", "rna_motif_library",
+                                   "motifs")
 
     # Create a dictionary to store counts for each folder
-    folder_counts = {"TWOWAY": 0, "NWAY": 0, "HAIRPIN": 0, "HELIX": 0}  # Initialize counts
+    folder_counts = {"TWOWAY": 0, "NWAY": 0, "HAIRPIN": 0, "HELIX": 0, "SSTRAND": 0}  # Initialize counts
 
     # for folder in directory, count numbers:
     # try:
@@ -1052,7 +1541,6 @@ def __final_statistics():
         if os.path.isdir(item_path):
             # Perform your action for each folder
             file_count = count_files_with_extension(item_path, ".cif")
-
             # Check if the folder name is "2ways"
             if item_name == "2ways":
                 # If folder name is "2ways", register the count as TWOWAY
@@ -1066,6 +1554,9 @@ def __final_statistics():
             elif item_name == "helices":
                 # If folder name is "helices", register the count as HELIX
                 folder_counts["HELIX"] += file_count
+            elif item_name == "sstrand":
+                # If folder name is "sstrand", register count as SSTRAND
+                folder_counts["SSTRAND"] += file_count
             else:
                 # If the folder name doesn't match any condition, use it as is
                 folder_counts[item_name] = file_count
@@ -1073,58 +1564,45 @@ def __final_statistics():
     # make a bar graph of all types of motifs
     folder_names = list(folder_counts.keys())
     file_counts = list(folder_counts.values())
-
     # Sort the folder names and file counts alphabetically
     folder_names_sorted, file_counts_sorted = zip(*sorted(zip(folder_names, file_counts)))
-
     # Set consistent parameters
     plt.rcParams.update({'font.size': 14})  # Set overall text size
     plt.figure(figsize=(8, 8))
     plt.bar(folder_names_sorted, file_counts_sorted, edgecolor='black', width=1)
-
     plt.xlabel('Motif Type')
     plt.ylabel('Count')
     plt.title('')  # Presence of N-way Junctions
-    plt.xticks(rotation=15, ha='right')  # Rotate x-axis labels for better readability
-
+    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
     plt.tight_layout()
-
     # Save the graph as a PNG file
-    plt.savefig('bar_graph_motif_counts.png', dpi=600)
-
+    plt.savefig('figure_2_bar_graph_motif_counts.png', dpi=600)
     # Don't display the plot
     plt.close()
 
     # of the hairpins, how long are they (histogram)
-    hairpin_directory = motif_directory + "/hairpins"
+    # hairpin_directory = motif_directory + "/hairpins"
+    hairpin_directory = os.path.join(motif_directory, "hairpins")
 
     hairpin_counts = {}
-
     # Iterate over all items in the specified directory
     for item_name in os.listdir(hairpin_directory):
         item_path = os.path.join(hairpin_directory, item_name)
-
         # Check if the current item is a directory
         if os.path.isdir(item_path):
             # Perform your action for each folder
             file_count = count_files_with_extension(item_path, ".cif")
-
             # Store the count in the dictionary
             hairpin_counts[item_name] = file_count
-
     # Convert hairpin folder names to integers and sort them
     sorted_hairpin_counts = dict(sorted(hairpin_counts.items(), key=lambda item: int(item[0])))
-
     # Extract sorted keys and values
     hairpin_folder_names_sorted = list(sorted_hairpin_counts.keys())
     hairpin_file_counts_sorted = list(sorted_hairpin_counts.values())
-
     # Convert hairpin folder names to integers
     hairpin_bins = sorted([int(name) for name in hairpin_folder_names_sorted])
-
     # Calculate the positions for the tick marks (midpoints between bins)
     tick_positions = np.arange(min(hairpin_bins), max(hairpin_bins) + 1)
-
     plt.figure(figsize=(8, 8))
     plt.hist(hairpin_bins, bins=np.arange(min(hairpin_bins) - 0.5, max(hairpin_bins) + 1.5, 1),
              weights=hairpin_file_counts_sorted, edgecolor='black', align='mid')
@@ -1133,115 +1611,158 @@ def __final_statistics():
     plt.title('')  # Hairpins with Given Length
     # Set custom tick positions and labels
     plt.xticks(tick_positions, tick_positions)
-
     plt.xticks(np.arange(min(hairpin_bins), max(hairpin_bins) + 1, 5))  # Display ticks every 5 integers
-
-    plt.xticks(rotation=15, ha='right')  # Rotate x-axis labels for better readability
+    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
     plt.tight_layout()  # Adjust layout to prevent clipping of labels
-
     # Save the bar graph as a PNG file
-    plt.savefig('hairpin_counts_bar_graph.png', dpi=600)
-
+    plt.savefig('figure_2_hairpin_counts_bar_graph.png', dpi=600)
     # Don't display the plot
     plt.close()
 
     # of the helices, how long are they (bar graph)
-    helix_directory = motif_directory + "/helices"
+    # helix_directory = motif_directory + "/helices"
+    helix_directory = os.path.join(motif_directory, "helices")
 
     helix_counts = {}
-
     # Iterate over all items in the specified directory
     for item_name in os.listdir(helix_directory):
         item_path = os.path.join(helix_directory, item_name)
-
         # Check if the current item is a directory
         if os.path.isdir(item_path):
             # Perform your action for each folder
             file_count = count_files_with_extension(item_path, ".cif")
-
             # Store the count in the dictionary
             helix_counts[item_name] = file_count
-
     # Convert helix folder names to integers and sort them
     sorted_helix_counts = dict(sorted(helix_counts.items(), key=lambda item: int(item[0])))
-
     # Extract sorted keys and values
     helix_folder_names_sorted = list(sorted_helix_counts.keys())
     helix_file_counts_sorted = list(sorted_helix_counts.values())
-
     # Convert helix folder names to integers
     helix_bins = sorted([int(name) for name in helix_folder_names_sorted])
-
     # Calculate the positions for the tick marks (midpoints between bins)
     tick_positions = np.arange(min(helix_bins), max(helix_bins) + 1)
-
     plt.figure(figsize=(8, 8))
     plt.hist(helix_bins, bins=np.arange(min(helix_bins) - 0.5, max(helix_bins) + 1.5, 1),
              weights=helix_file_counts_sorted, edgecolor='black', align='mid')
     plt.xlabel('Helix Length')
     plt.ylabel('Frequency')
     plt.title('')  # Helices with Given Length
-
     # Set custom tick positions and labels
     plt.xticks(tick_positions, tick_positions)
-
     plt.xticks(np.arange(min(helix_bins), max(helix_bins) + 1, 5))  # Display ticks every 5 integers
-
-    plt.xticks(rotation=15, ha='right')  # Rotate x-axis labels for better readability
+    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
     plt.tight_layout()  # Adjust layout to prevent clipping of labels
-
     # Save the bar graph as a PNG file
-    plt.savefig('helix_counts_bar_graph.png', dpi=600)
-
+    plt.savefig('figure_2_helix_counts_bar_graph.png', dpi=600)
     # Don't display the plot
     plt.close()
 
-    # create a bar graph of how many tertiary contacts are present
-    tert_motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/tertiary_contacts"
+    # Of the single strands, how long are they (bar graph)
+    # sstrand_directory = motif_directory + "/sstrand"
+    sstrand_directory = os.path.join(motif_directory, "sstrand")
 
-    # Create a dictionary to store counts for each folder
-    tert_folder_counts = {}
-
+    sstrand_counts = {}
     # Iterate over all items in the specified directory
-    for item_name in os.listdir(tert_motif_directory):
-        item_path = os.path.join(tert_motif_directory, item_name)
-
+    for item_name in os.listdir(sstrand_directory):
+        item_path = os.path.join(sstrand_directory, item_name)
         # Check if the current item is a directory
         if os.path.isdir(item_path):
             # Perform your action for each folder
             file_count = count_files_with_extension(item_path, ".cif")
-
             # Store the count in the dictionary
-            tert_folder_counts[item_name] = file_count
-
-    # make a bar graph of all types of motifs
-    tert_folder_names = list(tert_folder_counts.keys())
-    tert_file_counts = list(tert_folder_counts.values())
-
-    # Sort the folder names and file counts alphabetically
-    tert_folder_names_sorted, tert_file_counts_sorted = zip(*sorted(zip(tert_folder_names, tert_file_counts)))
-
+            sstrand_counts[item_name] = file_count
+    # Convert helix folder names to integers and sort them
+    sorted_sstrand_counts = dict(sorted(sstrand_counts.items(), key=lambda item: int(item[0])))
+    # Extract sorted keys and values
+    sstrand_folder_names_sorted = list(sorted_sstrand_counts.keys())
+    sstrand_file_counts_sorted = list(sorted_sstrand_counts.values())
+    # Convert helix folder names to integers
+    sstrand_bins = sorted([int(name) for name in sstrand_folder_names_sorted])
+    # Calculate the positions for the tick marks (midpoints between bins)
+    tick_positions = np.arange(min(sstrand_bins), max(sstrand_bins) + 1)
     plt.figure(figsize=(8, 8))
-    plt.barh(tert_folder_names_sorted, tert_file_counts_sorted, edgecolor='black', height=1.0)  # , width=1.0)
-
-    plt.xlabel('Count')
-    plt.ylabel('Tertiary Contact Type')
-
-    plt.title('')  # tertiary contact types
-    plt.xticks(rotation=15, ha='right')  # Rotate x-axis labels for better readability
-    # Adjust x-axis ticks for a tight fit
-    # plt.autoscale(enable=True, axis='x', tight=True)
-    plt.tight_layout()
-
-    # Save the graph as a PNG file
-    plt.savefig('tertiary_motif_counts.png', dpi=600)
-
+    plt.hist(sstrand_bins, bins=np.arange(min(sstrand_bins) - 0.5, max(sstrand_bins) + 1.5, 1),
+             weights=sstrand_file_counts_sorted, edgecolor='black', align='mid')
+    plt.xlabel('Single Strand Length')
+    plt.ylabel('Frequency')
+    plt.title('')  # Helices with Given Length
+    # Set custom tick positions and labels
+    plt.xticks(tick_positions, tick_positions)
+    plt.xticks(np.arange(min(sstrand_bins), max(sstrand_bins) + 1, 5))  # Display ticks every 5 integers
+    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
+    plt.tight_layout()  # Adjust layout to prevent clipping of labels
+    # Save the bar graph as a PNG file
+    plt.savefig('figure_2_sstrand_counts_bar_graph.png', dpi=600)
     # Don't display the plot
     plt.close()
 
+    # create a bar graph of how many tertiary contacts are present
+    # tert_motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/tertiary_contacts"
+    tert_motif_directory = os.path.join("Users", "jyesselm", "PycharmProjects", "rna_motif_library",
+                                        "rna_motif_library", "tertiary_contacts")
 
-# except Exception as e:
-#    print(f"Error processing folders in directory '{motif_directory}': {e}")
+    # Create a dictionary to store counts for each folder
+    tert_folder_counts = {}
+    # Iterate over all items in the specified directory
+    for item_name in os.listdir(tert_motif_directory):
+        item_path = os.path.join(tert_motif_directory, item_name)
+        # Check if the current item is a directory
+        if os.path.isdir(item_path):
+            # Perform your action for each folder
+            file_count = count_files_with_extension(item_path, ".cif")
+            # Store the count in the dictionary
+            tert_folder_counts[item_name] = file_count
+    # make a bar graph of all types of motifs
+    tert_folder_names = list(tert_folder_counts.keys())
+    tert_file_counts = list(tert_folder_counts.values())
+    # Sort the folder names and file counts alphabetically
+    tert_folder_names_sorted, tert_file_counts_sorted = zip(*sorted(zip(tert_folder_names, tert_file_counts)))
+    plt.figure(figsize=(8, 8))
+    plt.barh(tert_folder_names_sorted, tert_file_counts_sorted, edgecolor='black', height=1.0)  # , width=1.0)
+    plt.xlabel('Count')
+    plt.ylabel('Tertiary Contact Type')
+    plt.title('')  # tertiary contact types
+    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
+    # Adjust x-axis ticks for a tight fit
+    # plt.autoscale(enable=True, axis='x', tight=True)
+    plt.tight_layout()
+    # Save the graph as a PNG file
+    plt.savefig('figure_3_tertiary_motif_counts.png', dpi=600)
+    # Don't display the plot
+    plt.close()
+
+    # create a bar graph for how many tert contacts of each residue component are present
+    tert_contact_csv_directory = 'unique_tert_contacts.csv'
+
+    # Load the CSV into a DataFrame and keep only the columns 'res_type_1' and 'res_type_2'
+    df = pd.read_csv(tert_contact_csv_directory, usecols=['res_type_1', 'res_type_2'])
+
+    tuples_list = [tuple(sorted(x)) for x in df.to_records(index=False)]
+
+    # Count the occurrences of each tuple
+    tuple_counts = Counter(tuples_list)
+
+    # Convert the counts to a DataFrame for easier plotting
+    tuple_counts_df = pd.DataFrame(tuple_counts.items(), columns=['Contact Type', 'Count'])
+
+    # Sort the DataFrame by Count (optional)
+    tuple_counts_df = tuple_counts_df.sort_values(by='Count')
+
+    # Plot the bar graph
+    plt.figure(figsize=(8, 4))
+    plt.barh(tuple_counts_df['Contact Type'].astype(str), tuple_counts_df['Count'], edgecolor='black',
+             height=1.0)
+    plt.xlabel('Count')
+    plt.ylabel('Tertiary Contact Type (by residue component)')
+    plt.title('')  # tertiary contact types
+    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
+    plt.tight_layout()
+
+    # Save the graph as a PNG file
+    plt.savefig('figure_3_residue_contact_types.png', dpi=600)
+
+    # Now make it into a graph
 
 
 # merges the contents of CIF files (for concatenation because the old way was trash)
@@ -1278,7 +1799,7 @@ def find_cif_file(directory_path, file_name):
     return None
 
 
-# counts all files with a specific extension
+# counts all files with a specific extension (used in generating Fig 2)
 def count_files_with_extension(directory_path, file_extension):
     try:
         # Initialize a counter
@@ -1296,10 +1817,11 @@ def count_files_with_extension(directory_path, file_extension):
         print(f"Error counting files in directory '{directory_path}': {e}")
         return None
 
-# Define a function to sort 'res_1' and 'res_2' columns within each row
+
+# sort 'res_1' and 'res_2' columns within each row
+# this function has a very specific use case
 def sort_res(row):
     return pd.Series(np.sort(row.values))
-
 
 
 def main():
@@ -1309,7 +1831,9 @@ def main():
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
 
     # Download of a nonredundant set
-    csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.320_3.5A.csv"
+    # csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.320_3.5A.csv"
+    csv_path = os.path.join(settings.LIB_PATH, "data", "csvs", "nrlist_3.320_3.5A.csv")
+
     # __download_cif_files(csv_path)
     print("!!!!! CIF FILES DOWNLOADED !!!!!")
     current_time = datetime.datetime.now()
@@ -1331,7 +1855,7 @@ def main():
     print("SNAP processing finished on", time_string)
 
     # Extracting motifs
-    # __generate_motif_files()
+    __generate_motif_files()
     print("!!!!! MOTIF EXTRACTION FINISHED !!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")  # format time as string
