@@ -28,22 +28,40 @@ from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
 # from dssr import total_motifs_count
 # from dssr import removed_motifs_count
 
-# NOT CODE THINGS but need to do nonetheless
-# read RNA 3d structure database papers
-# figure 3 will be tert contacts
-# fig 4 will be dist-angle stuff
+# NOT CODE THINGS just things to remember
+# get new real data and analyze
+# meet with joe to discuss this thing again soon
+
+
+# NOT CODE THINGS but things to do nonetheless
+# TODO read RNA 3d structure database papers
+# TODO start sketching out an introduction
+# TODO look into packaging this stuff and getting ready to distribute as a python package
 
 # fix these:
-# TODO increase text sizes on all figures
-# TODO put a gap between the bars on graphs
-# TODO fix interactions.csv so it includes ALL interactions and properly counts them
+# nothing to fix for now
+
+
+# questions
+# about dihedral angles:
+# does directionality matter for our purposes, as in, should I pay attention to +/- 180 degrees whist recording interaction angles?
+# I don't think it does, as directionality depends purely on which atom you take first while calculating
+# I'm more or less consistent about this, I think as long as we mention it in the methods it should be fine
 
 # done:
+
+# fix misclassification of motif types while finding tertiary contacts
+# fix classification of n-way junctions so that it refers to the number of nucleotides in each strand
+# fix duplicate motifs showing up in data that is plotted in tertiary contact plots
+# put a gap between the bars on graphs and fix graph styles
+# check if DA/C/U/G are numerous enough to include as sometimes they are incorrectly counted as nucleosides (they are not; over 36 PDBs I found around 30/5000)
+# fix interactions.csv so it includes ALL interactions and properly counts them
+# increase text sizes on all figures
 # add a column to unique_tert_contacts.csv that records base/sugar/phos data (which part of things are contacts coming from)
 # add figure that describes types of tertiary contacts by base/sugar/phos
 # deleted "questionable" and "unknown" donAcc type h-bonds
 # merged dist-angle data so reverse orders are the same (might need to minus angle by 180 for those) (this one might need a bit of work)
-# multithreading (may need to undo after testing and evaluation)
+# multithreading (undone, this is slower than single-threading holy fuck)
 # added single strands and their respective graphs; make sure tert contacts between others and SSTRAND works
 
 
@@ -349,7 +367,7 @@ def __generate_motif_files():
     # grabs all the stuff
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))  # PDBs
     # creates directories
-    dirs = ["motifs"] # motif_interactions?
+    dirs = ["motifs"]  # motif_interactions?
     for d in dirs:
         __safe_mkdir(d)
 
@@ -367,7 +385,8 @@ def __generate_motif_files():
                 open("motif_residues_list.csv", "w") as f_residues, \
                 open("twoway_motif_list.csv", "w") as f_twoways:
 
-            f_inter.write("name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2\n")
+            f_inter.write(
+                "name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2\n")
             f_residues.write("motif_name,residues\n")
             f_twoways.write(
                 "motif_name,motif_type,nucleotides_in_strand_1,nucleotides_in_strand_2,bridging_nts_0,bridging_nts_1\n")
@@ -375,18 +394,15 @@ def __generate_motif_files():
             count = 0
             for pdb_path in pdbs:
                 # limit so we can test some stuff at a smaller scale
-                if count > 35:
-                    continue
+                # if count > 50:
+                #    continue
                 name = os.path.basename(pdb_path).replace(".cif", "")
                 count += 1
                 print(count, pdb_path, name)
 
                 s = os.path.getsize(pdb_path)
-
                 json_path = os.path.join(settings.LIB_PATH, "data/dssr_output", name + ".json")
-
                 rnp_out_path = os.path.join(settings.LIB_PATH, "data/snap_output", name + ".out")
-
                 rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
                 rnp_data = [(interaction.nt_atom.split("@")[1], interaction.aa_atom.split("@")[1],
                              interaction.nt_atom.split("@")[0], interaction.aa_atom.split("@")[0],
@@ -404,7 +420,7 @@ def __generate_motif_files():
 
                 dssr.total_motifs_count = len(motifs)
                 for m in motifs:
-                    print(m.name)
+                    # print(m.name)
                     spl = m.name.split(".")
                     if spl[0] not in ["TWOWAY", "NWAY", "HAIRPIN", "HELIX", "SSTRAND"]:
                         continue
@@ -622,7 +638,7 @@ def __find_tertiary_contacts():
 
     # also create a CSV to write non-tert contacts to
     f_single = open("single_motif_inter_list.csv", "w")
-    f_single.write("motif,type_1,type_2,res_1,res_2,nt_1,nt_2,distance,angle" + "\n")
+    f_single.write("motif,type_1,type_2,res_1,res_2,nt_1,nt_2,distance,angle,res_type_1,res_type_2" + "\n")
 
     # Specify paths to the CSV files
     interactions_csv_path = "interactions_detailed.csv"
@@ -823,9 +839,16 @@ def __find_tertiary_contacts():
                 seq_1 = ".".join(row['motif_1'].split(".")[:-1])
                 seq_2 = ".".join(row['motif_2'].split(".")[:-1])
 
+                # need to write the motif type correctly or you get fuckups later (sometimes they get switched up)
+                motif_1_spl = row['motif_1'].split(".")
+                motif_2_spl = row['motif_2'].split(".")
+
+                motif_1_type = motif_1_spl[0]
+                motif_2_type = motif_2_spl[0]
+
                 # Write to CSV, appending the count at the end
                 writer.writerow(
-                    [row['motif_1'], row['motif_2'], seq_1, seq_2, row['type_1'], row['type_2'], row['res_1'],
+                    [row['motif_1'], row['motif_2'], seq_1, seq_2, motif_1_type, motif_2_type, row['res_1'],
                      row['res_2'], count, row['res_type_1'], row['res_type_2']])
 
     # Close the file
@@ -1009,35 +1032,32 @@ def __find_tertiary_contacts():
     # Now make a histogram
     # Plot histogram
     # H-bonds per tert, need to group the ones with like motifs and sum the tert contacts
-    plt.figure(figsize=(9, 9))
+    sns.set_theme(style="white")  # palette='deep', color_codes=True)
+    plt.rcParams.update({'font.size': 20})  # Set overall text size
+
+    plt.figure(figsize=(6, 6))
     plt.hist(hbond_counts_in_terts['sum_hbonds'],
              bins=np.arange(hbond_counts_in_terts['sum_hbonds'].min() - 0.5,
                             hbond_counts_in_terts['sum_hbonds'].max() + 1.5, 1),
-             edgecolor='black')  # adjust bins as needed
-    plt.xlabel('H-bonds per tertiary contact', fontsize=16)
-    plt.ylabel('Frequency', fontsize=16)
+             edgecolor='black', width=0.8)  # adjust bins as needed
+    plt.xlabel('H-bonds per tertiary contact')
+    plt.ylabel('Count')
     # Add tick marks on x-axis
-    plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]], fontsize=16)
-    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
+    plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]])
     # plt.xticks(np.arange(new_tert_df['hairpin_length'].min(), new_tert_df['hairpin_length'].max() + 1), 5)
-
-    plt.yticks(fontsize=16)
     # Save the plot as PNG file
-    plt.savefig('figure_3_hbonds_per_tert.png', dpi=533)
+    plt.savefig('figure_3_hbonds_per_tert.png', dpi=600)
     # Close the plot
     plt.close()
-
     # Now make a histogram for lengths of hairpins in tertiary contacts
     # split into two DFs
-    df_cols_1 = ['motif_1', 'type_1', 'res_1']
+    df_cols_1 = ['motif_1', 'type_1', 'res_1', 'seq_1']
     tert_contact_df_1 = unique_tert_contact_df[df_cols_1]
-    df_cols_2 = ['motif_2', 'type_2', 'res_2']
+    df_cols_2 = ['motif_2', 'type_2', 'res_2', 'seq_2']
     tert_contact_df_2 = unique_tert_contact_df[df_cols_2]
-
     # Filter rows where hairpins_1 and hairpins_2 are equal to "HAIRPIN"
     tert_contact_df_1 = tert_contact_df_1[tert_contact_df_1['type_1'] == "HAIRPIN"]
     tert_contact_df_2 = tert_contact_df_2[tert_contact_df_2['type_2'] == "HAIRPIN"]
-
     # split
     split_column_1 = tert_contact_df_1['motif_1'].str.split('.')
     split_column_2 = tert_contact_df_2['motif_2'].str.split('.')
@@ -1046,38 +1066,42 @@ def __find_tertiary_contacts():
     length_2 = split_column_2.str[2]
     tert_contact_df_1 = tert_contact_df_1.assign(length_1=length_1)
     tert_contact_df_2 = tert_contact_df_1.assign(length_2=length_2)
-
     # Concatenate tert_contact_df_1 and tert_contact_df_2
     new_tert_df = pd.concat([tert_contact_df_1, tert_contact_df_2], ignore_index=True, axis=0)
-
-    new_tert_df.to_csv("hairpins_tert.csv", index=False)
-
-    # List of column names to delete
+    # List of column names to delete (duplicates, since the were concatenated one on top of another)
     columns_to_delete = ['length_2']
     # Delete the specified columns
     new_tert_df.drop(columns=columns_to_delete, inplace=True)
-    new_tert_df.drop_duplicates(subset=['motif_1'], keep='first', inplace=True)
-
+    # And delete dupes
+    new_tert_df.drop_duplicates(subset=['seq_1'], keep='first', inplace=True)
     # Rename columns of tert_contact_df_1
-    new_tert_df.columns = ['motif', 'type', 'res', 'hairpin_length']
+    new_tert_df.columns = ['motif', 'type', 'res', 'seq', 'hairpin_length']
+    for index, row in new_tert_df.iterrows():
+        seq_value = row['seq']
+        if isinstance(seq_value, float):
+            seq_value = str(seq_value)
+        parts = seq_value.split(".")
+        if len(parts) > 2:
+            hairpin_length_value = int(parts[2])
+            new_tert_df.at[index, 'hairpin_length'] = hairpin_length_value
+
+    # Print for debug reasons
+    new_tert_df.to_csv("hairpins_tert.csv", index=False)
+    # Convert data to numeric from string
     new_tert_df['hairpin_length'] = pd.to_numeric(new_tert_df['hairpin_length'], errors='coerce')
-
+    # Set tick positions to fit the range of data
     tick_positions = np.arange(new_tert_df['hairpin_length'].min(), new_tert_df['hairpin_length'].max() + 1)
-
     # Now make a histogram
     # Plot histogram
-    plt.figure(figsize=(8, 8))
+    plt.figure(figsize=(6, 6))
     plt.hist(new_tert_df['hairpin_length'],
              bins=np.arange(new_tert_df['hairpin_length'].min() - 0.5, new_tert_df['hairpin_length'].max() + 1.5, 1),
-             edgecolor='black')  # adjust bins as needed
-    plt.xlabel('Length of hairpins in tertiary contacts', fontsize=16)
-    plt.ylabel('Frequency', fontsize=16)
+             edgecolor='black', width=0.8)  # adjust bins as needed
+    plt.xlabel('Length of hairpins in tertiary contacts')
+    plt.ylabel('Count')
     # Add tick marks on x-axis
-    plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]], fontsize=16)
-    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
-    # plt.xticks(np.arange(new_tert_df['hairpin_length'].min(), new_tert_df['hairpin_length'].max() + 1), 5)
-
-    plt.yticks(fontsize=16)
+    plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]])
+    # plt.xticks(np.arange(new_tert_df['hairpin_length'].min(), new_tert_df['hairpin_length'].max() + 1), 5); old code
     # Save the plot as PNG file
     plt.savefig('figure_3_hairpins_in_tert.png', dpi=600)
     # Close the plot
@@ -1085,11 +1109,10 @@ def __find_tertiary_contacts():
 
     # helices in tertiary contacts
     # filter to get only helices
-    helix_cols_1 = ['motif_1', 'type_1', 'res_1']
+    helix_cols_1 = ['motif_1', 'type_1', 'res_1', 'seq_1']
     helix_tert_contact_df_1 = unique_tert_contact_df[helix_cols_1]
-    helix_cols_2 = ['motif_2', 'type_2', 'res_2']
+    helix_cols_2 = ['motif_2', 'type_2', 'res_2', 'seq_2']
     helix_tert_contact_df_2 = unique_tert_contact_df[helix_cols_2]
-
     # Filter rows where types are equal to "HELIX"
     helix_tert_contact_df_1 = helix_tert_contact_df_1[helix_tert_contact_df_1['type_1'] == "HELIX"]
     helix_tert_contact_df_2 = helix_tert_contact_df_2[helix_tert_contact_df_2['type_2'] == "HELIX"]
@@ -1101,35 +1124,41 @@ def __find_tertiary_contacts():
     length_2 = split_column_2.str[2]
     helix_tert_contact_df_1 = helix_tert_contact_df_1.assign(length_1=length_1)
     helix_tert_contact_df_2 = helix_tert_contact_df_2.assign(length_2=length_2)
-
+    # concatenate and get rid of dupes
     new_tert_df = pd.concat([helix_tert_contact_df_1, helix_tert_contact_df_2], ignore_index=True, axis=0)
-    new_tert_df.drop_duplicates(subset=['motif_1'], keep='first', inplace=True)
-
-    new_tert_df.to_csv("helices_tert.csv", index=False)
-
+    new_tert_df.drop_duplicates(subset=['seq_1'], keep='first', inplace=True)
     # List of column names to delete
-    columns_to_delete = ['motif_2', 'type_2', 'res_2', 'length_2']
+    columns_to_delete = ['motif_2', 'type_2', 'res_2', 'seq_2', 'length_2']
     # Delete the specified columns
     new_tert_df.drop(columns=columns_to_delete, inplace=True)
-    new_tert_df.columns = ['motif', 'type', 'res', 'helix_length']
+    new_tert_df.columns = ['motif', 'type', 'res', 'seq', 'helix_length']
+
+    for index, row in new_tert_df.iterrows():
+        seq_value = row['seq']
+        if isinstance(seq_value, float):
+            seq_value = str(seq_value)
+        parts = seq_value.split(".")
+        if len(parts) > 2:
+            helix_length_value = int(parts[2])
+            new_tert_df.at[index, 'helix_length'] = helix_length_value
+
+    # Print for debug
+    new_tert_df.to_csv("helices_tert.csv", index=False)
     # Convert 'helix_length' column to numeric type
     new_tert_df['helix_length'] = pd.to_numeric(new_tert_df['helix_length'], errors='coerce')
     tick_positions = np.arange(new_tert_df['helix_length'].min(), new_tert_df['helix_length'].max() + 1)
-
     # Now make a histogram
     # Plot histogram
-    plt.figure(figsize=(8, 8))
+    plt.figure(figsize=(6, 6))
     plt.hist(new_tert_df['helix_length'],
              bins=np.arange(new_tert_df['helix_length'].min() - 0.5, new_tert_df['helix_length'].max() + 1.5, 1),
-             edgecolor='black')  # adjust bins as needed
-    plt.xlabel('Length of helices in tertiary contacts', fontsize=16)
-    plt.ylabel('Frequency', fontsize=16)
+             edgecolor='black', width=0.8)  # adjust bins as needed
+    plt.xlabel('Length of helices in tertiary contacts')
+    plt.ylabel('Count')
     # Add tick marks on x-axis
-    plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]], fontsize=16)
-    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
+    plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]])
     # plt.xticks(np.arange(new_tert_df['hairpin_length'].min(), new_tert_df['hairpin_length'].max() + 1), 5)
 
-    plt.yticks(fontsize=16)
     # Save the plot as PNG file
     plt.savefig('figure_3_helices_in_tert.png', dpi=600)
     # Close the plot
@@ -1137,11 +1166,10 @@ def __find_tertiary_contacts():
 
     # sstrands in tertiary contacts
     # filter to get only sstrands
-    sstrand_cols_1 = ['motif_1', 'type_1', 'res_1']
+    sstrand_cols_1 = ['motif_1', 'type_1', 'res_1', 'seq_1']
     sstrand_tert_contact_df_1 = unique_tert_contact_df[sstrand_cols_1]
-    sstrand_cols_2 = ['motif_2', 'type_2', 'res_2']
+    sstrand_cols_2 = ['motif_2', 'type_2', 'res_2', 'seq_2']
     sstrand_tert_contact_df_2 = unique_tert_contact_df[sstrand_cols_2]
-
     # Filter rows where types are equal to "SSTRAND"
     sstrand_tert_contact_df_1 = sstrand_tert_contact_df_1[sstrand_tert_contact_df_1['type_1'] == "SSTRAND"]
     sstrand_tert_contact_df_2 = sstrand_tert_contact_df_2[sstrand_tert_contact_df_2['type_2'] == "SSTRAND"]
@@ -1153,35 +1181,42 @@ def __find_tertiary_contacts():
     length_2 = split_column_2.str[2]
     sstrand_tert_contact_df_1 = sstrand_tert_contact_df_1.assign(length_1=length_1)
     sstrand_tert_contact_df_2 = sstrand_tert_contact_df_2.assign(length_2=length_2)
-
+    # Concatenate and drop dupes
     new_tert_df = pd.concat([sstrand_tert_contact_df_1, sstrand_tert_contact_df_2], ignore_index=True, axis=0)
-    new_tert_df.drop_duplicates(subset=['motif_1'], keep='first', inplace=True)
-
-    new_tert_df.to_csv("sstrand_tert.csv", index=False)
-
+    new_tert_df.drop_duplicates(subset=['seq_1'], keep='first', inplace=True)
     # List of column names to delete
-    columns_to_delete = ['motif_2', 'type_2', 'res_2', 'length_2']
+    columns_to_delete = ['motif_2', 'type_2', 'res_2', 'seq_2', 'length_2']
     # Delete the specified columns
     new_tert_df.drop(columns=columns_to_delete, inplace=True)
-    new_tert_df.columns = ['motif', 'type', 'res', 'sstrand_length']
+    # rename columns
+    new_tert_df.columns = ['motif', 'type', 'res', 'seq', 'sstrand_length']
+    for index, row in new_tert_df.iterrows():
+        seq_value = row['seq']
+        if isinstance(seq_value, float):
+            seq_value = str(seq_value)
+        parts = seq_value.split(".")
+        if len(parts) > 2:
+            sstrand_length_value = int(parts[2])
+            new_tert_df.at[index, 'sstrand_length'] = sstrand_length_value
+
+    # Print for debug
+    new_tert_df.to_csv("sstrand_tert.csv", index=False)
     # Convert 'sstrand_length' column to numeric type
     new_tert_df['sstrand_length'] = pd.to_numeric(new_tert_df['sstrand_length'], errors='coerce')
     tick_positions = np.arange(new_tert_df['sstrand_length'].min(), new_tert_df['sstrand_length'].max() + 1)
 
     # Now make a histogram
     # Plot histogram
-    plt.figure(figsize=(8, 8))
+    plt.figure(figsize=(6, 6))
     plt.hist(new_tert_df['sstrand_length'],
              bins=np.arange(new_tert_df['sstrand_length'].min() - 0.5, new_tert_df['sstrand_length'].max() + 1.5, 1),
-             edgecolor='black')  # adjust bins as needed
-    plt.xlabel('Length of sstrands in tertiary contacts', fontsize=16)
-    plt.ylabel('Frequency', fontsize=16)
+             edgecolor='black', width=0.8)  # adjust bins as needed
+    plt.xlabel('Length of sstrands in tertiary contacts')
+    plt.ylabel('Count')
     # Add tick marks on x-axis
-    plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]], fontsize=16)
-    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
+    plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]])
     # plt.xticks(np.arange(new_tert_df['hairpin_length'].min(), new_tert_df['hairpin_length'].max() + 1), 5)
 
-    plt.yticks(fontsize=16)
     # Save the plot as PNG file
     plt.savefig('figure_3_sstrand_in_tert.png', dpi=600)
     # Close the plot
@@ -1214,6 +1249,8 @@ def __heatmap_creation():
 
     # make a heatmap for TWOWAY JCTs
     # Create a DataFrame for the heatmap
+    df['bridging_nts_0'] = df['bridging_nts_0'] - 2
+    df['bridging_nts_1'] = df['bridging_nts_1'] - 2
     twoway_heatmap_df = df.pivot_table(index='bridging_nts_0', columns='bridging_nts_1', aggfunc='size', fill_value=0)
 
     # Extract the data from the DataFrame
@@ -1229,13 +1266,14 @@ def __heatmap_creation():
     y_range = np.arange(int(y.min()), min(int(y.max()) + 1, 12))  # Limit to 10 on y-axis
 
     # Create the 2D histogram
-    plt.figure(figsize=(10, 10))
+    sns.set_theme(style="white")
+    plt.figure(figsize=(6, 6))
+    plt.rcParams.update({'font.size': 20})
     heatmap = plt.hist2d(x_mesh.ravel(), y_mesh.ravel(), weights=z.ravel(), bins=[x_range, y_range], cmap='gray_r')
 
     # Add labels and title
-    plt.rcParams.update({'font.size': 16})
-    plt.xlabel("Strand 1 Nucleotides", fontsize=16)
-    plt.ylabel("Strand 2 Nucleotides", fontsize=16)
+    plt.xlabel("Strand 1 Nucleotides")
+    plt.ylabel("Strand 2 Nucleotides")
     # plt.title("Figure 2(e): 2-way junctions (X-Y)", fontsize=32)
 
     # Add colorbar for frequency scale
@@ -1246,13 +1284,11 @@ def __heatmap_creation():
 
     # Set ticks on x-axis
     plt.xticks(np.arange(x_range.min() + 0.5, x_range.max() + 1.5, 1),
-               [f'{int(tick - 0.5)}' for tick in np.arange(x_range.min() + 0.5, x_range.max() + 1.5, 1)],
-               fontsize=16)  # Set font size for x-axis ticks
+               [f'{int(tick - 0.5)}' for tick in np.arange(x_range.min() + 0.5, x_range.max() + 1.5, 1)])
 
     # Set ticks on y-axis
     plt.yticks(np.arange(y_range.min() + 0.5, y_range.max() + 1.5, 1),
-               [f'{int(tick - 0.5)}' for tick in np.arange(y_range.min() + 0.5, y_range.max() + 1.5, 1)],
-               fontsize=16)  # Set font size for y-axis ticks
+               [f'{int(tick - 0.5)}' for tick in np.arange(y_range.min() + 0.5, y_range.max() + 1.5, 1)])
 
     # Set aspect ratio to square
     plt.gca().set_aspect('equal', adjustable='box')
@@ -1261,11 +1297,11 @@ def __heatmap_creation():
     divider = make_axes_locatable(plt.gca())
     cax = divider.append_axes("right", size="5%", pad=0.1)
     cbar = plt.colorbar(heatmap[3], cax=cax)
-    cbar.set_label('Frequency', fontsize=16)
-    cbar.ax.tick_params(labelsize=16)
+    cbar.set_label('Count')
+    # cbar.ax.tick_params(labelsize=18)
 
     # Save the heatmap as a PNG file
-    plt.savefig("figure_2_twoway_motif_heatmap.png", dpi=480)
+    plt.savefig("figure_2_twoway_motif_heatmap.png", dpi=600)
 
     # Don't display the plot
     plt.close()
@@ -1424,8 +1460,8 @@ def __heatmap_creation():
         hbonds_subset = hbonds[['distance', 'angle']].reset_index(drop=True)
 
         if len(hbonds_subset) >= 100:  # if there are more than 100 data points
-            # Set global font size
-            plt.rc('font', size=14)
+            # Set global font size (was set up there)
+            # plt.rc('font', size=18)
 
             distance_bins = np.arange(2.0, 4.1, 0.1)  # Bins from 2 to 4 in increments of 0.1
             angle_bins = np.arange(0, 181, 10)  # Bins from 0 to 180 in increments of 10
@@ -1435,17 +1471,16 @@ def __heatmap_creation():
 
             heatmap_data = hbonds_subset.groupby(['angle_bin', 'distance_bin']).size().unstack(fill_value=0)
 
-            plt.figure(figsize=(10, 10))
+            plt.figure(figsize=(6, 6))
             sns.heatmap(heatmap_data, cmap='gray_r', xticklabels=1, yticklabels=range(0, 181, 10), square=True)
 
             plt.xticks(np.arange(len(distance_bins)) + 0.5, [f'{bin_val:.1f}' for bin_val in distance_bins], rotation=0)
             plt.yticks(np.arange(len(angle_bins)) + 0.5, angle_bins, rotation=0)
 
-            plt.xlabel("Distance (angstroms)")
-            plt.ylabel("Angle (degrees)")
+            plt.xlabel("Distance (Å)")
+            plt.ylabel("Angle (°)")
             map_name = f"{type_1}-{type_2} {atom_1}-{atom_2}"
             # plt.title(f"{map_name} H-bond heatmap")
-
 
             map_dir = "heatmaps/RNA-RNA" if len(type_1) == 1 and len(type_2) == 1 else "heatmaps/RNA-PROT"
             __safe_mkdir(map_dir)
@@ -1461,12 +1496,12 @@ def __heatmap_creation():
             hbonds.to_csv(heat_data_csv_path, index=False)
 
             # 2D histogram
-            plt.figure(figsize=(10, 8))
+            plt.figure(figsize=(6, 4.8))
             plt.hist2d(hbonds_subset['distance'], hbonds_subset['angle'], bins=[distance_bins, angle_bins],
                        cmap='gray_r')
-            plt.xlabel("Distance (angstroms)")
-            plt.ylabel("Angle (degrees)")
-            plt.colorbar(label='Frequency')
+            plt.xlabel("Distance (Å)")
+            plt.ylabel("Angle (°)")
+            plt.colorbar(label='Count')
             plt.title(f"{map_name} H-bond heatmap")
 
             plt.savefig(map_path, dpi=250)
@@ -1540,13 +1575,13 @@ def __final_statistics():
                 # If the folder name doesn't match any condition, use it as is
                 folder_counts[item_name] = file_count
 
-    # make a bar graph of all types of motifs
+    """# make a bar graph of all types of motifs
     folder_names = list(folder_counts.keys())
     file_counts = list(folder_counts.values())
     # Sort the folder names and file counts alphabetically
     folder_names_sorted, file_counts_sorted = zip(*sorted(zip(folder_names, file_counts)))
     # Set consistent parameters
-    plt.rcParams.update({'font.size': 14})  # Set overall text size
+    plt.rcParams.update({'font.size': 18})  # Set overall text size
     plt.figure(figsize=(8, 8))
     plt.bar(folder_names_sorted, file_counts_sorted, edgecolor='black', width=1)
     plt.xlabel('Motif Type')
@@ -1557,11 +1592,31 @@ def __final_statistics():
     # Save the graph as a PNG file
     plt.savefig('figure_2_bar_graph_motif_counts.png', dpi=600)
     # Don't display the plot
+    plt.close()"""
+
+    # Convert the dictionary to a DataFrame
+    data = pd.DataFrame(list(folder_counts.items()), columns=['Motif Type', 'Count'])
+    # Sort the DataFrame by 'Motif Type'
+    data = data.sort_values('Motif Type')
+    # Set the Seaborn theme
+    sns.set_theme(style="white")  # palette='deep', color_codes=True)
+    # Create the bar plot
+    plt.figure(figsize=(6, 6), facecolor='white')
+    plt.rcParams.update({'font.size': 20})  # Set overall text size
+    sns.barplot(data=data, x='Motif Type', y='Count', color=sns.color_palette()[0], edgecolor='black')
+    # Set labels and title
+    plt.xlabel('Motif Type')
+    plt.ylabel('Count')
+    plt.title('')
+    # Adjust layout for better fit
+    plt.tight_layout()
+    # Save the plot as a PNG file
+    plt.savefig('figure_2_bar_graph_motif_counts.png', dpi=600)
+    # Close the plot to avoid display
     plt.close()
 
     # of the hairpins, how long are they (histogram)
     hairpin_directory = motif_directory + "/hairpins"
-
     hairpin_counts = {}
     # Iterate over all items in the specified directory
     for item_name in os.listdir(hairpin_directory):
@@ -1581,16 +1636,18 @@ def __final_statistics():
     hairpin_bins = sorted([int(name) for name in hairpin_folder_names_sorted])
     # Calculate the positions for the tick marks (midpoints between bins)
     tick_positions = np.arange(min(hairpin_bins), max(hairpin_bins) + 1)
-    plt.figure(figsize=(8, 8))
+    sns.set_theme(style='white')
+    plt.figure(figsize=(6, 6))
     plt.hist(hairpin_bins, bins=np.arange(min(hairpin_bins) - 0.5, max(hairpin_bins) + 1.5, 1),
-             weights=hairpin_file_counts_sorted, edgecolor='black', align='mid')
+             weights=hairpin_file_counts_sorted, color=sns.color_palette()[0], edgecolor='black', align='mid',
+             width=0.8)
     plt.xlabel('Hairpin Length')
-    plt.ylabel('Frequency')
+    plt.ylabel('Count')
     plt.title('')  # Hairpins with Given Length
     # Set custom tick positions and labels
     plt.xticks(tick_positions, tick_positions)
     plt.xticks(np.arange(min(hairpin_bins), max(hairpin_bins) + 1, 5))  # Display ticks every 5 integers
-    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
+    # plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
     plt.tight_layout()  # Adjust layout to prevent clipping of labels
     # Save the bar graph as a PNG file
     plt.savefig('figure_2_hairpin_counts_bar_graph.png', dpi=600)
@@ -1619,16 +1676,15 @@ def __final_statistics():
     helix_bins = sorted([int(name) for name in helix_folder_names_sorted])
     # Calculate the positions for the tick marks (midpoints between bins)
     tick_positions = np.arange(min(helix_bins), max(helix_bins) + 1)
-    plt.figure(figsize=(8, 8))
+    plt.figure(figsize=(6, 6))
     plt.hist(helix_bins, bins=np.arange(min(helix_bins) - 0.5, max(helix_bins) + 1.5, 1),
-             weights=helix_file_counts_sorted, edgecolor='black', align='mid')
+             weights=helix_file_counts_sorted, color=sns.color_palette()[0], edgecolor='black', align='mid', width=0.8)
     plt.xlabel('Helix Length')
-    plt.ylabel('Frequency')
+    plt.ylabel('Count')
     plt.title('')  # Helices with Given Length
     # Set custom tick positions and labels
     plt.xticks(tick_positions, tick_positions)
     plt.xticks(np.arange(min(helix_bins), max(helix_bins) + 1, 5))  # Display ticks every 5 integers
-    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
     plt.tight_layout()  # Adjust layout to prevent clipping of labels
     # Save the bar graph as a PNG file
     plt.savefig('figure_2_helix_counts_bar_graph.png', dpi=600)
@@ -1657,16 +1713,16 @@ def __final_statistics():
     sstrand_bins = sorted([int(name) for name in sstrand_folder_names_sorted])
     # Calculate the positions for the tick marks (midpoints between bins)
     tick_positions = np.arange(min(sstrand_bins), max(sstrand_bins) + 1)
-    plt.figure(figsize=(8, 8))
+    plt.figure(figsize=(6, 6))
     plt.hist(sstrand_bins, bins=np.arange(min(sstrand_bins) - 0.5, max(sstrand_bins) + 1.5, 1),
-             weights=sstrand_file_counts_sorted, edgecolor='black', align='mid')
+             weights=sstrand_file_counts_sorted, color=sns.color_palette()[0], width=0.8, edgecolor='black',
+             align='mid')
     plt.xlabel('Single Strand Length')
-    plt.ylabel('Frequency')
+    plt.ylabel('Count')
     plt.title('')  # Helices with Given Length
     # Set custom tick positions and labels
     plt.xticks(tick_positions, tick_positions)
     plt.xticks(np.arange(min(sstrand_bins), max(sstrand_bins) + 1, 5))  # Display ticks every 5 integers
-    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
     plt.tight_layout()  # Adjust layout to prevent clipping of labels
     # Save the bar graph as a PNG file
     plt.savefig('figure_2_sstrand_counts_bar_graph.png', dpi=600)
@@ -1692,12 +1748,12 @@ def __final_statistics():
     tert_file_counts = list(tert_folder_counts.values())
     # Sort the folder names and file counts alphabetically
     tert_folder_names_sorted, tert_file_counts_sorted = zip(*sorted(zip(tert_folder_names, tert_file_counts)))
-    plt.figure(figsize=(8, 8))
-    plt.barh(tert_folder_names_sorted, tert_file_counts_sorted, edgecolor='black', height=1.0)  # , width=1.0)
+    plt.figure(figsize=(6, 6))
+    plt.barh(tert_folder_names_sorted, tert_file_counts_sorted, edgecolor='black', color=sns.color_palette()[0],
+             height=0.8)
     plt.xlabel('Count')
     plt.ylabel('Tertiary Contact Type')
     plt.title('')  # tertiary contact types
-    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
     # Adjust x-axis ticks for a tight fit
     # plt.autoscale(enable=True, axis='x', tight=True)
     plt.tight_layout()
@@ -1711,6 +1767,7 @@ def __final_statistics():
 
     # Load the CSV into a DataFrame and keep only the columns 'res_type_1' and 'res_type_2'
     df = pd.read_csv(tert_contact_csv_directory, usecols=['res_type_1', 'res_type_2'])
+    df = df.replace({'res_type_1': 'aa', 'res_type_2': 'aa'}, 'base')
 
     tuples_list = [tuple(sorted(x)) for x in df.to_records(index=False)]
 
@@ -1724,13 +1781,12 @@ def __final_statistics():
     tuple_counts_df = tuple_counts_df.sort_values(by='Count')
 
     # Plot the bar graph
-    plt.figure(figsize=(8, 4))
+    plt.figure(figsize=(6, 6))
     plt.barh(tuple_counts_df['Contact Type'].astype(str), tuple_counts_df['Count'], edgecolor='black',
-             height=1.0)
+             height=0.8, color=sns.color_palette()[0])
     plt.xlabel('Count')
-    plt.ylabel('Tertiary Contact Type (by residue component)')
+    plt.ylabel('Tertiary Contact Type')
     plt.title('')  # tertiary contact types
-    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
     plt.tight_layout()
 
     # Save the graph as a PNG file
@@ -1835,16 +1891,16 @@ def main():
     print("Motif extraction finished on", time_string)
 
     # Finding tertiary contacts
-    # __find_tertiary_contacts()
+    __find_tertiary_contacts()
     print("!!!!! TERTIARY CONTACT PROCESSING FINISHED !!!!!")
 
     # Printing heatmaps/plotting
     print("Printing heatmaps of data...")
-    # __heatmap_creation()
+    __heatmap_creation()
 
     # More plotting of other general data
     print("Plotting data...")
-    # __final_statistics()
+    __final_statistics()
     print("!!!!! PLOTS COMPLETED !!!!!")
 
     current_time = datetime.datetime.now()

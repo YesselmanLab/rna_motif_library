@@ -24,13 +24,13 @@ def make_dir(directory_path):
         os.makedirs(directory_path)
 
 
-# delete specified directories if they exist
+"""# delete specified directories if they exist
 def safe_delete_dir(directory_path):
     if os.path.exists(directory_path):
         try:
             shutil.rmtree(directory_path)
         except Exception as e:
-            print(f"Error deleting directory '{directory_path}': {e}")
+            print(f"Error deleting directory '{directory_path}': {e}")"""
 
 
 # takes data from a dataframe and writes it to a CIF
@@ -155,8 +155,18 @@ def count_strands(master_res_df, motif_name, twoway_jct_csv):
     chains = extract_continuous_chains(list_of_ids)
     refined_chains = connect_continuous_chains(chains)
     ultra_refined_chains = refine_continuous_chains(refined_chains)
-    # Step 8: count # of junctions
+    # Step 8: count # of junctions and calculate structure
+    # counting # of junctions
     len_chains = len(ultra_refined_chains)
+    # calculating structure
+    structure_list = []
+    for chain in ultra_refined_chains:
+        len_of_strand = len(chain)
+        structure_list.append(len_of_strand - 2)
+    # convert all data in structure_list to strings
+    structure_list = [str(length) for length in structure_list]
+    # join by delimiter "-"
+    structure_result = "-".join(structure_list)
 
     # Step 9: print the contents of 2-way motifs into a CSV (nucleotide data, motif names)
     # also change the names to make them match TWOWAY motifs, this will cause problems if you don't!
@@ -192,6 +202,13 @@ def count_strands(master_res_df, motif_name, twoway_jct_csv):
         twoway_jct_csv.write(
             motif_name + "," + motif_type + "," + str(len_0) + "," + str(len_1) + "," + str(class_0) + "," + str(
                 class_1) + "\n")  # + number of nucleotides, which can be found by length of each element in ultra refined chains
+
+    # Rewrite motif names so the structure is correct
+    elif len_chains > 2:
+        # Write new motif name
+        old_motif_name_spl = motif_name.split(".")
+        motif_name = "NWAY." + old_motif_name_spl[1] + "." + structure_result + "." + old_motif_name_spl[3] + "." + \
+                     old_motif_name_spl[4]
 
     return len_chains, motif_name
 
@@ -396,6 +413,7 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
             dataframe_to_cif(df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name)
 
     residue_csv_list.write(motif_name + ',' + ','.join(nts) + '\n')
+    print(motif_name)
 
     if interactions is not None:
         interactions_filtered = remove_duplicate_residues_in_chain(interactions)
@@ -483,14 +501,15 @@ def write_res_coords_to_pdb(nts, interactions, pdb_model, pdb_path, motif_bond_l
             # writes interactions to CIF
             dataframe_to_cif(df=total_result_df, file_path=f"{inter_name_path}.cif", motif_name=motif_name)
 """
-        extract_individual_interactions(interactions_filtered, motif_bond_list, model_df, motif_name, csv_file, interactions_overview_csv, nts)
+        extract_individual_interactions(interactions_filtered, motif_bond_list, model_df, motif_name, csv_file,
+                                        interactions_overview_csv, nts)
 
 
 # extracts individual interactions out (this includes H-bonds found from SNAP)
 # of the individual interactions, check if they are in the same motif for tertiary contact
 # tertiary contact = two motifs which have 2 or more h-bonds
-def extract_individual_interactions(inter_from_PDB, list_of_inters, pdb_model_df, motif_name, csv_file, interactions_overview_csv, list_of_nts_in_motif):
-
+def extract_individual_interactions(inter_from_PDB, list_of_inters, pdb_model_df, motif_name, csv_file,
+                                    interactions_overview_csv, list_of_nts_in_motif):
     # for writing to interactions.csv
     start_interactions_dict = {
         'base:base': 0, 'base:sugar': 0, 'base:phos': 0,
@@ -827,7 +846,8 @@ def extract_individual_interactions(inter_from_PDB, list_of_inters, pdb_model_df
     motif_name_spl = motif_name.split(".")
     vals = [str(start_interactions_dict[x]) for x in hbond_vals]
     # When all is said and done incrementing the dictionary, we write it to interactions.csv aka interactions_overview_csv
-    interactions_overview_csv.write(motif_name + ',' + motif_name_spl[0] + ',' + str(len(list_of_nts_in_motif)) + ',' + ','.join(vals) + '\n')
+    interactions_overview_csv.write(
+        motif_name + ',' + motif_name_spl[0] + ',' + str(len(list_of_nts_in_motif)) + ',' + ','.join(vals) + '\n')
 
 
 # find the closest atom for 3rd point in angle
@@ -1090,7 +1110,7 @@ class DSSRRes(object):
 
 # Obtains motifs from DSSR
 def get_motifs_from_structure(json_path):
-    #name = os.path.splitext(json_path.split("/")[-1])[0]
+    # name = os.path.splitext(json_path.split("/")[-1])[0]
     name = os.path.splitext(os.path.basename(json_path))[0]
     d_out = DSSROutput(json_path=json_path)
     motifs = d_out.get_motifs()
