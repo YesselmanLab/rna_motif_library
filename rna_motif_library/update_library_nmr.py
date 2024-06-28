@@ -36,6 +36,7 @@ def __safe_mkdir(dir):
         wget.download(path, out=out_path)
     print(f"{count} pdbs already downloaded!")"""
 
+# Only download NMR functions
 def __download_cif_files():
     # Define the directory to save the PDB files
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"

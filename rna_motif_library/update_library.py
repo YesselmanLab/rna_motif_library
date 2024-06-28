@@ -25,91 +25,23 @@ from biopandas.mmcif.mmcif_parser import load_cif_data
 from biopandas.mmcif.engines import mmcif_col_types
 from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
 
-# from dssr import total_motifs_count
-# from dssr import removed_motifs_count
-
-# NOT CODE THINGS just things to remember
-# get new real data and analyze
-# meet with joe to discuss this thing again soon
-
-
 # NOT CODE THINGS but things to do nonetheless
 # TODO read RNA 3d structure database papers
 # TODO start sketching out an introduction
 # TODO look into packaging this stuff and getting ready to distribute as a python package
 
-# fix these:
-# nothing to fix for now
+# TODO write a real readme file (does anything need to be downloaded)
+# TODO fix formatting, clean shit up
 
-
-# questions
-# about dihedral angles:
-# does directionality matter for our purposes, as in, should I pay attention to +/- 180 degrees whist recording interaction angles?
-# I don't think it does, as directionality depends purely on which atom you take first while calculating
-# I'm more or less consistent about this, I think as long as we mention it in the methods it should be fine
-
-# done:
-
-# fix misclassification of motif types while finding tertiary contacts
-# fix classification of n-way junctions so that it refers to the number of nucleotides in each strand
-# fix duplicate motifs showing up in data that is plotted in tertiary contact plots
-# put a gap between the bars on graphs and fix graph styles
-# check if DA/C/U/G are numerous enough to include as sometimes they are incorrectly counted as nucleosides (they are not; over 36 PDBs I found around 30/5000)
-# fix interactions.csv so it includes ALL interactions and properly counts them
-# increase text sizes on all figures
-# add a column to unique_tert_contacts.csv that records base/sugar/phos data (which part of things are contacts coming from)
-# add figure that describes types of tertiary contacts by base/sugar/phos
-# deleted "questionable" and "unknown" donAcc type h-bonds
-# merged dist-angle data so reverse orders are the same (might need to minus angle by 180 for those) (this one might need a bit of work)
-# multithreading (undone, this is slower than single-threading holy fuck)
-# added single strands and their respective graphs; make sure tert contacts between others and SSTRAND works
-
-
-# amino acid/canonical residue dictionary
-canon_res_dict = {
-    'A': 'Adenine',
-    'ALA': 'Alanine',
-    'ARG': 'Arginine',
-    'ASN': 'Asparagine',
-    'ASP': 'Aspartic Acid',
-    'CYS': 'Cysteine',
-    'C': 'Cytosine',
-    'G': 'Guanine',
-    'GLN': 'Glutamine',
-    'GLU': 'Glutamic Acid',
-    'GLY': 'Glycine',
-    'HIS': 'Histidine',
-    'ILE': 'Isoleucine',
-    'LEU': 'Leucine',
-    'LYS': 'Lysine',
-    'MET': 'Methionine',
-    'PHE': 'Phenylalanine',
-    'PRO': 'Proline',
-    'SER': 'Serine',
-    'THR': 'Threonine',
-    'TRP': 'Tryptophan',
-    'TYR': 'Tyrosine',
-    'U': 'Uracil',
-    'VAL': 'Valine'
-}
+# TODO figures; describe what's in figure and then explain results in a paragraph
 
 # list of residue types to filter out
-# may need to include nucleosides and shit
 canon_res_list = ['A', 'ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'C', 'G', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS',
                   'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'U', 'VAL']
 
-canon_amino_acid_list = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS',
-                         'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
 
-
-# Pandas mmCIF override; need it because of ATOM/HETATM inconsistency
-
-# I hate how there's no universal standard format for CIFs
-# Finding these inconsistencies between CIFs took forever
-# I'm sure there's still some out there ready to ruin my day that haven't been caught that someone somewhere will catch
-# If you see some weird formatting going on in the code, that is the reason
-# If you run into issues running this, do fix your CIFs beforehand
-# Something like 75% of my time working on this was spent diagnosing and fixing that kind of thing
+# Pandas mmCIF override
+# need it because of ATOM/HETATM inconsistency
 class PandasMmcifOverride(PandasMmcif):
     def _construct_df(self, text: str):
         data = load_cif_data(text)
@@ -217,149 +149,6 @@ def __get_snap_files():
     # pdb_dir = settings.LIB_PATH + "/data/pdbs/"
 
 
-# old code
-"""def __generate_motif_files():
-    # defines directories
-    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
-    # rnp_dir = settings.LIB_PATH + "/data/snap_output"
-    # grabs all the stuff
-    pdbs = glob.glob(pdb_dir + "/*.cif")  # PDBs
-    # rnps = glob.glob(rnp_dir + "/*.out")  # RNP interactions
-    # creates directories
-    dirs = [
-        "motifs",
-        "motif_interactions",
-    ]
-    for d in dirs:
-        __safe_mkdir(d)
-    motif_dir = "motifs/nways/all"
-    hbond_vals = [
-        "base:base",
-        "base:sugar",
-        "base:phos",
-        "sugar:base",
-        "sugar:sugar",
-        "sugar:phos",
-        "phos:base",
-        "phos:sugar",
-        "phos:phos",
-        "base:aa",
-        "sugar:aa",
-        "phos:aa",
-    ]
-    # opens the file where information about nucleotide interactions are stored
-    f = open("interactions.csv", "w")
-    f.write("name,type,size")
-    # writes to the CSV information about nucleotide interactions
-    f.write(",".join(hbond_vals) + "\n")
-    count = 0
-    # CSV about ind. interactions
-    f_inter = open("interactions_detailed.csv", "w")
-    f_inter.write(
-        "name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2" + "\n")
-
-    # CSV listing all th residues present in a given motif
-    f_residues = open("motif_residues_list.csv", "w")
-    f_residues.write("motif_name,residues" + "\n")
-
-    # CSV for twoway motifs
-    f_twoways = open("twoway_motif_list.csv", "w")
-    f_twoways.write(
-        "motif_name,motif_type,nucleotides_in_strand_1,nucleotides_in_strand_2,bridging_nts_0,bridging_nts_1" + "\n")
-
-    # writes motif/motif interaction information to PDB files
-    for pdb_path in pdbs:
-        name = pdb_path.split("/")[-1][:-4]
-        count += 1
-        print(count, pdb_path, name)
-
-        # debug, here we define which exact pdb to run (if we need to for whatever reason)
-        # if pdb_path == "/Users/jyesselm/PycharmProjects/rna_motif_library/data/pdbs/7PKQ.cif": # change the part before .cif
-        s = os.path.getsize(pdb_path)
-        json_path = settings.LIB_PATH + "/data/dssr_output/" + name + ".json"
-        # if s < 100000000:  # size-limit on PDB; enable if machine runs out of RAM
-
-        # get RNP interactions
-        rnp_out_path = settings.LIB_PATH + "/data/snap_output/" + name + ".out"
-        # is a list of snap.RNPInteraction objects
-        rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
-
-        # prepare list for RNP data
-        rnp_data = []
-
-        for interaction in rnp_interactions:
-            # print(interaction)
-            atom1, res1 = interaction.nt_atom.split("@")
-            atom2, res2 = interaction.aa_atom.split("@")
-
-            # list format: (res1, res2, atom1, atom2, distance)
-            rnp_interaction_tuple = (res1, res2, atom1, atom2, str(interaction.dist))
-            # rnp_data should be imported into interactions
-            rnp_data.append(rnp_interaction_tuple)
-
-        pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
-        (
-            motifs,
-            motif_hbonds,
-            motif_interactions, hbonds_in_motif
-        ) = dssr.get_motifs_from_structure(json_path)
-
-        # hbonds_in_motif is a list, describing all the chain.res ids with hbonds
-        # some are counted twice so we need to purify to make it unique
-        # RNP data from snap is injected here
-        hbonds_in_motif.extend(rnp_data)
-        unique_inter_motifs = list(set(hbonds_in_motif))
-
-        # counting total motifs present in PDB
-        dssr.total_motifs_count = len(motifs)
-        # process each motif present in PDB
-        for m in motifs:
-            print(m.name)
-            spl = m.name.split(".")  # this is the filename
-            # don't run if these aren't in the motif name
-            if not (spl[0] == "TWOWAY" or spl[0] == "NWAY" or spl[0] == "HAIRPIN" or spl[
-                0] == "HELIX"):
-                continue
-
-            # Writing to interactions.csv
-            f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
-
-            # counting of # of hbond interactions (-base:base)
-            if m.name not in motif_hbonds:
-                vals = ["0" for _ in hbond_vals]
-            else:
-                vals = [str(motif_hbonds[m.name][x]) for x in hbond_vals]
-
-            f.write(",".join(vals) + "\n")
-            # if there are no interactions with the motif then it skips and avoids a crash
-            try:
-                interactions = motif_interactions[m.name]
-            except KeyError:
-                interactions = None  # this means that no interactions are found between the motif and other
-            # Writing the residues AND interactions to the CIF files
-            dssr.write_res_coords_to_pdb(
-                m.nts_long, interactions, pdb_model,
-                motif_dir + "/" + m.name, unique_inter_motifs, f_inter, f_residues, f_twoways
-            )
-        # count motifs found
-        # get the PDB name
-        ...
-        spl_pdbs = pdb_path.split("/")
-        pdb_name = spl_pdbs[6].split(".")[0]
-        print("Motifs removed:")
-        print(dssr.removed_motifs_count)
-
-        if dssr.total_motifs_count != 0:
-            print("Percentage removed:")
-            percentage_removed = (dssr.removed_motifs_count / dssr.total_motifs_count) * 100
-            print(percentage_removed)
-        ...
-
-    f.close()
-    f_inter.close()
-    f_twoways.close()"""
-
-
 # old new code; not multi threaded
 def __generate_motif_files():
     # defines directories
@@ -434,195 +223,6 @@ def __generate_motif_files():
                     f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
                     vals = [str(motif_hbonds[m.name][x]) if m.name in motif_hbonds else "0" for x in hbond_vals]
                     f.write(",".join(vals) + "\n")"""
-
-
-# new code; multi threaded; multi threads per PDB
-"""def __generate_motif_files():
-    pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
-    pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
-    dirs = ["motifs", "motif_interactions"]
-    for d in dirs:
-        __safe_mkdir(d)
-
-    motif_dir = os.path.join("motifs", "nways", "all")
-    hbond_vals = [
-        "base:base", "base:sugar", "base:phos", "sugar:base", "sugar:sugar", "sugar:phos",
-        "phos:base", "phos:sugar", "phos:phos", "base:aa", "sugar:aa", "phos:aa"
-    ]
-
-    # opens the file where information about nucleotide interactions are stored
-    with open("interactions.csv", "w") as f:
-        f.write("name,type,size," + ",".join(hbond_vals) + "\n")
-        # CSV about individual interactions
-        with open("interactions_detailed.csv", "w") as f_inter, \
-                open("motif_residues_list.csv", "w") as f_residues, \
-                open("twoway_motif_list.csv", "w") as f_twoways:
-
-            f_inter.write("name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2\n")
-            f_residues.write("motif_name,residues\n")
-            f_twoways.write(
-                "motif_name,motif_type,nucleotides_in_strand_1,nucleotides_in_strand_2,bridging_nts_0,bridging_nts_1\n")
-
-            # Use ThreadPoolExecutor for multithreading
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                futures = []
-                count = 0
-                for pdb_path in pdbs:
-                    count += 1
-                    future = executor.submit(process_pdb, pdb_path, motif_dir, hbond_vals, count)
-                    futures.append(future)
-
-                for future in concurrent.futures.as_completed(futures):
-                    try:
-                        results = future.result()
-                        for row, nts_long, interactions, unique_inter_motifs, pdb_model in results:
-                            f.write(",".join(row) + "\n")
-                            dssr.write_res_coords_to_pdb(nts_long, interactions, pdb_model,
-                                                         os.path.join(motif_dir, row[0]),
-                                                         unique_inter_motifs, f_inter, f_residues, f_twoways)
-                    except Exception as exc:
-                        print(f'Exception processing {future}: {exc}')"""
-
-# new code; multi threads per motif
-"""def __generate_motif_files():
-    # defines directories
-    pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
-    # grabs all the stuff
-    pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))  # PDBs
-    # creates directories
-    dirs = ["motifs", "motif_interactions"]
-    for d in dirs:
-        __safe_mkdir(d)
-
-    motif_dir = os.path.join("motifs", "nways", "all")
-    hbond_vals = [
-        "base:base", "base:sugar", "base:phos", "sugar:base", "sugar:sugar", "sugar:phos",
-        "phos:base", "phos:sugar", "phos:phos", "base:aa", "sugar:aa", "phos:aa"
-    ]
-
-    # opens the file where information about nucleotide interactions are stored
-    with open("interactions.csv", "w") as f:
-        f.write("name,type,size," + ",".join(hbond_vals) + "\n")
-        # CSV about individual interactions
-        with open("interactions_detailed.csv", "w") as f_inter, \
-                open("motif_residues_list.csv", "w") as f_residues, \
-                open("twoway_motif_list.csv", "w") as f_twoways:
-
-            f_inter.write("name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2\n")
-            f_residues.write("motif_name,residues\n")
-            f_twoways.write(
-                "motif_name,motif_type,nucleotides_in_strand_1,nucleotides_in_strand_2,bridging_nts_0,bridging_nts_1\n")
-
-            count = 0
-            for pdb_path in pdbs:
-                name = os.path.basename(pdb_path).replace(".cif", "")
-                count += 1
-                print(count, pdb_path, name)
-
-                s = os.path.getsize(pdb_path)
-                json_path = os.path.join(settings.LIB_PATH, "data/dssr_output", name + ".json")
-
-                rnp_out_path = os.path.join(settings.LIB_PATH, "data/snap_output", name + ".out")
-                rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
-                rnp_data = [(interaction.nt_atom.split("@")[1], interaction.aa_atom.split("@")[1],
-                             interaction.nt_atom.split("@")[0], interaction.aa_atom.split("@")[0],
-                             str(interaction.dist)) for interaction in rnp_interactions]
-
-                pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
-                motifs, motif_hbonds, motif_interactions, hbonds_in_motif = dssr.get_motifs_from_structure(json_path)
-
-                hbonds_in_motif.extend(rnp_data)
-                unique_inter_motifs = list(set(hbonds_in_motif))
-
-                dssr.total_motifs_count = len(motifs)
-
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    futures = []
-                    for m in motifs:
-                        spl = m.name.split(".")
-                        if spl[0] not in ["TWOWAY", "NWAY", "HAIRPIN", "HELIX", "SSTRAND"]:
-                            continue
-
-                        future = executor.submit(process_motif, m, motif_hbonds, motif_interactions,
-                                                 unique_inter_motifs, hbond_vals, pdb_model, motif_dir, f_inter,
-                                                 f_residues, f_twoways)
-                        futures.append(future)
-
-                    for future in concurrent.futures.as_completed(futures):
-                        try:
-                            row = future.result()
-                            f.write(",".join(row) + "\n")
-                        except Exception as exc:
-                            print(f'Exception processing motif: {exc}')"""
-
-"""def process_motif(m, motif_hbonds, motif_interactions, unique_inter_motifs, hbond_vals, pdb_model, motif_dir, f_inter,
-                  f_residues, f_twoways):
-    print(m.name)
-    row = [m.name, m.name.split(".")[0], str(len(m.nts_long))]
-    vals = [str(motif_hbonds[m.name][x]) if m.name in motif_hbonds else "0" for x in hbond_vals]
-    row.extend(vals)
-
-    interactions = motif_interactions.get(m.name, None)
-    dssr.write_res_coords_to_pdb(m.nts_long, interactions, pdb_model,
-                                 os.path.join(motif_dir, m.name),
-                                 unique_inter_motifs, f_inter, f_residues, f_twoways)
-
-    return row
-
-
-def process_pdb(pdb_path, motif_dir, hbond_vals, count):
-    name = os.path.basename(pdb_path).replace(".cif", "")
-    print(count, pdb_path, name)
-
-    json_path = os.path.join(settings.LIB_PATH, "data/dssr_output", name + ".json")
-
-    rnp_out_path = os.path.join(settings.LIB_PATH, "data/snap_output", name + ".out")
-    rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
-
-    rnp_data = [(interaction.nt_atom.split("@")[1], interaction.aa_atom.split("@")[1],
-                 interaction.nt_atom.split("@")[0], interaction.aa_atom.split("@")[0],
-                 str(interaction.dist), interaction.type.split(":")[0], interaction.type.split(":")[1]) for interaction in rnp_interactions]
-
-    # rnp_data is the same format as other interactions
-
-    pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
-    motifs, motif_hbonds, motif_interactions, hbonds_in_motif = dssr.get_motifs_from_structure(json_path)
-
-    hbonds_in_motif.extend(rnp_data)
-    unique_inter_motifs = list(set(hbonds_in_motif))
-
-    print(unique_inter_motifs)
-    exit(0)
-
-    results = []
-
-    for m in motifs:
-        print(m.name)
-        spl = m.name.split(".")
-        if spl[0] not in ["TWOWAY", "NWAY", "HAIRPIN", "HELIX", "SSTRAND"]:
-            continue
-
-        row = [m.name, spl[0], str(len(m.nts_long))]
-        vals = [str(motif_hbonds[m.name][x]) if m.name in motif_hbonds else "0" for x in hbond_vals]
-        row.extend(vals)
-
-        # Process each motif concurrently
-        f_inter = open("interactions_detailed.csv", "a")  # Append mode for concurrent writing
-        f_residues = open("motif_residues_list.csv", "a")  # Append mode for concurrent writing
-        f_twoways = open("twoway_motif_list.csv", "a")  # Append mode for concurrent writing
-
-        interactions = motif_interactions.get(m.name, None)
-        dssr.write_res_coords_to_pdb(m.nts_long, interactions, pdb_model,
-                                     os.path.join(motif_dir, m.name),
-                                     unique_inter_motifs, f_inter, f_residues, f_twoways)
-
-        f_inter.close()
-        f_residues.close()
-        f_twoways.close()
-
-        results.append((row, m.nts_long, interactions, unique_inter_motifs, pdb_model))
-
-    return results"""
 
 
 # tertiary contact detection (interactions between different motifs)
@@ -1223,9 +823,6 @@ def __find_tertiary_contacts():
     plt.close()
 
 
-# calculate heatmap for twoway junctions
-# function here
-
 def __heatmap_creation():
     print("Plotting heatmaps...")
     # need a CIF of all the twoway junctions to be made upstream
@@ -1349,106 +946,6 @@ def __heatmap_creation():
     # grouped_hbond_df = filtered_hbond_df.groupby(["res_1_name", "res_2_name", "atom_1", "atom_2"])
     grouped_hbond_df = filtered_hbond_df.groupby(['res_atom_pair'])
 
-    # Finally, for each group, make heatmaps of (distance,angle)
-    """    for group in grouped_hbond_df:
-        group_name = group[0]
-        type_1 = str(group_name[0])
-        type_2 = str(group_name[1])
-        atom_1 = str(group_name[2])
-        atom_2 = str(group_name[3])
-
-        print(f"Processing {type_1}-{type_2} {atom_1}-{atom_2}")
-        hbonds = group[1]
-        hbonds_subset = hbonds[['distance', 'angle']]
-        hbonds_subset = hbonds_subset.reset_index(drop=True)
-
-        if (
-                len(hbonds_subset) >= 100):  # & (len(hbonds_subset) <= 400): this limit existed before size limit was removed
-            # Set global font size
-            plt.rc('font', size=14)  # Adjust the font size as needed
-
-            distance_bins = [i / 10 for i in range(20, 41)]  # Bins from 0 to 4 in increments of 0.1
-            angle_bins = [i for i in range(0, 181, 10)]  # Bins from 0 to 180 in increments of 10
-
-            hbonds_subset['distance_bin'] = pd.cut(hbonds_subset['distance'], bins=distance_bins)
-            hbonds_subset['angle_bin'] = pd.cut(hbonds_subset['angle'], bins=angle_bins)
-
-            heatmap_data = hbonds_subset.groupby(['angle_bin', 'distance_bin']).size().unstack(fill_value=0)
-
-            plt.figure(figsize=(10, 10))
-            sns.heatmap(heatmap_data, cmap='gray_r', xticklabels=1, yticklabels=range(0, 181, 10), square=True)
-
-            plt.xticks(np.arange(len(distance_bins)) + 0.5, [f'{bin_val:.1f}' for bin_val in distance_bins], rotation=0)
-            plt.yticks(np.arange(len(angle_bins)) + 0.5, angle_bins, rotation=0)
-
-            plt.xlabel("Distance (angstroms)")
-            plt.ylabel("Angle (degrees)")
-            map_name = type_1 + "-" + type_2 + " " + atom_1 + "-" + atom_2
-            plt.title(map_name + " H-bond heatmap")
-
-            if len(type_1) == 1 and len(type_2) == 1:
-                map_dir = "heatmaps/RNA-RNA"
-            else:
-                map_dir = "heatmaps/RNA-PROT"
-
-            __safe_mkdir(map_dir)
-
-            map_dir = map_dir + "/" + map_name
-            plt.savefig(f"{map_dir}.png", dpi=250)
-            plt.close()
-
-            heatmap_csv_path = "heatmap_data"
-            __safe_mkdir(heatmap_csv_path)
-
-            heat_data_csv_path = heatmap_csv_path + "/" + map_name + ".csv"
-            hbonds.to_csv(heat_data_csv_path, index=False)
-
-            heatmap_res_names.append(map_name)
-            heatmap_atom_names.append(len(hbonds_subset))
-
-            # Insert the code for the 2D histogram here
-            plt.figure(figsize=(10, 8))
-            plt.hist2d(hbonds_subset['distance'], hbonds_subset['angle'], bins=[distance_bins, angle_bins],
-                       cmap='gray_r')
-            plt.xlabel("Distance (angstroms)")
-            plt.ylabel("Angle (degrees)")
-            plt.colorbar(label='Frequency')
-            map_name = type_1 + "-" + type_2 + " " + atom_1 + "-" + atom_2
-            plt.title(map_name + " H-bond heatmap")
-
-            if len(type_1) == 1 and len(type_2) == 1:
-                map_dir = "heatmaps/RNA-RNA"
-            else:
-                map_dir = "heatmaps/RNA-PROT"
-
-            __safe_mkdir(map_dir)
-            map_dir = map_dir + "/" + map_name
-            # Save the 2D histogram as a PNG file
-            plt.savefig(f"{map_dir}.png", dpi=250)
-            # Sometimes the terminal might kill the process
-            # if that happens lower the DPI setting above
-
-            plt.close()  # Close the plot to prevent overlapping plots
-
-            # Also print a CSV of the appropriate data
-            heatmap_csv_path = "heatmap_data"
-            __safe_mkdir(heatmap_csv_path)
-
-            # set name
-            heat_data_csv_path = heatmap_csv_path + "/" + map_name + ".csv"
-
-            # print data
-            hbonds.to_csv(heat_data_csv_path, index=False)
-
-            # need to print a histogram of the number of data points in each heatmap
-            # so need to collect this data first
-
-            heatmap_res_names.append(map_name)
-            heatmap_atom_names.append(len(hbonds_subset))
-        else:
-            print(f"Skipping {type_1}-{type_2} {atom_1}-{atom_2} due to insufficient or too many data points.")
-    """
-
     # Process each group to make heatmaps; code above is optimized and this is the OG version
     # OG version makes more sense after cleaning it up
     for group_name, hbonds in grouped_hbond_df:
@@ -1510,24 +1007,6 @@ def __heatmap_creation():
         else:
             print(f"Skipping {type_1}-{type_2} {atom_1}-{atom_2} due to insufficient data points.")
 
-    # after collecting data make the final histogram of all the data in heatmaps
-    # first compile the list into a df
-    # gonna comment this out because this is for debug purposes
-    # histo_df = pd.DataFrame({"heatmap": heatmap_res_names, "count": heatmap_atom_names})
-
-    # plot histogram
-    # plt.hist(histo_df.iloc[:, 1], bins=400)  # Adjust the number of bins as needed
-
-    # set labels
-    # plt.xlabel('# of datapoints inside a heatmap')
-    # plt.ylabel('# of heatmaps with X datapoints')
-    # plt.title('1d_histogram')
-
-    # set y-axis limit
-    # plt.ylim(0, max(df.iloc[:, 1]) * 0.9)
-
-    # plt.savefig('1d_histo.png')
-    # plt.close()
 
 
 # optimized code
@@ -1829,7 +1308,7 @@ def find_cif_file(directory_path, file_name):
     return None
 
 
-# counts all files with a specific extension (used in generating Fig 2)
+# counts all files with a specific extension (used in generating figures)
 def count_files_with_extension(directory_path, file_extension):
     try:
         # Initialize a counter
