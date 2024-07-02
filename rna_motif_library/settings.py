@@ -1,34 +1,39 @@
 import os
 import platform
-import json
 
 
-def get_lib_path():
+def get_lib_path() -> str:
+    """Gets the base directory path for the library.
+
+    Returns:
+        The base directory path of the library.
+    """
     file_path = os.path.realpath(__file__)
     spl = file_path.split("/")
     base_dir = "/".join(spl[:-2])
     return base_dir
 
-def get_os():
+
+def get_os() -> str:
+    """Determines the operating system type that is currently being used.
+
+    Returns:
+        A string representing the operating system type ('linux' or 'osx').
+
+    Raises:
+        SystemError: If the operating system is neither Linux nor Darwin (macOS).
+    """
     system = platform.system()
-    if system == 'Linux':
-        return 'linux'
-    elif system == 'Darwin':
-        return 'osx'
+    if system == "Linux":
+        return "linux"
+    elif system == "Darwin":
+        return "osx"
     else:
         raise SystemError(f"{system} is not supported currently")
 
-"""def get_query_term(json_query_path):
-    with open(json_query_path, 'r') as json_file:
-        json_data = json.load(json_file)
-    return json_data
-"""
-LIB_PATH = get_lib_path()
-UNITTEST_PATH = LIB_PATH + "/test/"
-RESOURCES_PATH = LIB_PATH + "/rna_motif_library/resources/"
-DSSR_EXE = RESOURCES_PATH + "snap/%s/x3dna-dssr " % (get_os())
 
-# QUERY_TERM = get_query_term(json_query_path=get_lib_path() + "/rna_motif_library/json_query.json")
-
-
-
+# Define library paths using the functions defined above.
+LIB_PATH: str = get_lib_path()
+UNITTEST_PATH: str = os.path.join(LIB_PATH, "test/")
+RESOURCES_PATH: str = os.path.join(LIB_PATH, "rna_motif_library/resources/")
+DSSR_EXE: str = os.path.join(RESOURCES_PATH, f"snap/{get_os()}/x3dna-dssr ")

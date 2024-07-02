@@ -907,3 +907,351 @@ DSSR_EXE = RESOURCES_PATH + "snap/%s/x3dna-dssr " % (get_os())
 
 QUERY_TERM = get_query_term(json_query_path=get_lib_path() + "/rna_motif_library/json_query.json")
 """
+
+# Extracts continuous chains from a list
+def extract_continuous_chains(pair_list):
+    chains = []
+    chain_map = {}  # Dictionary to map the end points to their respective chains
+
+    for pair in pair_list:
+        start, end = pair
+        matched_chain_start = chain_map.get(start)
+        matched_chain_end = chain_map.get(end)
+
+        if matched_chain_start and matched_chain_end:
+            if matched_chain_start is not matched_chain_end:
+                matched_chain_start.extend(matched_chain_end)
+                for item in matched_chain_end:
+                    chain_map[item[0]] = matched_chain_start
+                    chain_map[item[1]] = matched_chain_start
+                chains.remove(matched_chain_end)
+            matched_chain_start.append(pair)
+        elif matched_chain_start:
+            matched_chain_start.append(pair)
+            chain_map[end] = matched_chain_start
+        elif matched_chain_end:
+            matched_chain_end.append(pair)
+            chain_map[start] = matched_chain_end
+        else:
+            new_chain = [pair]
+            chains.append(new_chain)
+            chain_map[start] = new_chain
+            chain_map[end] = new_chain
+
+    return chains
+
+
+# Puts together some continuous chains (don't get rid of commented out yet)
+def connect_continuous_chains(chains):
+    connected_chains = []
+    start_map = {}  # Maps starting points of chains to the chain index in connected_chains
+    end_map = {}  # Maps ending points of chains to the chain index in connected_chains
+
+    for chain in chains:
+        start, end = chain[0][0], chain[-1][1]
+        connected = False
+
+        if start in end_map:
+            index = end_map[start]
+            connected_chains[index].extend(chain)
+            end_map[connected_chains[index][-1][1]] = index
+            connected = True
+        elif end in start_map:
+            index = start_map[end]
+            connected_chains[index] = chain + connected_chains[index]
+            start_map[connected_chains[index][0][0]] = index
+            connected = True
+        else:
+            connected_chains.append(chain)
+            index = len(connected_chains) - 1
+            start_map[start] = index
+            end_map[end] = index
+            connected = True
+
+    return connected_chains
+
+
+# Finds all the remaining possible connections of chains to return a final list of all the present strands
+def refine_continuous_chains(input_lists):
+    parent = {}
+    rank = {}
+
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+
+    def union(x, y):
+        rootX = find(x)
+        rootY = find(y)
+        if rootX != rootY:
+            if rank[rootX] > rank[rootY]:
+                parent[rootY] = rootX
+            elif rank[rootX] < rank[rootY]:
+                parent[rootX] = rootY
+            else:
+                parent[rootY] = rootX
+                rank[rootX] += 1
+
+    # Initialize the union-find structure
+    for sublist in input_lists:
+        for item in sublist:
+            for element in item:
+                if element not in parent:
+                    parent[element] = element
+                    rank[element] = 0
+
+    # Union all connected items
+    for sublist in input_lists:
+        first_item = sublist[0][0]
+        for item in sublist:
+            for element in item:
+                union(first_item, element)
+
+    # Group all items by their root
+    clusters = {}
+    for sublist in input_lists:
+        for item in sublist:
+            for element in item:
+                root = find(element)
+                if root not in clusters:
+                    clusters[root] = set()
+                clusters[root].add(element)
+
+    # Convert sets back to lists
+    merged = [list(cluster) for cluster in clusters.values()]
+
+    return merged
+
+"""        # interaction processing list initialization
+        inter_list = []
+        inter_res = []
+
+        # for each protein in the list of proteins
+        for inter in interactions_filtered:
+            inter_spl = inter.split(".")
+            # purify IDs
+            inter_chain_id = inter_spl[0]  # get the chain ID of the protein
+            inter_protein_id = extract_longest_numeric_sequence(inter_spl[1])  # get the residue ID of the protein
+            # sometimes there is a slash for some reason
+            if "/" in inter_spl[1]:
+                sub_spl = inter_spl[1].split("/")
+                inter_protein_id = sub_spl[1]
+
+            # define new protein ID
+            new_inter = inter_chain_id + "." + inter_protein_id
+            # add it to the list of new proteins
+            inter_list.append(new_inter)
+
+            # new protein ID; making a list (chain, res)
+            inter_id = new_inter.split(".")
+            # First find the right chain
+            inter_chain = model_df[
+                model_df['auth_asym_id'].astype(str) == inter_id[0]]
+            # Then find the right atoms
+            inter_res_subset = inter_chain[inter_chain['auth_seq_id'].astype(str) == str(inter_id[1])]
+            # "inter_res" is a list with all the needed dataframes inside it (of the individual atoms of the
+            # appropriate residues)
+            inter_res.append(inter_res_subset)
+
+        inter_df_list = []  # List to store the DataFrames for each line (type = 'list')
+        inter_res = remove_empty_dataframes(inter_res)
+
+        for inter in inter_res:
+            # Data reprocessing stuff, this loop is moving it into a DF
+            lines = inter.to_string(index=False, header=False).split('\n')
+            for line in lines:
+                values = line.split()  # (type 'values' = list)
+                inter_df = pd.DataFrame([values],
+                                        columns=['group_PDB', 'id', 'type_symbol', 'label_atom_id',
+                                                 'label_alt_id', 'label_comp_id', 'label_asym_id',
+                                                 'label_entity_id', 'label_seq_id',
+                                                 'pdbx_PDB_ins_code', 'Cartn_x', 'Cartn_y',
+                                                 'Cartn_z',
+                                                 'occupancy', 'B_iso_or_equiv',
+                                                 'pdbx_formal_charge',
+                                                 'auth_seq_id', 'auth_comp_id', 'auth_asym_id',
+                                                 'auth_atom_id', 'pdbx_PDB_model_num'])
+                inter_df_list.append(inter_df)
+        if df_list and inter_df_list:
+            # concatenate proteins with RNA
+            result_inter_df = pd.concat(inter_df_list, axis=0, ignore_index=True)  # interactions
+            # result_inter_df.to_csv("inter.csv", index=False)
+            total_result_df = pd.concat([result_df, result_inter_df], ignore_index=True)
+
+            # for JCTs
+            if ((sub_dir_parts[0] == "NWAY") or (sub_dir_parts[0] == "TWOWAY")):
+                # set a path for the interactions
+                inter_new_path = "motif_interactions/" + str(basepair_ends) + "ways/" + dir[
+                    2] + "/" + \
+                                 sub_dir_parts[2] + "/" + sub_dir_parts[3]
+                inter_name_path = inter_new_path + "/" + motif_name + ".inter"
+                make_dir(inter_new_path)
+            # for hairpins
+            if (sub_dir_parts[0] == "HAIRPIN"):
+                inter_hairpin_path = "motif_interactions/hairpins"
+                inter_name_path = inter_hairpin_path + "/" + motif_name + ".inter"
+                make_dir(inter_hairpin_path)
+            # for helices
+            if (sub_dir_parts[0] == "HELIX"):
+                inter_helix_path = "motif_interactions/helices/" + str(sub_dir_parts[2]) + "/" + str(
+                    sub_dir_parts[3])
+                inter_name_path = inter_helix_path + "/" + motif_name + ".inter"
+                make_dir(inter_helix_path)
+            # for sstrands
+            if (sub_dir_parts[0] == "SSTRAND"):
+                inter_sstrand_path = "motif_interactions/sstrands/" + str(sstrand_length) + sub_dir_parts[3]
+                inter_name_path = inter_sstrand_path + "/" + motif_name + ".inter"
+
+            # writes interactions to CIF
+            dataframe_to_cif(df=total_result_df, file_path=f"{inter_name_path}.cif", motif_name=motif_name)
+"""
+
+"""        # interaction processing list initialization
+        inter_list = []
+        inter_res = []
+
+        # for each protein in the list of proteins
+        for inter in interactions_filtered:
+            inter_spl = inter.split(".")
+            # purify IDs
+            inter_chain_id = inter_spl[0]  # get the chain ID of the protein
+            inter_protein_id = extract_longest_numeric_sequence(inter_spl[1])  # get the residue ID of the protein
+            # sometimes there is a slash for some reason
+            if "/" in inter_spl[1]:
+                sub_spl = inter_spl[1].split("/")
+                inter_protein_id = sub_spl[1]
+
+            # define new protein ID
+            new_inter = inter_chain_id + "." + inter_protein_id
+            # add it to the list of new proteins
+            inter_list.append(new_inter)
+
+            # new protein ID; making a list (chain, res)
+            inter_id = new_inter.split(".")
+            # First find the right chain
+            inter_chain = model_df[
+                model_df['auth_asym_id'].astype(str) == inter_id[0]]
+            # Then find the right atoms
+            inter_res_subset = inter_chain[inter_chain['auth_seq_id'].astype(str) == str(inter_id[1])]
+            # "inter_res" is a list with all the needed dataframes inside it (of the individual atoms of the
+            # appropriate residues)
+            inter_res.append(inter_res_subset)
+
+        inter_df_list = []  # List to store the DataFrames for each line (type = 'list')
+        inter_res = remove_empty_dataframes(inter_res)
+
+        for inter in inter_res:
+            # Data reprocessing stuff, this loop is moving it into a DF
+            lines = inter.to_string(index=False, header=False).split('\n')
+            for line in lines:
+                values = line.split()  # (type 'values' = list)
+                inter_df = pd.DataFrame([values],
+                                        columns=['group_PDB', 'id', 'type_symbol', 'label_atom_id',
+                                                 'label_alt_id', 'label_comp_id', 'label_asym_id',
+                                                 'label_entity_id', 'label_seq_id',
+                                                 'pdbx_PDB_ins_code', 'Cartn_x', 'Cartn_y',
+                                                 'Cartn_z',
+                                                 'occupancy', 'B_iso_or_equiv',
+                                                 'pdbx_formal_charge',
+                                                 'auth_seq_id', 'auth_comp_id', 'auth_asym_id',
+                                                 'auth_atom_id', 'pdbx_PDB_model_num'])
+                inter_df_list.append(inter_df)
+        if df_list and inter_df_list:
+            # concatenate proteins with RNA
+            result_inter_df = pd.concat(inter_df_list, axis=0, ignore_index=True)  # interactions
+            # result_inter_df.to_csv("inter.csv", index=False)
+            total_result_df = pd.concat([result_df, result_inter_df], ignore_index=True)
+
+            # for JCTs
+            if ((sub_dir_parts[0] == "NWAY") or (sub_dir_parts[0] == "TWOWAY")):
+                # set a path for the interactions
+                inter_new_path = "motif_interactions/" + str(basepair_ends) + "ways/" + dir[
+                    2] + "/" + \
+                                 sub_dir_parts[2] + "/" + sub_dir_parts[3]
+                inter_name_path = inter_new_path + "/" + motif_name + ".inter"
+                make_dir(inter_new_path)
+            # for hairpins
+            if (sub_dir_parts[0] == "HAIRPIN"):
+                inter_hairpin_path = "motif_interactions/hairpins"
+                inter_name_path = inter_hairpin_path + "/" + motif_name + ".inter"
+                make_dir(inter_hairpin_path)
+            # for helices
+            if (sub_dir_parts[0] == "HELIX"):
+                inter_helix_path = "motif_interactions/helices/" + str(sub_dir_parts[2]) + "/" + str(
+                    sub_dir_parts[3])
+                inter_name_path = inter_helix_path + "/" + motif_name + ".inter"
+                make_dir(inter_helix_path)
+            # for sstrands
+            if (sub_dir_parts[0] == "SSTRAND"):
+                inter_sstrand_path = "motif_interactions/sstrands/" + str(sstrand_length) + sub_dir_parts[3]
+                inter_name_path = inter_sstrand_path + "/" + motif_name + ".inter"
+
+            # writes interactions to CIF
+            dataframe_to_cif(df=total_result_df, file_path=f"{inter_name_path}.cif", motif_name=motif_name)
+"""
+
+"""def get_query_term(json_query_path):
+    with open(json_query_path, 'r') as json_file:
+        json_data = json.load(json_file)
+    return json_data
+"""
+
+# QUERY_TERM = get_query_term(json_query_path=get_lib_path() + "/rna_motif_library/json_query.json")
+
+    """# writing to interactions.csv
+    f.write(m.name + "," + spl[0] + "," + str(len(m.nts_long)) + ",")
+    vals = [str(motif_hbonds[m.name][x]) if m.name in motif_hbonds else "0" for x in hbond_vals]
+    f.write(",".join(vals) + "\n")"""
+
+    """# make a bar graph of all types of motifs
+    folder_names = list(folder_counts.keys())
+    file_counts = list(folder_counts.values())
+    # Sort the folder names and file counts alphabetically
+    folder_names_sorted, file_counts_sorted = zip(*sorted(zip(folder_names, file_counts)))
+    # Set consistent parameters
+    plt.rcParams.update({'font.size': 18})  # Set overall text size
+    plt.figure(figsize=(8, 8))
+    plt.bar(folder_names_sorted, file_counts_sorted, edgecolor='black', width=1)
+    plt.xlabel('Motif Type')
+    plt.ylabel('Count')
+    plt.title('')  # Presence of N-way Junctions
+    plt.xticks(rotation=0, ha='right')  # Rotate x-axis labels for better readability
+    plt.tight_layout()
+    # Save the graph as a PNG file
+    plt.savefig('figure_2_bar_graph_motif_counts.png', dpi=600)
+    # Don't display the plot
+    plt.close()"""
+
+
+    # discount the tert contact if hairpins < 3
+    print("Discounting hairpins < 3...")
+    # Iterate through each row in the unfiltered DataFrame
+    for index, row in unique_tert_contact_df_unfiltered.iterrows():
+        # Split motif_1 and motif_2 by "."
+        motif_1_split = row["motif_1"].split(".")
+        motif_2_split = row["motif_2"].split(".")
+
+        # Check conditions for deletion
+        if motif_1_split[0] == "HAIRPIN" and 0 < float(motif_1_split[2]) < 3:
+            continue
+        elif motif_2_split[0] == "HAIRPIN" and 0 < float(motif_2_split[2]) < 3:
+            continue
+        else:
+            # Keep the row by appending it to the filtered_data list
+            filtered_data.append(row)
+
+            if not os.path.exists(
+                    cif_path
+            ):  # if the interaction cif already exists, then it doesn't print it
+                dataframe_to_cif(
+                    res_1_res_2_result_df,
+                    file_path=f"{ind_inter_path}.cif",
+                    motif_name=name_inter,
+                )
+
+
+    # chains = extract_continuous_chains(list_of_ids)
+    # refined_chains = connect_continuous_chains(chains)
+    # ultra_refined_chains = refine_continuous_chains(refined_chains)
+

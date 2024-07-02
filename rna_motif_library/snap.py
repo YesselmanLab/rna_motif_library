@@ -1,72 +1,85 @@
 import os
 import subprocess
 import settings
+from typing import List, Optional
 
 
-# RNP interaction is an interaction between RNA and protein
-class RNPInteraction(object):
-    def __init__(self, nt_atom, aa_atom, dist, type):
-        self.nt_atom = nt_atom  # atom of nucleotide: 'N6@C.A1534'
-        self.aa_atom = aa_atom  # atom of amino acid: 'O@A.VAL281'
-        self.dist = dist  # distance between the two; we find this on our own
-        self.type = type  # type of interaction: 'base:sidechain'
-        self.nt_res = nt_atom.split("@")[1]  # residue of nucleotide; 'C.A1534'
+class RNPInteraction:
+    """Class to represent an RNA-Protein interaction."""
+
+    def __init__(self, nt_atom: str, aa_atom: str, dist: float, interaction_type: str):
+        self.nt_atom = nt_atom  # Atom of nucleotide, e.g., 'N6@C.A1534'
+        self.aa_atom = aa_atom  # Atom of amino acid, e.g., 'O@A.VAL281'
+        self.dist = dist  # Distance between the two
+        self.type = interaction_type  # Type of interaction, e.g., 'base:sidechain'
+        self.nt_res = nt_atom.split("@")[1]  # Residue of nucleotide
 
 
-# retrieves individual RNP data from .out file
-def get_rnp_interactions(pdb_path=None, out_file=None):
+def get_rnp_interactions(
+    pdb_path: Optional[str] = None, out_file: Optional[str] = None
+) -> List[RNPInteraction]:
+    """Retrieves RNA-Protein (RNP) interactions from an output file or a PDB file.
+
+    Args:
+        pdb_path: Optional; the file path to the PDB file if available.
+        out_file: Optional; the file path to the output file where interactions are recorded.
+
+    Returns:
+        A list of RNPInteraction instances capturing the details of each interaction.
+
+    Raises:
+        ValueError: If neither a pdb_path nor an out_file is provided.
+    """
     if pdb_path is None and out_file is None:
-        raise ValueError("must supply either a pdb or out file")
-    """if pdb_path is not None:
-        __generate_out_file(pdb_path)
-        out_file = 'test.out'"""
+        raise ValueError("Must supply either a pdb or out file")
 
-    # Open the .out file with RNPs inside and read the lines
-    f = open(out_file)
-    lines = f.readlines()
-    f.close()
+    # Open and read the .out file containing RNPs
+    with open(out_file, "r") as file:
+        lines = file.readlines()
 
-    # string that joins the lines
     s = "".join(lines)
     spl = s.split("List")
 
     interactions = []
-    for s in spl:
-        if s.find('H-bonds') == -1:
+    for section in spl:
+        if "H-bonds" not in section:
             continue
-        lines = s.split("\n")
+        lines = section.split("\n")
+        lines.pop(0)  # Remove the first two lines as they are headers
         lines.pop(0)
-        lines.pop(0)
-        for l in lines:
-            i_spl = l.split()
-            # there is an empty line at the end so filter it out
+        for line in lines:
+            i_spl = line.split()
             if len(i_spl) < 4:
                 continue
-            # i_spl format: ['1', '8D29', 'OP1@C.U6', 'NH1@H.ARG106', '3.58', 'po4:sidechain:salt-bridge']
-            # first need to change the type
-            inter_type = i_spl[5]
-            inter_type_spl = inter_type.split(":")
-            if inter_type_spl[0] == "po4":
-                nt_part = "phos"
-            elif inter_type_spl[0] == "sugar":
-                nt_part = "sugar"
-            elif inter_type_spl[0] == "base":
-                nt_part = "base"
+
+            # Process interaction type
+            inter_type = i_spl[5].split(":")[0]
+            nt_part = {"po4": "phos", "sugar": "sugar", "base": "base"}.get(
+                inter_type, inter_type
+            )
             inter_type_new = f"{nt_part}:aa"
 
-            interactions.append(RNPInteraction(i_spl[2], i_spl[3], i_spl[4], inter_type_new))
+            interactions.append(
+                RNPInteraction(i_spl[2], i_spl[3], float(i_spl[4]), inter_type_new)
+            )
 
     return interactions
 
 
-# generates the actual .out file from DSSR data, don't mess with this
-def __generate_out_file(pdb_path, out_path="test.out"):
+def __generate_out_file(pdb_path: str, out_path: str = "test.out") -> None:
+    """Generates an .out file from DSSR data."""
     dssr_exe = settings.DSSR_EXE
     subprocess.run(f"{dssr_exe} snap -i={pdb_path} -o={out_path}", shell=True)
-    files = "dssr-2ndstrs.bpseq,dssr-2ndstrs.ct,dssr-2ndstrs.dbn,dssr-atom2bases.pdb,dssr-stacks.pdb,dssr-torsions.txt".split(
-        ",")
+    files = [
+        "dssr-2ndstrs.bpseq",
+        "dssr-2ndstrs.ct",
+        "dssr-2ndstrs.dbn",
+        "dssr-atom2bases.pdb",
+        "dssr-stacks.pdb",
+        "dssr-torsions.txt",
+    ]
     for f in files:
         try:
             os.remove(f)
-        except:
+        except OSError:
             pass

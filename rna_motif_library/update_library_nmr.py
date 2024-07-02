@@ -44,67 +44,57 @@ def __download_cif_files():
         os.makedirs(pdb_dir)
     # Define the query term
     query_term = {
-  "query": {
-    "type": "group",
-    "logical_operator": "and",
-    "nodes": [
-      {
-        "type": "terminal",
-        "service": "text",
-        "parameters": {
-          "attribute": "entity_poly.rcsb_entity_polymer_type",
-          "operator": "exact_match",
-          "negation": False,
-          "value": "RNA"
-        }
-      },
-      {
-        "type": "group",
-        "nodes": [
-          {
-            "type": "terminal",
-            "service": "text",
-            "parameters": {
-              "attribute": "exptl.method",
-              "operator": "exact_match",
-              "negation": False,
-              "value": "SOLID-STATE NMR"
-            }
-          },
-          {
-            "type": "terminal",
-            "service": "text",
-            "parameters": {
-              "attribute": "exptl.method",
-              "operator": "exact_match",
-              "negation": False,
-              "value": "SOLUTION NMR"
-            }
-          }
-        ],
-        "logical_operator": "or"
-      }
-    ],
-    "label": "text"
-  },
-  "return_type": "entry",
-  "request_options": {
-    "paginate": {
-      "start": 0,
-      "rows": 1000000
-    },
-    "results_content_type": [
-      "experimental"
-    ],
-    "sort": [
-      {
-        "sort_by": "score",
-        "direction": "desc"
-      }
-    ],
-    "scoring_strategy": "combined"
-  }
-}
+        "query": {
+            "type": "group",
+            "logical_operator": "and",
+            "nodes": [
+                {
+                    "type": "terminal",
+                    "service": "text",
+                    "parameters": {
+                        "attribute": "entity_poly.rcsb_entity_polymer_type",
+                        "operator": "exact_match",
+                        "negation": False,
+                        "value": "RNA",
+                    },
+                },
+                {
+                    "type": "group",
+                    "nodes": [
+                        {
+                            "type": "terminal",
+                            "service": "text",
+                            "parameters": {
+                                "attribute": "exptl.method",
+                                "operator": "exact_match",
+                                "negation": False,
+                                "value": "SOLID-STATE NMR",
+                            },
+                        },
+                        {
+                            "type": "terminal",
+                            "service": "text",
+                            "parameters": {
+                                "attribute": "exptl.method",
+                                "operator": "exact_match",
+                                "negation": False,
+                                "value": "SOLUTION NMR",
+                            },
+                        },
+                    ],
+                    "logical_operator": "or",
+                },
+            ],
+            "label": "text",
+        },
+        "return_type": "entry",
+        "request_options": {
+            "paginate": {"start": 0, "rows": 1000000},
+            "results_content_type": ["experimental"],
+            "sort": [{"sort_by": "score", "direction": "desc"}],
+            "scoring_strategy": "combined",
+        },
+    }
     # Define the API endpoints
     search_url = f"https://search.rcsb.org/rcsbsearch/v2/query?json={query_term}"
     download_url = "https://files.rcsb.org/download/"
@@ -128,11 +118,11 @@ def __download_cif_files():
             with open(pdb_file, "wb") as f:
                 f.write(response.content)
 
-    #exit(0)
+    # exit(0)
 
 
 def __get_dssr_files():
-    #pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
+    # pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
     pdb_dir = "/Users/jyesselm/PycharmProjects/rna_motif_library/data/pdbs"
     dssr_path = settings.DSSR_EXE
     out_path = settings.LIB_PATH + "/data/dssr_output_nmr"
@@ -150,13 +140,13 @@ def __get_dssr_files():
             count += 1
             continue
         write_dssr_json_output_to_file(
-                dssr_path, pdb_path, out_path + "/" + name + ".out"
+            dssr_path, pdb_path, out_path + "/" + name + ".out"
         )
         print(out_path + "/" + name + ".out")
 
 
 def __get_snap_files():
-    #pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
+    # pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"
     pdb_dir = "/Users/jyesselm/PycharmProjects/rna_motif_library/data/pdbs"
     out_path = settings.LIB_PATH + "/data/snap_output_nmr"
 
@@ -231,11 +221,9 @@ def __generate_motif_files():
             pdb_model = PandasPdb().read_pdb(path=pdb_path)
         except:
             continue
-        (
-            motifs,
-            motif_hbonds,
-            motif_interactions,
-        ) = dssr.get_motifs_from_structure(json_path)
+        (motifs, motif_hbonds, motif_interactions,) = dssr.get_motifs_from_structure(
+            json_path
+        )
         for m in motifs:
             print(m.name)
             spl = m.name.split(".")
@@ -243,7 +231,7 @@ def __generate_motif_files():
                 continue
             try:
                 dssr.write_res_coords_to_pdb(
-                        m.nts_long, pdb_model, motif_dir + "/" + m.name
+                    m.nts_long, pdb_model, motif_dir + "/" + m.name
                 )
             except:
                 continue
@@ -257,9 +245,9 @@ def __generate_motif_files():
             if m.name in motif_interactions:
                 try:
                     dssr.write_res_coords_to_pdb(
-                            m.nts_long + motif_interactions[m.name],
-                            pdb_model,
-                            interactions_dir + "/" + m.name + ".inter",
+                        m.nts_long + motif_interactions[m.name],
+                        pdb_model,
+                        interactions_dir + "/" + m.name + ".inter",
                     )
                 except:
                     pass
@@ -268,7 +256,8 @@ def __generate_motif_files():
 
 def main():
     __download_cif_files()
-    print('''
+    print(
+        """
     ╔════════════════════════════════════╗
     ║                                    ║
     ║                                    ║
@@ -278,9 +267,11 @@ def main():
     ║       CIF FILES DOWNLOADED         ║
     ║                                    ║
     ╚════════════════════════════════════╝
-    ''')
+    """
+    )
     __get_dssr_files()
-    print('''
+    print(
+        """
         ╔════════════════════════════════════╗
         ║                                    ║
         ║                                    ║
@@ -290,9 +281,11 @@ def main():
         ║       DSSR FILES FINISHED          ║
         ║                                    ║
         ╚════════════════════════════════════╝
-        ''')
+        """
+    )
     __get_snap_files()
-    print('''
+    print(
+        """
             ╔════════════════════════════════════╗
             ║                                    ║
             ║                                    ║
@@ -302,9 +295,11 @@ def main():
             ║       SNAP FILES FINISHED          ║
             ║                                    ║
             ╚════════════════════════════════════╝
-            ''')
+            """
+    )
     __generate_motif_files()
-    print('''
+    print(
+        """
                 ╔════════════════════════════════════╗
                 ║                                    ║
                 ║                                    ║
@@ -314,7 +309,8 @@ def main():
                 ║      MOTIF FILES FINISHED          ║
                 ║                                    ║
                 ╚════════════════════════════════════╝
-                ''')
+                """
+    )
 
 
 if __name__ == "__main__":
