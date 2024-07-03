@@ -1,89 +1,88 @@
-import rna_motif_library
+import pandas as pd
 
-import rna_motif_library.dssr
-import rna_motif_library.settings
-
-from biopandas.pdb.pandas_pdb import PandasPdb
-from pydssr import dssr
-
-
-def test_get_motifs_from_structure():
-    json_path = rna_motif_library.settings.UNITTEST_PATH + "/resources/1GID.json"
-    pdb_path = rna_motif_library.settings.UNITTEST_PATH + "/resources/1GID.pdb"
-    motifs = rna_motif_library.dssr.get_motifs_from_structure(json_path)
-    rna_motif_library.dssr.write_res_coords_to_pdb(motifs, pdb_path)
+import dssr
 
 
 def test_dssr_res():
+    """
+    Tests the parsing of resides from DSSR data
+    :return: returns nothing
+    """
     s1 = "H.A9"
     s2 = "B.ARG270"
-    r1 = rna_motif_library.dssr.DSSRRes(s1)
+    r1 = dssr.DSSRRes(s1)
     assert r1.res_id == "A"
     assert r1.chain_id == "H"
     assert r1.num == 9
-    r2 = rna_motif_library.dssr.DSSRRes(s2)
+    r2 = dssr.DSSRRes(s2)
     assert r2.res_id == "ARG"
     assert r2.num == 270
 
 
-def test_from_lib():
-    name = "5WT1"
-    pdb_path = rna_motif_library.settings.LIB_PATH + "/data/pdbs/" + name + ".cif"
-    json_path = (
-        rna_motif_library.settings.LIB_PATH + "/data/dssr_output/" + name + ".out"
-    )
+def test_assign_res_type():
+    """
+    tests assigning residue types
+    :return:
+    """
+    list_of_residues = ["OP1", "O2'", "N1", "NZ"]
+    list_of_residue_types = ["nt", "nt", "nt", "aa"]
 
-    print(pdb_path)
-    print(json_path)
+    position = 0
+    for item in list_of_residues:
+        residue = item
+        residue_type = list_of_residue_types[position]
+        assigned_res_type = dssr.assign_res_type(residue, residue_type)
+        if position == 0:
+            assert assigned_res_type == "phos"
+        elif position == 1:
+            assert assigned_res_type == "sugar"
+        elif position == 2:
+            assert assigned_res_type == "base"
+        elif position == 3:
+            assert assigned_res_type == "aa"
+        position += 1
 
-    (
-        motifs,
-        motif_hbonds,
-        motif_interactions,
-    ) = rna_motif_library.dssr.get_motifs_from_structure(json_path)
-    pdb_model = PandasPdb().read_pdb(path=pdb_path)
-    for m in motifs:
-        if m.name not in motif_interactions:
-            interactions = []
-        else:
-            interactions = motif_interactions[m.name]
-        if m.name in motif_hbonds:
-            print(m.name, motif_hbonds[m.name])
-        rna_motif_library.dssr_lib.write_res_coords_to_pdb(
-            m.nts_long, pdb_model, m.name
-        )
-        if len(interactions) > 0:
-            rna_motif_library.dssr_lib.write_res_coords_to_pdb(
-                m.nts_long + interactions, pdb_model, m.name + ".inter"
-            )
+    list_of_residues_2 = ["OP1", "O2'", "N1", "O1P"]
+    position = 0
+    for item in list_of_residues_2:
+        assigned_res_type = dssr.__assign_atom_group(item)
+        if position == 0:
+            assert assigned_res_type == "phos"
+        elif position == 1:
+            assert assigned_res_type == "sugar"
+        elif position == 2:
+            assert assigned_res_type == "base"
+        elif position == 3:
+            assert assigned_res_type == "phos"
+        position += 1
 
 
-def _test_motifs_to_pdbs():
-    json_path = "1GID.json"
-    exit()
-    pdb_path = "1GID.pdb"
-    d_out = dssr.DSSROutput(json_path="1GID.json")
-    cif1 = PandasPdb().read_pdb(pdb_path)
-    motifs = d_out.get_motifs()
-    count = 0
-    for m in motifs:
-        res = []
-        for nt in m.nts_long:
-            spl = nt.split(".")
-            new_nt = spl[0] + "." + spl[1][1:]
-            res.append(cif1.model.residue(new_nt))
-        s = ""
-        for r in res:
-            lines = rna_motif_library.dssr_lib.structure_to_pdb_string(r).split("\n")
-            s += "\n".join(lines[:-1]) + "\n"
-        f = open(f"{m.mtype}.{count}.pdb", "w")
-        count += 1
-        f.write(s)
-        f.close()
+def test_distance_calculation():
+    """
+    Tests distance calculation
+    :return: none
+    """
+    # Creating DataFrames with an explicit index for scalar initialization
+    df_1 = pd.DataFrame({
+        'Cartn_x': [1],
+        'Cartn_y': [1],
+        'Cartn_z': [1]
+    })
+    df_2 = pd.DataFrame({
+        'Cartn_x': [-1],
+        'Cartn_y': [-1],
+        'Cartn_z': [-1]
+    })
+
+    # Calculate the Euclidean distance using the dssr module
+    distance = dssr.euclidean_distance_dataframe(df_1, df_2)
+    assert abs(distance - 3.46) < 0.01  # Using a small tolerance for floating point comparison
 
 
 def main():
-    test_from_lib()
+    test_dssr_res()
+    test_assign_res_type()
+    test_distance_calculation()
 
 
 if __name__ == "__main__":

@@ -1,12 +1,17 @@
 # import pytest
 
-from rna_motif_library import settings
-from rna_motif_library import snap
+import settings
+import snap
 
 
 def test_snap():
-    pdb_path = settings.UNITTEST_PATH + "/resources/4b3g.pdb"
-    interactions = snap.get_rnp_interactions(pdb_path)
+    """
+    Tests the retrieval of interactions from SNAP
+    :return:
+    """
+    pdb_path = str(settings.UNITTEST_PATH) + "resources/4b3g.pdb"
+    out_path = str(settings.UNITTEST_PATH) + "resources/4b3g.out"
+    interactions = snap.get_rnp_interactions(pdb_path, out_path)
     assert len(interactions) == 43
 
 

@@ -1,0 +1,223 @@
+
+****************************************************************************
+Note: By default, each nucleotide/amino-acid is identified by chainId.name#.
+      For example, B.DA1689 means adenosine #1689 on chain B,
+               and C.ARG49 denotes arginine #49 on chain C.
+      Use the --idstr=long option to get strictly delineated id strings.
+
+Command: x3dna-dssr snap -i=/Users/jyesselm/PycharmProjects/rna_motif_library/data/pdbs/4B3G.cif --format=mmcif -o=/Users/jyesselm/PycharmProjects/rna_motif_library/data/snap_output/4B3G.out
+Date and time: Sun Mar 10 05:29:30 2024
+File name: 4B3G.cif
+    no. of peptide chains: 2 [A=614,B=608]
+    no. of DNA/RNA chains: 2 [G=9,H=8]
+    no. of amino acids:    1222
+    no. of nucleotides:    17
+    no. of atoms:          9979
+    no. of waters:         145
+    no. of metals:         0
+
+****************************************************************************
+List of 119 nucleotide/amino-acid interactions
+       id   nt-aa   nt           aa              Tdst    Rdst     Tx      Ty      Tz      Rx      Ry      Rz
+   1  4B3G  A-his  G.A1         A.HIS411        -3.96   81.16   -2.37   -0.38   -3.15   -5.72  -27.62   76.91
+   2  4B3G  A-lys  G.A1         A.LYS412        -7.37   89.11    0.25    4.03   -6.16  -85.83    8.40   25.02
+   3  4B3G  A-glu  G.A2         A.GLU587        17.11  -48.79   -5.48   16.07    2.14   24.76  -13.98  -40.06
+   4  4B3G  A-gly  G.A2         A.GLY589        12.73 -165.19  -12.42   -2.76   -0.34  -81.41   26.61 -159.76
+   5  4B3G  A-phe  G.A2         A.PHE590        12.25 -103.49  -11.06    2.32    4.71   26.22  -23.91  -98.90
+   6  4B3G  A-gln  G.A3         A.GLN507        -6.57  -65.85   -3.63    2.65   -4.79  -36.19  -20.70  -52.16
+   7  4B3G  A-ser  G.A3         A.SER508        -8.29   91.13    0.72    6.23   -5.43    5.44   21.14   89.04
+   8  4B3G  A-tyr  G.A3         A.TYR541       -12.78  -92.46  -11.00   -0.55   -6.47    6.10   30.36  -88.25
+   9  4B3G  A-arg  G.A3         A.ARG581       -14.90   85.35  -13.35    0.79    6.57   13.87  -84.20    1.57
+  10  4B3G  A-gly  G.A3         A.GLY589         9.69  118.10   -5.98    5.90    4.82  -59.98   10.59  106.75
+  11  4B3G  A-phe  G.A3         A.PHE590        10.78   72.85   -8.05    7.15   -0.58   56.73   19.72   43.33
+  12  4B3G  A-thr  G.A4         A.THR408        -8.55   36.01    6.00    3.21   -5.18    3.28  -14.96   32.69
+  13  4B3G  A-val  G.A4         A.VAL409        -6.10 -144.02   -1.02    2.75   -5.35   72.46  -48.83 -129.43
+  14  4B3G  A-ser  G.A4         A.SER508        10.11 -172.19   -2.33   -2.26    9.57   53.98   10.37 -171.19
+  15  4B3G  A-pro  G.A4         A.PRO540        13.26   69.72   -3.60   12.74   -0.82   47.43  -22.79   47.49
+  16  4B3G  A-tyr  G.A4         A.TYR541        11.49 -163.13   -7.55   -8.42   -2.04  -89.47    2.72 -156.15
+  17  4B3G  A-asn  G.A4         A.ASN542        10.98  -67.79  -10.71   -1.75    1.68   32.82   15.94  -58.15
+  18  4B3G  A-ser  G.A4         A.SER563       -13.71  -51.07  -13.22    3.55   -0.76   28.80   -7.86  -41.92
+  19  4B3G  A-asp  G.A4         A.ASP565       -12.29  -92.41  -10.18    6.78   -1.21  -73.45   15.83  -58.34
+  20  4B3G  A-phe  G.A4         A.PHE590        12.15  -86.63   -8.19    8.22    3.61  -11.30   73.46  -48.15
+  21  4B3G  A-arg  G.A4         A.ARG596        15.58  -83.32  -11.45    9.38    4.86  -11.72  -31.74  -77.32
+  22  4B3G  A-glu  G.A5         A.GLU24         -8.19  164.61   -3.54   -7.35    0.72   40.41  -44.58  162.19
+  23  4B3G  A-thr  G.A5         A.THR407        -5.97   90.99   -3.49    0.82   -4.77   68.28   -8.83   63.63
+  24  4B3G  A-val  G.A5         A.VAL409        -6.43  -80.38    0.05    2.76   -5.81  -59.16  -30.27  -48.09
+  25  4B3G  A-asn  G.A5         A.ASN542       -15.71  -76.87   -5.78   13.04   -6.57   39.84  -43.85  -51.39
+  26  4B3G  A-ser  G.A5         A.SER563       -15.74  -84.63  -11.07    9.95   -5.11   56.99  -21.44  -61.87
+  27  4B3G  A-asp  G.A5         A.ASP565       -12.16  -55.69   -7.89    9.08   -1.80  -29.20   34.55  -33.37
+  28  4B3G  A-gly  G.A5         A.GLY566        13.07   90.49   -0.93   10.68   -7.47   85.40    8.35   32.03
+  29  4B3G  A-glu  G.A6         A.GLU24         -8.90  149.59   -3.63   -7.58   -2.92   32.06  -46.80  145.32
+  30  4B3G  A-thr  G.A6         A.THR144         6.13   86.75   -5.03   -2.14    2.77  -35.63    4.05   80.37
+  31  4B3G  A-pro  G.A6         A.PRO243        10.96   93.28   -7.11    8.14    1.83  -40.43   64.89   58.14
+  32  4B3G  A-ser  G.A6         A.SER244        11.13   99.79   -0.07    6.70    8.89  -61.33   -5.11   82.86
+  33  4B3G  A-asp  G.A7         A.ASP87          7.01  -48.17    3.15    3.07    5.46   18.31   30.63  -32.90
+  34  4B3G  A-asn  G.A7         A.ASN141         5.24   90.72   -4.59    0.23    2.52   39.96  -14.26   82.17
+  35  4B3G  A-thr  G.A7         A.THR144        -7.63   48.07   -6.71    3.64   -0.12  -34.43   19.44   27.91
+  36  4B3G  A-pro  G.A7         A.PRO243       -13.25   76.37   -2.45   12.76   -2.59  -11.53   75.44    3.06
+  37  4B3G  A-ser  G.A7         A.SER244        12.29   71.50    1.70   10.22    6.60  -61.54   22.57   30.32
+  38  4B3G  A-asn  G.A7         A.ASN245        13.41  -76.16   -2.31   13.20    0.51   39.74  -57.57  -32.24
+  39  4B3G  A-ile  G.A7         A.ILE246        15.69  -50.32   -0.31   15.69    0.07   16.90   42.53  -21.49
+  40  4B3G  A-thr  G.A7         A.THR351        14.10  -94.49  -10.33    9.47    1.50   68.77  -36.17  -58.68
+  41  4B3G  A-thr  G.A7         A.THR353        12.32  -60.02  -11.67    3.91   -0.44  -20.29   34.16  -45.93
+  42  4B3G  A-gly  G.A8         A.GLY86          5.99   70.19    3.13   -1.76    4.80  -22.40   34.69   58.07
+  43  4B3G  A-asp  G.A8         A.ASP87          3.61  -80.25    2.10    0.73    2.84   24.35    3.14  -77.02
+  44  4B3G  A-ile  G.A8         A.ILE88          4.71  138.39   -3.75    0.85    2.72   -8.09   58.67  131.77
+  45  4B3G  A-asn  G.A8         A.ASN141        -6.80   54.24   -6.15    2.75   -0.96   13.78  -34.25   40.46
+  46  4B3G  A-val  G.A8         A.VAL143       -10.20   69.81   -7.37    6.86    1.62  -10.72  -68.41    9.47
+  47  4B3G  A-thr  G.A8         A.THR144        -9.97  -47.82   -5.09    7.24   -4.59  -35.53   18.80  -26.46
+  48  4B3G  A-arg  G.A8         A.ARG147       -15.03  -47.03   -9.36   11.66   -1.54  -14.47  -44.75   -0.81
+  49  4B3G  A-asn  G.A8         A.ASN245       -12.60 -109.03   -0.19   12.53   -1.35    9.21  -86.22  -74.06
+  50  4B3G  A-arg  G.A8         A.ARG270        10.24  169.60    3.40   -5.21    8.13    7.68   56.70  168.15
+  51  4B3G  A-thr  G.A8         A.THR351       -14.29 -135.09   -8.37   11.45   -1.77  -58.80   65.42 -115.88
+  52  4B3G  A-thr  G.A8         A.THR353       -13.41  -97.30   -9.30    7.97   -5.47   -6.77   21.29  -95.34
+  53  4B3G  A-gly  G.A8         A.GLY354       -13.95   75.81    0.45   10.94   -8.64   69.59  -25.65   16.94
+  54  4B3G  A-ile  G.A9         A.ILE88          8.22  137.31    1.83   -3.62    7.15   33.52   70.41  124.15
+  55  4B3G  A-ile  G.A9         A.ILE105         6.35 -174.02    2.91    5.64    0.34  -17.12  -83.69 -171.87
+  56  4B3G  A-asp  G.A9         A.ASP119        -6.61  122.54   -3.48   -3.22   -4.61    8.04  -50.82  115.50
+  57  4B3G  A-arg  G.A9         A.ARG147        16.31  -89.80  -14.00    3.71    7.50   -7.67   17.80  -88.12
+  58  4B3G  A-his  G.A9         A.HIS267         6.12   52.93   -5.02   -1.60    3.11   33.73   27.17   31.18
+  59  4B3G  A-arg  G.A9         A.ARG270         9.89  110.75   -7.76   -3.92    4.72   10.86   74.27   88.47
+  60  4B3G  A-his  H.A2         B.HIS411         6.46 -162.28   -3.37    5.25    1.67   -7.17   87.32 -155.36
+  61  4B3G  A-lys  H.A2         B.LYS509       -15.68 -129.90  -15.61   -0.77    1.34  -52.38  -56.89 -114.33
+  62  4B3G  A-gly  H.A2         B.GLY589        11.18 -109.49  -11.17   -0.37    0.18   45.20   38.18  -96.83
+  63  4B3G  A-gln  H.A3         B.GLN507         7.42  126.33    5.99    2.01   -3.90   54.88  -67.53  103.02
+  64  4B3G  A-ser  H.A3         B.SER508        10.09  176.55    8.50    2.10    5.02   63.62   60.98  175.20
+  65  4B3G  A-lys  H.A3         B.LYS509       -13.15  -99.29   -1.51   11.58   -6.03   16.04   87.76  -49.14
+  66  4B3G  A-tyr  H.A3         B.TYR541       -14.23   65.20   -2.60   12.80    5.66  -60.36   10.44   23.49
+  67  4B3G  A-arg  H.A3         B.ARG581       -17.61 -114.41   -8.93    7.50  -13.20   15.18   32.57 -110.59
+  68  4B3G  A-val  H.A3         B.VAL588       -14.95 -164.80   -2.03   -4.33  -14.16   47.15   65.71 -159.98
+  69  4B3G  A-gly  H.A3         B.GLY589       -11.61  -59.58   -5.47    8.68   -5.42  -40.37  -36.46  -25.28
+  70  4B3G  A-phe  H.A3         B.PHE590       -11.81 -116.85  -10.77    4.19   -2.39  -69.05  -50.16  -89.18
+  71  4B3G  A-thr  H.A4         B.THR407        -9.62 -160.49   -8.62    3.81   -1.96   19.22  -35.00 -159.23
+  72  4B3G  A-thr  H.A4         B.THR408        -8.37   35.03    5.73    3.59   -4.93   18.97  -17.44   23.93
+  73  4B3G  A-val  H.A4         B.VAL409        -5.93  -92.76    4.26    4.06    0.72  -19.77   75.31  -55.04
+  74  4B3G  A-ser  H.A4         B.SER508         9.27 -165.71   -1.74   -3.84    8.26   51.12   21.18 -163.86
+  75  4B3G  A-pro  H.A4         B.PRO540        12.85   82.92   -4.01   12.17   -0.93   55.62  -39.56   50.27
+  76  4B3G  A-tyr  H.A4         B.TYR541        11.20 -156.94   -7.02   -8.49   -2.03  -72.91    5.29 -151.19
+  77  4B3G  A-asn  H.A4         B.ASN542        10.57  -70.66  -10.34   -2.04    0.81   48.16   11.83  -52.03
+  78  4B3G  A-ser  H.A4         B.SER563       -13.40  -62.94  -12.95    3.17   -1.42   45.50  -10.17  -43.52
+  79  4B3G  A-asp  H.A4         B.ASP565       -12.48  -75.54  -10.06    7.36   -0.57  -52.35   11.04  -55.44
+  80  4B3G  A-phe  H.A4         B.PHE590        11.88 -139.94   -5.80    7.64    7.02   73.48  -38.99 -125.49
+  81  4B3G  A-arg  H.A4         B.ARG596        15.72  -86.60  -11.57    9.07    5.59    5.47  -29.33  -82.27
+  82  4B3G  A-tyr  H.A5         B.TYR145         9.68   73.31   -1.31   -7.74    5.65   38.62   61.39   11.46
+  83  4B3G  A-thr  H.A5         B.THR407        -5.76   90.32   -2.43    1.56   -4.98   58.11    1.43   72.44
+  84  4B3G  A-val  H.A5         B.VAL409        -6.24  -66.65    0.71    2.98   -5.43  -48.57  -27.80  -37.77
+  85  4B3G  A-asn  H.A5         B.ASN542       -15.90  -72.27   -6.12   12.76   -7.25   42.52  -32.52  -50.48
+  86  4B3G  A-ser  H.A5         B.SER563       -15.41  -80.11  -10.71    9.85   -5.08   56.28  -14.33  -57.79
+  87  4B3G  A-asp  H.A5         B.ASP565       -11.91  -53.08   -7.79    8.81   -1.87  -25.21   38.31  -27.48
+  88  4B3G  A-gly  H.A5         B.GLY566        12.40   89.68   -1.71    6.84   10.20  -84.26  -27.60   15.06
+  89  4B3G  A-gln  H.A5         B.GLN568        14.91  -80.73  -14.85    1.12    0.55    9.67   13.89  -79.24
+  90  4B3G  A-glu  H.A6         B.GLU24         -8.44  163.08   -3.44   -7.39   -2.20   31.40  -57.10  159.89
+  91  4B3G  A-thr  H.A6         B.THR144         6.13   86.23   -5.10   -2.46    2.33  -39.32   -8.41   77.97
+  92  4B3G  A-tyr  H.A6         B.TYR145        -7.03  -62.61   -2.13   -6.52    1.55   45.65   42.45   -6.11
+  93  4B3G  A-pro  H.A6         B.PRO243        10.84   95.34   -7.69    7.64    0.22  -46.84   68.28   52.28
+  94  4B3G  A-ser  H.A6         B.SER244        10.82   99.56   -1.22    6.67    8.43  -63.44  -10.52   80.59
+  95  4B3G  A-gly  H.A6         B.GLY566       -14.77   89.49    1.43    9.15  -11.51   85.60  -12.87   25.38
+  96  4B3G  A-asp  H.A7         B.ASP87          6.77  -54.00    2.56    2.93    5.55   18.75   28.65  -42.41
+  97  4B3G  A-asn  H.A7         B.ASN141         5.35   82.30   -4.76    0.21    2.44   35.10  -16.08   74.16
+  98  4B3G  A-thr  H.A7         B.THR144        -7.87   46.17   -6.82    3.92    0.03  -38.44   16.09   20.34
+  99  4B3G  A-pro  H.A7         B.PRO243       -13.51  -87.18   -2.28   12.81   -3.63   -7.96   86.56   -7.38
+ 100  4B3G  A-ser  H.A7         B.SER244       -12.40   69.55    1.53   10.45    6.50  -60.46   25.90   24.00
+ 101  4B3G  A-asn  H.A7         B.ASN245        13.47  -80.69   -1.94   13.33    0.28   39.37  -63.34  -33.32
+ 102  4B3G  A-thr  H.A7         B.THR351        14.42  -98.23  -10.19   10.20    0.28   74.42  -37.47  -57.64
+ 103  4B3G  A-thr  H.A7         B.THR353        12.45  -58.77  -11.52    4.70   -0.23  -18.73   28.45  -48.63
+ 104  4B3G  A-gly  H.A8         B.GLY86          6.16  117.38    2.90   -0.36    5.43   51.44    8.06  109.33
+ 105  4B3G  A-asp  H.A8         B.ASP87          3.37  -86.76    1.54    0.74    2.91   24.60    4.12  -83.79
+ 106  4B3G  A-ile  H.A8         B.ILE88          5.16  137.87   -3.96    1.59    2.89    2.34   59.37  131.11
+ 107  4B3G  A-asn  H.A8         B.ASN141        -7.02   48.78   -6.43    2.68   -0.84   11.72  -32.98   34.53
+ 108  4B3G  A-val  H.A8         B.VAL143       -10.36   67.55   -7.39    7.08    1.63   -7.43  -66.78    7.44
+ 109  4B3G  A-thr  H.A8         B.THR144       -10.15  -52.75   -5.44    7.45   -4.23  -39.64   18.23  -30.40
+ 110  4B3G  A-arg  H.A8         B.ARG147       -14.96  -47.99   -9.32   11.58   -1.62  -10.46  -46.78   -2.30
+ 111  4B3G  A-asn  H.A8         B.ASN245       -12.64 -109.52   -0.14   12.55   -1.44    8.64  -88.52  -72.08
+ 112  4B3G  A-arg  H.A8         B.ARG270        10.46  135.86    3.66   -3.77    9.04  -22.51   75.69  121.74
+ 113  4B3G  A-thr  H.A8         B.THR351       -14.53 -129.88   -8.25   11.94   -0.60  -59.74   61.07 -109.59
+ 114  4B3G  A-thr  H.A8         B.THR353       -13.49  -96.45   -9.36    8.36   -4.97   -8.73   17.74  -94.90
+ 115  4B3G  A-gly  H.A8         B.GLY354       -14.23   77.35   -0.06   11.40   -8.52   67.07  -35.80   15.45
+ 116  4B3G  A-asn  H.A9         B.ASN141        -7.41  107.27    4.60   -4.57   -3.59   -7.10  -50.81   97.74
+ 117  4B3G  A-val  H.A9         B.VAL143        -7.68  179.11    5.23   -5.61    0.27   63.31   57.07  178.79
+ 118  4B3G  A-arg  H.A9         B.ARG147       -12.53   99.95   -1.47    4.86  -11.46  -10.51  -82.02   62.12
+ 119  4B3G  A-arg  H.A9         B.ARG270        17.31  -96.07   -5.87   16.28   -0.09   25.64   67.31  -68.47
+
+****************************************************************************
+List of 25 phosphate/amino-acid H-bonds
+       id    nt-atom         aa-atom            dist     type
+   1  4B3G  OP1@G.A3         OH@A.TYR541        2.55 po4:sidechain
+   2  4B3G  OP1@G.A3         N@A.PHE590         2.85 po4:backbone
+   3  4B3G  OP2@G.A3         NH2@A.ARG581       3.97 po4:sidechain:salt-bridge
+   4  4B3G  OP1@G.A4         OG@A.SER508        2.77 po4:sidechain
+   5  4B3G  OP1@G.A4         N@A.ASN542         3.20 po4:backbone
+   6  4B3G  OP2@G.A4         ND2@A.ASN542       3.17 po4:sidechain
+   7  4B3G  OP1@G.A5         OG@A.SER563        2.98 po4:sidechain
+   8  4B3G  OP2@G.A5         ND2@A.ASN542       2.46 po4:sidechain
+   9  4B3G  OP1@G.A7         N@A.ASN245         3.02 po4:backbone
+  10  4B3G  OP1@G.A8         OG1@A.THR351       2.61 po4:sidechain
+  11  4B3G  OP2@G.A8         OD1@A.ASN245       2.85 po4:sidechain
+  12  4B3G  O3'@G.A7         OG1@A.THR353       3.18 po4:sidechain
+  13  4B3G  OP2@G.A9         NH1@A.ARG270       3.33 po4:sidechain:salt-bridge
+  14  4B3G  OP2@H.A3         OH@B.TYR541        2.38 po4:sidechain
+  15  4B3G  OP1@H.A4         OG@B.SER508        2.59 po4:sidechain
+  16  4B3G  OP1@H.A4         N@B.ASN542         3.42 po4:backbone
+  17  4B3G  OP2@H.A4         ND2@B.ASN542       3.05 po4:sidechain
+  18  4B3G  OP1@H.A5         OG@B.SER563        2.56 po4:sidechain
+  19  4B3G  OP2@H.A5         ND2@B.ASN542       2.63 po4:sidechain
+  20  4B3G  OP1@H.A7         N@B.ASN245         2.85 po4:backbone
+  21  4B3G  OP1@H.A7         OD1@B.ASN245       2.83 po4:sidechain
+  22  4B3G  OP1@H.A8         OG1@B.THR351       2.54 po4:sidechain
+  23  4B3G  OP2@H.A8         OD1@B.ASN245       2.79 po4:sidechain
+  24  4B3G  O3'@H.A7         OG1@B.THR353       3.05 po4:sidechain
+  25  4B3G  OP2@H.A9         NH1@B.ARG270       3.18 po4:sidechain:salt-bridge
+
+****************************************************************************
+List of 9 sugar/amino-acid H-bonds
+       id    nt-atom         aa-atom            dist     type
+   1  4B3G  O2'@G.A3         NE2@A.GLN507       2.97 sugar:sidechain
+   2  4B3G  O2'@G.A7         OG1@A.THR144       2.98 sugar:sidechain
+   3  4B3G  O2'@G.A7         OG1@A.THR353       2.86 sugar:sidechain
+   4  4B3G  O2'@H.A4         OD2@B.ASP565       2.64 sugar:sidechain
+   5  4B3G  O2'@H.A5         OE1@B.GLN568       3.51 sugar:sidechain
+   6  4B3G  O2'@H.A7         OG1@B.THR144       2.73 sugar:sidechain
+   7  4B3G  O2'@H.A7         OG1@B.THR353       2.99 sugar:sidechain
+   8  4B3G  O4'@H.A8         OG1@B.THR144       3.66 sugar:sidechain
+   9  4B3G  O2'@H.A8         ND2@B.ASN141       3.06 sugar:sidechain
+
+****************************************************************************
+List of 9 base/amino-acid H-bonds
+       id    nt-atom         aa-atom            dist     type
+   1  4B3G  N6@G.A5          OE2@A.GLU24        3.44 base:sidechain
+   2  4B3G  N3@G.A7          OG1@A.THR144       2.90 base:sidechain
+   3  4B3G  N6@G.A8          OD1@A.ASP87        2.72 base:sidechain
+   4  4B3G  N1@G.A8          N@A.ILE88          3.79 base:backbone
+   5  4B3G  N6@H.A7          OD1@B.ASP87        3.60 base:sidechain
+   6  4B3G  N3@H.A7          OG1@B.THR144       2.94 base:sidechain
+   7  4B3G  N6@H.A8          OD1@B.ASP87        2.61 base:sidechain
+   8  4B3G  N3@H.A8          ND2@B.ASN141       3.34 base:sidechain
+   9  4B3G  N7@H.A9          ND2@B.ASN141       3.84 base:sidechain
+
+****************************************************************************
+List of 3 base/amino-acid pairs
+       id   nt-aa   nt           aa      vertical-distance   plane-angle
+   1  4B3G  A-glu  G.A5         A.GLU24         0.46             61
+   2  4B3G  A-asn  H.A8         B.ASN141        0.91             58
+   3  4B3G  A-asn  H.A9         B.ASN141        1.18             53
+
+****************************************************************************
+List of 4 base/amino-acid stacks
+       id   nt-aa   nt           aa      vertical-distance   plane-angle
+   1  4B3G  A-his  G.A1         A.HIS411        3.58             12
+   2  4B3G  A-arg  G.A8         A.ARG270        3.07             38
+   3  4B3G  A-gln  H.A3         B.GLN507        5.12             49
+   4  4B3G  A-arg  H.A8         B.ARG270        3.25             17
+
+****************************************************************************
+List of 4 interface stacks with 3+ planar moieties
+  Note: an interface stack is an ordered list of three and more nucleobases
+        and planar moieties of amino acids, assembled together via stacking
+        interactions (nucleobases within to a stem are excluded by default).
+   1 size=3 QAA B.GLN507,H.A3,H.A2
+   2 size=4 HAAA A.HIS411,G.A1,G.A2,G.A3
+   3 size=5 RAAAA A.ARG270,G.A8,G.A7,G.A6,G.A5
+   4 size=5 RAAAA B.ARG270,H.A8,H.A7,H.A6,H.A5
+
+****************************************************************************
+Time used: 00:00:00:01

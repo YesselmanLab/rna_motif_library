@@ -5,14 +5,21 @@ from typing import List, Optional
 
 
 class RNPInteraction:
-    """Class to represent an RNA-Protein interaction."""
+    """
+    Class to represent an RNA-Protein interaction.
+    nt_atom: atom of nucleotide in interaction
+    aa_atom: atom of amino acid in interaction
+    distance: distance between atoms in interaction (angstroms)
+    type: type of interaction (base:sidechain/base:aa/etc)
+    nt_res: residue of nucleotide
+    """
 
     def __init__(self, nt_atom: str, aa_atom: str, dist: float, interaction_type: str):
-        self.nt_atom = nt_atom  # Atom of nucleotide, e.g., 'N6@C.A1534'
-        self.aa_atom = aa_atom  # Atom of amino acid, e.g., 'O@A.VAL281'
-        self.dist = dist  # Distance between the two
-        self.type = interaction_type  # Type of interaction, e.g., 'base:sidechain'
-        self.nt_res = nt_atom.split("@")[1]  # Residue of nucleotide
+        self.nt_atom = nt_atom
+        self.aa_atom = aa_atom
+        self.dist = dist
+        self.type = interaction_type
+        self.nt_res = nt_atom.split("@")[1]
 
 
 def get_rnp_interactions(

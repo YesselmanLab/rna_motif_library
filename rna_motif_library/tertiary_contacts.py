@@ -494,7 +494,7 @@ def __safe_mkdir(directory: str) -> None:
         os.makedirs(directory)
 
 
-# merges the contents of CIF files (for concatenation because the old way was trash)
+# merges the contents of CIF files
 def merge_cif_files(
     file1_path: str, file2_path: str, output_path: str, lines_to_delete: int
 ) -> None:

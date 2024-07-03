@@ -34,6 +34,6 @@ def get_os() -> str:
 
 # Define library paths using the functions defined above.
 LIB_PATH: str = get_lib_path()
-UNITTEST_PATH: str = os.path.join(LIB_PATH, "test/")
+UNITTEST_PATH: str = os.path.join(LIB_PATH, "rna_motif_library/")
 RESOURCES_PATH: str = os.path.join(LIB_PATH, "rna_motif_library/resources/")
 DSSR_EXE: str = os.path.join(RESOURCES_PATH, f"snap/{get_os()}/x3dna-dssr ")

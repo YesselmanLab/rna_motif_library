@@ -1,7 +1,7 @@
 import os
 import re
 import math
-from typing import List, Optional, Any, Tuple, Dict
+from typing import List, Optional, Any, Tuple
 
 import pandas as pd
 import numpy as np
@@ -675,7 +675,7 @@ class DSSRRes:
         self.res_id = spl[1][0:i_num]
 
 
-def get_motifs_from_structure(json_path: str) -> Tuple[List[Dict], Dict, Dict, List]:
+def get_motifs_from_structure(json_path):
     """Obtains motifs from DSSR.
 
     Args:
