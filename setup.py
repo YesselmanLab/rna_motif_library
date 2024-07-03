@@ -15,11 +15,14 @@ setup(
         ],
         package_dir={'rna_motif_library': 'rna_motif_library'},
         py_modules=[
-            'rna_motif_library/dssr_lib',
+            'rna_motif_library/dssr',
+            'rna_motif_library/dssr_hbonds',
+            'rna_motif_library/figure_plotting',
             'rna_motif_library/settings',
             'rna_motif_library/snap',
+            'rna_motif_library/tertiary_contacts',
             'rna_motif_library/update_library',
-            'rna_motif_library/update_library_nmr',
+            'rna_motif_library/update_library_nmr'
         ],
         include_package_data=True,
         install_requires=[

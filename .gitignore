@@ -3,6 +3,12 @@
 /rna_motif_library/motif_interactions/
 /rna_motif_library/motifs/
 /rna_motif_library/structures/
-/rna_motif_library/interactions.csv
-/rna_motif_library/twoway_motif_list.csv
 /rna_motif_library/rna_motif_library.egg-info/
+/rna_motif_library/interactions.csv
+/rna_motif_library/interactions_detailed.csv
+/rna_motif_library/hairpins_tert.csv
+/rna_motif_library/helices_tert.csv
+/rna_motif_library/sstrand_tert.csv
+/rna_motif_library/twoway_motif_list.csv
+/rna_motif_library/motif_residues_list.csv
+/rna_motif_library/single_motif_inter_list.csv
