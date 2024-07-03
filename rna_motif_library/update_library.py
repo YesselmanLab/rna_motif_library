@@ -231,7 +231,7 @@ def __generate_motif_files() -> None:
         )
         f_residues.write("motif_name,residues\n")
         f_twoways.write(
-            "motif_name,motif_type,nucleotides_in_strand_1,nucleotides_in_strand_2,bridging_nts_0,bridging_nts_1\n"
+            "motif_name,motif_type,bridging_nts_0,bridging_nts_1\n"
         )
 
         count = 0
