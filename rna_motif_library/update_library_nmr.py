@@ -3,6 +3,8 @@ import os
 import glob
 import json
 
+import wget
+
 import settings
 import snap
 import dssr
@@ -17,7 +19,7 @@ def __safe_mkdir(dir):
     os.mkdir(dir)
 
 
-"""def __download_cif_files(df):
+def __download_cif_files(df):
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     if not os.path.exists(pdb_dir):
         os.makedirs(pdb_dir)
@@ -34,10 +36,10 @@ def __safe_mkdir(dir):
         else:
             print(pdb_name + " DOWNLOADING")
         wget.download(path, out=out_path)
-    print(f"{count} pdbs already downloaded!")"""
+    print(f"{count} pdbs already downloaded!")
 
 # Only download NMR functions
-def __download_cif_files():
+'''def __download_cif_files():
     # Define the directory to save the PDB files
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     if not os.path.exists(pdb_dir):
@@ -119,7 +121,7 @@ def __download_cif_files():
                 f.write(response.content)
 
     # exit(0)
-
+'''
 
 def __get_dssr_files():
     # pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"

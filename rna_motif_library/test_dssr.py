@@ -1,6 +1,7 @@
 import pandas as pd
 
 import dssr
+import dssr_hbonds
 
 
 def test_dssr_res():
@@ -77,6 +78,9 @@ def test_distance_calculation():
     # Calculate the Euclidean distance using the dssr module
     distance = dssr.euclidean_distance_dataframe(df_1, df_2)
     assert abs(distance - 3.46) < 0.01  # Using a small tolerance for floating point comparison
+
+
+
 
 
 def main():

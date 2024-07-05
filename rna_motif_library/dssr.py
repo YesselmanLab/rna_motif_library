@@ -176,10 +176,6 @@ def count_strands(
                 + "\n"
             )  # + number of nucleotides, which can be found by length of each element in ultra refined chains
 
-        '''
-                    + str(len_0)
-                    + ","
-                    + str(len_1)'''
 
     # Rewrite motif names so the structure is correct
     elif len_chains > 2:

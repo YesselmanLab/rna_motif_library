@@ -99,7 +99,7 @@ def plot_present_hbonds(grouped_hbond_df):
             )
 
 
-def plot_twoway_size_heatmap(csv_path):
+'''def plot_twoway_size_heatmap(csv_path):
     try:
         df = pd.read_csv(csv_path)
         # Check if there is any data in the DataFrame
@@ -190,6 +190,64 @@ def plot_twoway_size_heatmap(csv_path):
     plt.savefig("figure_2_twoway_motif_heatmap.png", dpi=600)
 
     # Don't display the plot
+    plt.close()
+'''
+
+
+def plot_twoway_size_heatmap(csv_path):
+    try:
+        df = pd.read_csv(csv_path)
+        if df.empty:
+            print("No data in the CSV file. Skipping twoway junction processing.")
+            return
+    except pd.errors.EmptyDataError:
+        print(
+            "EmptyDataError: No data in the CSV file regarding twoway junctions. Skipping twoway junction processing.")
+        return
+
+    df["bridging_nts_0"] = df["bridging_nts_0"] - 2
+    df["bridging_nts_1"] = df["bridging_nts_1"] - 2
+    twoway_heatmap_df = df.pivot_table(
+        index="bridging_nts_0", columns="bridging_nts_1", aggfunc="size", fill_value=0
+    )
+
+    x = twoway_heatmap_df.columns.astype(float)
+    y = twoway_heatmap_df.index.astype(float)
+    z = twoway_heatmap_df.values
+    x_mesh, y_mesh = np.meshgrid(x, y)
+
+    x_range = np.arange(int(x.min()), min(int(x.max()) + 1, 12))
+    y_range = np.arange(int(y.min()), min(int(y.max()) + 1, 12))
+
+    sns.set_theme(style="white")
+    plt.figure(figsize=(7, 6))
+    plt.rcParams.update({"font.size": 20})
+    heatmap = plt.hist2d(
+        x_mesh.ravel(),
+        y_mesh.ravel(),
+        weights=z.ravel(),
+        bins=[x_range, y_range],
+        cmap="gray_r"
+    )
+
+    plt.xlabel("Strand 1 Nucleotides")
+    plt.ylabel("Strand 2 Nucleotides")
+
+    plt.xticks(np.arange(x_range.min() + 0.5, x_range.max() + 1.5, 1),
+               [f"{int(tick - 0.5)}" for tick in np.arange(x_range.min() + 0.5, x_range.max() + 1.5, 1)])
+    plt.yticks(np.arange(y_range.min() + 0.5, y_range.max() + 1.5, 1),
+               [f"{int(tick - 0.5)}" for tick in np.arange(y_range.min() + 0.5, y_range.max() + 1.5, 1)])
+
+    plt.gca().set_aspect("equal", adjustable="box")
+    # Adjust margins
+    plt.subplots_adjust(left=0.1, right=0.88, top=0.95, bottom=0.06)
+
+    divider = make_axes_locatable(plt.gca())
+    cax = divider.append_axes("right", size="5%", pad=0.1)
+    cbar = plt.colorbar(heatmap[3], cax=cax)
+    cbar.set_label("Count")
+
+    plt.savefig("figure_2_twoway_motif_heatmap.png", dpi=600)
     plt.close()
 
 
