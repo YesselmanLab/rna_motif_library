@@ -38,6 +38,7 @@ def __download_cif_files(df):
         wget.download(path, out=out_path)
     print(f"{count} pdbs already downloaded!")
 
+
 # Only download NMR functions
 '''def __download_cif_files():
     # Define the directory to save the PDB files
@@ -122,6 +123,7 @@ def __download_cif_files(df):
 
     # exit(0)
 '''
+
 
 def __get_dssr_files():
     # pdb_dir = "/Users/jyesselm/Downloads/nmr_structures"

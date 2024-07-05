@@ -99,7 +99,7 @@ def plot_present_hbonds(grouped_hbond_df):
             )
 
 
-'''def plot_twoway_size_heatmap(csv_path):
+"""def plot_twoway_size_heatmap(csv_path):
     try:
         df = pd.read_csv(csv_path)
         # Check if there is any data in the DataFrame
@@ -191,7 +191,7 @@ def plot_present_hbonds(grouped_hbond_df):
 
     # Don't display the plot
     plt.close()
-'''
+"""
 
 
 def plot_twoway_size_heatmap(csv_path):
@@ -202,7 +202,8 @@ def plot_twoway_size_heatmap(csv_path):
             return
     except pd.errors.EmptyDataError:
         print(
-            "EmptyDataError: No data in the CSV file regarding twoway junctions. Skipping twoway junction processing.")
+            "EmptyDataError: No data in the CSV file regarding twoway junctions. Skipping twoway junction processing."
+        )
         return
 
     df["bridging_nts_0"] = df["bridging_nts_0"] - 2
@@ -227,16 +228,26 @@ def plot_twoway_size_heatmap(csv_path):
         y_mesh.ravel(),
         weights=z.ravel(),
         bins=[x_range, y_range],
-        cmap="gray_r"
+        cmap="gray_r",
     )
 
     plt.xlabel("Strand 1 Nucleotides")
     plt.ylabel("Strand 2 Nucleotides")
 
-    plt.xticks(np.arange(x_range.min() + 0.5, x_range.max() + 1.5, 1),
-               [f"{int(tick - 0.5)}" for tick in np.arange(x_range.min() + 0.5, x_range.max() + 1.5, 1)])
-    plt.yticks(np.arange(y_range.min() + 0.5, y_range.max() + 1.5, 1),
-               [f"{int(tick - 0.5)}" for tick in np.arange(y_range.min() + 0.5, y_range.max() + 1.5, 1)])
+    plt.xticks(
+        np.arange(x_range.min() + 0.5, x_range.max() + 1.5, 1),
+        [
+            f"{int(tick - 0.5)}"
+            for tick in np.arange(x_range.min() + 0.5, x_range.max() + 1.5, 1)
+        ],
+    )
+    plt.yticks(
+        np.arange(y_range.min() + 0.5, y_range.max() + 1.5, 1),
+        [
+            f"{int(tick - 0.5)}"
+            for tick in np.arange(y_range.min() + 0.5, y_range.max() + 1.5, 1)
+        ],
+    )
 
     plt.gca().set_aspect("equal", adjustable="box")
     # Adjust margins

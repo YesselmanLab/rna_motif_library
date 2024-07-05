@@ -230,9 +230,7 @@ def __generate_motif_files() -> None:
             "name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2\n"
         )
         f_residues.write("motif_name,residues\n")
-        f_twoways.write(
-            "motif_name,motif_type,bridging_nts_0,bridging_nts_1\n"
-        )
+        f_twoways.write("motif_name,motif_type,bridging_nts_0,bridging_nts_1\n")
 
         count = 0
         for pdb_path in pdbs:
