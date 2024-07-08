@@ -97,6 +97,20 @@ def __safe_mkdir(directory: str) -> None:
         os.makedirs(directory)
 
 
+def __file_exists_in_dir(filename, directory):
+    """
+    Function to check if file exists in directory or subdirectories
+
+    :param filename: name of file to search for
+    :param directory: directory to look inside (includes subfolders)
+    :return: returns Boolean (does the file exist or not?)
+    """
+    for root, dirs, files in os.walk(directory):
+        if filename in files:
+            return True
+    return False
+
+
 def __download_cif_files(csv_path: str) -> None:
     """Downloads CIF files based on a CSV that specifies the non-redundant set.
 
@@ -238,8 +252,8 @@ def __generate_motif_files() -> None:
             #    continue
             name = os.path.basename(pdb_path)[:-4]
             print(f"{count + 1}, {pdb_path}, {name}")
-            if name != "6S0X":
-                continue
+            #if name != "6S0X":
+            #    continue
 
             json_path = os.path.join(
                 settings.LIB_PATH, "data/dssr_output", f"{name}.json"
@@ -319,6 +333,17 @@ def __find_tertiary_contacts():
     )
     tertiary_contacts.find_unique_tertiary_contacts()
     unique_tert_contact_df = tertiary_contacts.delete_duplicate_contacts()
+    """# Delete tert contact if motif doesn't exist
+    motifs_dir = 'motifs'
+    filtered_df = unique_tert_contact_df.copy()
+    for index, row in unique_tert_contact_df.iterrows():
+        motif_1_file = f"{row['motif_1']}.cif"
+        motif_2_file = f"{row['motif_2']}.cif"
+        motif_1_exists = __file_exists_in_dir(motif_1_file, motifs_dir)
+        motif_2_exists = __file_exists_in_dir(motif_2_file, motifs_dir)
+        if not motif_1_exists or not motif_2_exists:
+            filtered_df = filtered_df.drop(index)
+    unique_tert_contact_df = filtered_df"""
     tertiary_contacts.print_tert_contacts_to_csv(unique_tert_contact_df)
     tertiary_contacts.plot_tert_histograms(unique_tert_contact_df)
 
@@ -419,7 +444,7 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
     print("SNAP processing finished on", time_string)
-    __generate_motif_files()
+    # __generate_motif_files()
     print("!!!!! MOTIF EXTRACTION FINISHED !!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -427,7 +452,7 @@ def main():
     __find_tertiary_contacts()
     print("!!!!! TERTIARY CONTACT PROCESSING FINISHED !!!!!")
     print("Plotting data...")
-    __final_statistics()
+    # __final_statistics()
     print("!!!!! PLOTS COMPLETED !!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")

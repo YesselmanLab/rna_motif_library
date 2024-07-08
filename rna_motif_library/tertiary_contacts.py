@@ -31,8 +31,8 @@ def load_motif_residues(motif_residues_csv_path: str) -> dict:
 
 
 def find_tertiary_contacts(
-    interactions_from_csv: pd.core.groupby.generic.DataFrameGroupBy,
-    list_of_res_in_motifs: Dict[str, List[str]],
+        interactions_from_csv: pd.core.groupby.generic.DataFrameGroupBy,
+        list_of_res_in_motifs: Dict[str, List[str]],
 ) -> None:
     """
     Find tertiary contacts from interaction data and write them to CSV files.
@@ -139,8 +139,8 @@ def find_tertiary_contacts(
                 # res_1 is present in the current motif, res_2 is elsewhere so need to find it
                 # now find which motif res_2 is in
                 for (
-                    motif_name,
-                    motif_residue_list,
+                        motif_name,
+                        motif_residue_list,
                 ) in dict_with_source_motif_PDB_motifs.items():
                     # Check if the given string is present in the list
                     if res_2 in motif_residue_list:
@@ -183,8 +183,8 @@ def find_tertiary_contacts(
                 res_2_data = (res_2, name_of_source_motif)
                 # now find which motif res_1 is in
                 for (
-                    motif_name,
-                    motif_residue_list,
+                        motif_name,
+                        motif_residue_list,
                 ) in dict_with_source_motif_PDB_motifs.items():
                     # Check if the given string is present in the list
                     if res_1 in motif_residue_list:
@@ -446,8 +446,8 @@ def print_tert_contacts_to_csv(unique_tert_contact_df: pd.DataFrame) -> None:
             motif_1_hairpin_len = 0
             motif_2_hairpin_len = 0
         if not (
-            (motif_1_name == "HAIRPIN" or motif_2_name == "HAIRPIN")
-            and ((0 < motif_1_hairpin_len < 3) or (0 < motif_2_hairpin_len < 3))
+                (motif_1_name == "HAIRPIN" or motif_2_name == "HAIRPIN")
+                and ((0 < motif_1_hairpin_len < 3) or (0 < motif_2_hairpin_len < 3))
         ):
             directory_to_search = "motifs"
             motif_cif_1 = str(motif_1) + ".cif"
@@ -466,7 +466,7 @@ def print_tert_contacts_to_csv(unique_tert_contact_df: pd.DataFrame) -> None:
             if motif_types:
                 __safe_mkdir("tertiary_contacts/" + motif_types)
                 tert_contact_out_path = (
-                    "tertiary_contacts/" + motif_types + "/" + tert_contact_name
+                        "tertiary_contacts/" + motif_types + "/" + tert_contact_name
                 )
             else:
                 tert_contact_out_path = "tertiary_contacts/" + tert_contact_name
@@ -496,7 +496,7 @@ def __safe_mkdir(directory: str) -> None:
 
 # merges the contents of CIF files
 def merge_cif_files(
-    file1_path: str, file2_path: str, output_path: str, lines_to_delete: int
+        file1_path: str, file2_path: str, output_path: str, lines_to_delete: int
 ) -> None:
     """
     Merge the contents of two CIF files into one.
@@ -605,10 +605,10 @@ def plot_sstrands_in_tert(unique_tert_contact_df: pd.DataFrame) -> None:
     # Filter rows where types are equal to "SSTRAND"
     sstrand_tert_contact_df_1 = sstrand_tert_contact_df_1[
         sstrand_tert_contact_df_1["type_1"] == "SSTRAND"
-    ]
+        ]
     sstrand_tert_contact_df_2 = sstrand_tert_contact_df_2[
         sstrand_tert_contact_df_2["type_2"] == "SSTRAND"
-    ]
+        ]
     # split
     split_column_1 = sstrand_tert_contact_df_1["motif_1"].str.split(".")
     split_column_2 = sstrand_tert_contact_df_2["motif_2"].str.split(".")
@@ -689,10 +689,10 @@ def plot_helices_in_tert(unique_tert_contact_df: pd.DataFrame) -> None:
     # Filter rows where types are equal to "HELIX"
     helix_tert_contact_df_1 = helix_tert_contact_df_1[
         helix_tert_contact_df_1["type_1"] == "HELIX"
-    ]
+        ]
     helix_tert_contact_df_2 = helix_tert_contact_df_2[
         helix_tert_contact_df_2["type_2"] == "HELIX"
-    ]
+        ]
     # split
     split_column_1 = helix_tert_contact_df_1["motif_1"].str.split(".")
     split_column_2 = helix_tert_contact_df_2["motif_2"].str.split(".")
@@ -835,7 +835,7 @@ def plot_hairpins_in_tert(unique_tert_contact_df: pd.DataFrame) -> None:
 
 
 def plot_hbonds_per_tert(
-    hbond_counts_in_terts: pd.DataFrame, tick_positions: np.ndarray
+        hbond_counts_in_terts: pd.DataFrame, tick_positions: np.ndarray
 ) -> None:
     """
     Plot a histogram of the number of hydrogen bonds per tertiary contact.
@@ -850,7 +850,7 @@ def plot_hbonds_per_tert(
     plt.hist(
         hbond_counts_in_terts["sum_hbonds"],
         bins=np.arange(
-            hbond_counts_in_terts["sum_hbonds"].min() - 0.5,
+            hbond_counts_in_terts["sum_hbonds"].min() + 0.5,
             hbond_counts_in_terts["sum_hbonds"].max() + 1.5,
             1,
         ),
@@ -859,9 +859,11 @@ def plot_hbonds_per_tert(
     )  # adjust bins as needed
     plt.xlabel("H-bonds per tertiary contact")
     plt.ylabel("Count")
+    # Set ticks to start at 2 and step every 5 values
+    adjusted_tick_positions = np.arange(2, hbond_counts_in_terts["sum_hbonds"].max() + 1, 5)
+    plt.xticks(adjusted_tick_positions, [str(tick) for tick in adjusted_tick_positions])
     # Add tick marks on x-axis
-    plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]])
-    # plt.xticks(np.arange(new_tert_df['hairpin_length'].min(), new_tert_df['hairpin_length'].max() + 1), 5)
+    # plt.xticks(tick_positions[::5], [int(tick) for tick in tick_positions[::5]])
     # Save the plot as PNG file
     plt.savefig("figure_3_hbonds_per_tert.png", dpi=600)
     # Close the plot
