@@ -234,8 +234,8 @@ def __generate_motif_files() -> None:
 
         count = 0
         for pdb_path in pdbs:
-            if count > 21:
-                continue
+            #if count > 21:
+            #    continue
             name = os.path.basename(pdb_path)[:-4]
             print(f"{count + 1}, {pdb_path}, {name}")
 

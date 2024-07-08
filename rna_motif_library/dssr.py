@@ -387,7 +387,7 @@ def write_res_coords_to_pdb(
 
     if df_list:
         result_df = pd.concat(df_list, axis=0, ignore_index=True)
-        if sub_dir_parts[0] in ["NWAY", "TWOWAY"]:
+        if sub_dir_parts[0] not in ["HELIX", "HAIRPIN"]:
             basepair_ends, motif_name = count_strands(
                 result_df, motif_name=motif_name, twoway_jct_csv=twoway_csv
             )
@@ -402,8 +402,9 @@ def write_res_coords_to_pdb(
                 name_path = os.path.join(new_path, motif_name)
                 make_dir(new_path)
                 cif_path = f"{name_path}.cif"
+
             else:
-                sub_dir_parts[0] = "HAIRPIN"
+                sub_dir_parts[0] = "SSTRAND"
 
         if sub_dir_parts[0] == "HAIRPIN":
             hairpin_bridge_length = len(nts) - 2
