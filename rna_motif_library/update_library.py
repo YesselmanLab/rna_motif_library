@@ -238,6 +238,8 @@ def __generate_motif_files() -> None:
             #    continue
             name = os.path.basename(pdb_path)[:-4]
             print(f"{count + 1}, {pdb_path}, {name}")
+            if name != "6S0X":
+                continue
 
             json_path = os.path.join(
                 settings.LIB_PATH, "data/dssr_output", f"{name}.json"
@@ -417,12 +419,12 @@ def main():
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
     print("SNAP processing finished on", time_string)
-    # __generate_motif_files()
+    __generate_motif_files()
     print("!!!!! MOTIF EXTRACTION FINISHED !!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
     print("Motif extraction finished on", time_string)
-    # __find_tertiary_contacts()
+    __find_tertiary_contacts()
     print("!!!!! TERTIARY CONTACT PROCESSING FINISHED !!!!!")
     print("Plotting data...")
     __final_statistics()
