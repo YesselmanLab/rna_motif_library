@@ -5,7 +5,7 @@ preprint: (insert paper link here)
 
 ## Data Download
 
-A default CSV is in the directory `data/csvs`.<br>
+A default CSV (`nrlist_3.320_3.5A.csv`) is in the directory `data/csvs`.<br>
 Make sure to download the most recent data (3.5 Å resolution) used in this project from:
 http://rna.bgsu.edu/rna3dhub/nrlist
 
