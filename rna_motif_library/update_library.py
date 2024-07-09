@@ -3,6 +3,8 @@ import glob
 import os
 import datetime
 import warnings
+import concurrent.futures
+from math import ceil
 
 from typing import Dict
 import pandas as pd
@@ -105,37 +107,44 @@ def __file_exists_in_dir(filename, directory):
     return False
 
 
-def __download_cif_files(csv_path: str) -> None:
+def download_cif_files(csv_path: str, threads: int) -> None:
     """Downloads CIF files based on a CSV that specifies the non-redundant set.
 
     Args:
         csv_path: The path to the CSV file that contains data about which PDB files to download.
+        threads: The number of threads to use for downloading.
     """
-    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
+    pdb_dir = os.path.join(settings.LIB_PATH, "data", "pdbs")
     count = 0
-
     # Ensure the directory exists
-    if not os.path.exists(pdb_dir):
-        os.makedirs(pdb_dir)
-
+    os.makedirs(pdb_dir, exist_ok=True)
     # Define the structure of the CSV file
     column_names = ["equivalence_class", "represent", "class_members"]
+    # Read the CSV
+    df = pd.read_csv(csv_path, header=None, names=column_names)
+    total_rows = len(df)
+    chunk_size = ceil(total_rows / threads)
 
-    # Read the CSV and process each row
-    for i, row in pd.read_csv(csv_path, header=None, names=column_names).iterrows():
-        pdb_name = row["represent"].split("|")[0]
-        out_path = os.path.join(pdb_dir, f"{pdb_name}.cif")
+    def download_chunk(chunk: pd.DataFrame) -> int:
+        nonlocal count
+        local_count = 0
+        for _, row in chunk.iterrows():
+            pdb_name = row["represent"].split("|")[0]
+            out_path = os.path.join(pdb_dir, f"{pdb_name}.cif")
+            if os.path.isfile(out_path):
+                local_count += 1
+                continue
+            print(f"{pdb_name} DOWNLOADING")
+            wget.download(
+                f"https://files.rcsb.org/download/{pdb_name}.cif", out=out_path
+            )
+        return local_count
 
-        if os.path.isfile(out_path):
-            count += 1
-            # Uncomment to see logs of already downloaded files
-            # print(f"{pdb_name} ALREADY DOWNLOADED!")
-            continue
-
-        print(f"{pdb_name} DOWNLOADING")
-        # Download the CIF file
-        wget.download(f"https://files.rcsb.org/download/{pdb_name}.cif", out=out_path)
-
+    chunks = [df[i : i + chunk_size] for i in range(0, total_rows, chunk_size)]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+        futures = [executor.submit(download_chunk, chunk) for chunk in chunks]
+        for future in concurrent.futures.as_completed(futures):
+            count += future.result()
     print(f"{count} PDBs already downloaded!")
 
 
@@ -227,7 +236,7 @@ def __generate_motif_files() -> None:
 
     # Open files for output
     with open("interactions.csv", "w") as f_inter_overview, open(
-            "interactions_detailed.csv", "w"
+        "interactions_detailed.csv", "w"
     ) as f_inter, open("motif_residues_list.csv", "w") as f_residues, open(
         "twoway_motif_list.csv", "w"
     ) as f_twoways:
@@ -356,10 +365,10 @@ def __final_statistics():
     Returns:
         None
     """
-    motif_directory = (
-        "/Users/jyesselm/PycharmProjects/rna_motif_library/motifs"
+    motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/motifs"
+    tert_motif_directory = (
+        "/Users/jyesselm/PycharmProjects/rna_motif_library/tertiary_contacts"
     )
-    tert_motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/tertiary_contacts"
     tert_contact_csv_directory = "unique_tert_contacts.csv"
 
     figure_plotting.plot_motif_counts(motif_directory=motif_directory)
@@ -398,7 +407,7 @@ def __final_statistics():
     filtered_hbond_df = hbond_df[
         hbond_df["res_1_name"].isin(canon_res_list)
         & hbond_df["res_2_name"].isin(canon_res_list)
-        ]
+    ]
 
     # reverse orders are sorted into the same group
     filtered_hbond_df["res_atom_pair"] = filtered_hbond_df.apply(
@@ -422,9 +431,10 @@ def main():
     current_time = datetime.datetime.now()
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
     csv_directory = os.path.join(settings.LIB_PATH, "data/csvs/")
-    csv_files = [file for file in os.listdir(csv_directory) if file.endswith('.csv')]
+    csv_files = [file for file in os.listdir(csv_directory) if file.endswith(".csv")]
     csv_path = os.path.join(csv_directory, csv_files[0])
-    __download_cif_files(csv_path)
+    download_cif_files(csv_path)
+    exit()
     print("!!!!! CIF FILES DOWNLOADED !!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")

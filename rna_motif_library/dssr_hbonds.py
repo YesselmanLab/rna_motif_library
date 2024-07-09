@@ -214,7 +214,7 @@ def print_interactions_to_csv(
     type_2 = assign_res_type(atom_2, nt_2)
     # Here we count the stuff for interactions.csv
     # first set the class
-    if type_1 is not "aa":
+    if type_1 != "aa":
         hbond_class = type_1 + ":" + type_2
     else:
         hbond_class = type_2 + ":" + type_1
