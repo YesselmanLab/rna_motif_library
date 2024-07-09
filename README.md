@@ -34,7 +34,10 @@ python update_library.py
 # Everything will run and you will have the results when it's done
 ```
 
-When finished, you will see several new directories, CSVs, and figures in the project directory.<br>
+When finished, you will see several new directories, CSVs, and figures in the project directory. <br>
+`motifs` - motifs found in the non-redundant set go here, categorized by type, size, and sequence
+`interactions` - individual residues which hydrogen-bond with each other go here, classified by which residues are interacting
+`tertiary_contacts` - tertiary contacts found go here, classified by what two types of motifs are in the contact
 
 ## Figure generation
 
