@@ -34,15 +34,16 @@ python update_library.py
 # Everything will run and you will have the results when it's done
 ```
 
+When finished, you will see several new directories, CSVs, and figures in the project directory.<br>
+
 ## Figure generation
 
-The figures used were generated 
+The figures used were generated whilst running `update_library.py` using the default CSV inside the directory `data/csvs`.<br>
+For further details, check out `figure_plotting.py`.
 
+Figures 2 and 3 are PNGs; they are in the project directory.<br>
+Figure 4 also consists of PNGs, however, every interaction/atom combination gets its own figure.<br>
+These figures can be found in the directory `heatmaps`.<br>
+Data for each respective figure is broken down in CSV files, which are in `heatmap_data`.<br>
 
-
-
-
-How to run unit tests:<br>
-python test_dssr.py - tests DSSR functions<br>
-python test_snap.py - tests SNAP functions<br>
 
