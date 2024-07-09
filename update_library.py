@@ -357,9 +357,9 @@ def __final_statistics():
         None
     """
     motif_directory = (
-        "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/motifs"
+        "/Users/jyesselm/PycharmProjects/rna_motif_library/motifs"
     )
-    tert_motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/rna_motif_library/tertiary_contacts"
+    tert_motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/tertiary_contacts"
     tert_contact_csv_directory = "unique_tert_contacts.csv"
 
     figure_plotting.plot_motif_counts(motif_directory=motif_directory)
