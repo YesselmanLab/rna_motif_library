@@ -24,6 +24,8 @@ def get_os() -> str:
     system = platform.system()
     if system == "Darwin":
         return "osx"
+    elif system == "Linux":
+        return "linux"
     else:
         raise SystemError(f"{system} is not supported currently")
 
