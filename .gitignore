@@ -1,8 +1,4 @@
-/build
-/data/dssr_output
-/data/pdbs
-/data/snap_output
-/venv
-/motifs
-/interactions
-/tertiary_contacts
+build/
+data/
+resources/
+*.pyc
