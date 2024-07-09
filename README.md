@@ -4,11 +4,12 @@ A Python package for RNA Motif Library creation.<br>
 preprint: (insert paper link here)
 
 ## Data Download
+
+A default CSV is in the directory `data/csvs`.<br>
 Make sure to download the most recent data (3.5 Å resolution) used in this project from:
 http://rna.bgsu.edu/rna3dhub/nrlist
 
-Move this CSV file to the directory "data/csvs/" in the current project directory.<br>
-An old CSV is in there by default; make sure to delete the old one and use the most recent.
+In the directory `data/csvs`, delete the default CSV file and replace with your download .<br>
 
 ## Installation
 
