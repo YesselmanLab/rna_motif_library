@@ -22,9 +22,7 @@ def get_os() -> str:
         SystemError: If the operating system is neither Linux nor Darwin (macOS).
     """
     system = platform.system()
-    if system == "Linux":
-        return "linux"
-    elif system == "Darwin":
+    if system == "Darwin":
         return "osx"
     else:
         raise SystemError(f"{system} is not supported currently")
@@ -35,8 +33,3 @@ LIB_PATH: str = get_lib_path()
 UNITTEST_PATH: str = os.path.join(LIB_PATH, "rna_motif_library/")
 RESOURCES_PATH: str = os.path.join(LIB_PATH, "rna_motif_library/resources/")
 DSSR_EXE: str = os.path.join(RESOURCES_PATH, f"snap/{get_os()}/x3dna-dssr ")
-
-"""file_path = os.path.realpath(__file__)
-spl = file_path.split("/")
-base_dir = "/".join(spl[:-2])
-return base_dir"""

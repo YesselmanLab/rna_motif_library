@@ -17,12 +17,10 @@ setup(
         'rna_motif_library.settings',
         'rna_motif_library.snap',
         'rna_motif_library.tertiary_contacts',
-        'rna_motif_library.update_library',
-        'rna_motif_library.update_library_nmr'
+        'rna_motif_library.update_library'
     ],
     include_package_data=True,
     install_requires=[
-        'pydssr~=0.0.3',
         'biopandas~=0.4.1',
         'pandas~=1.5.3',
         'wget~=3.2',
@@ -30,7 +28,8 @@ setup(
         'requests~=2.28.2',
         'numpy~=1.24.2',
         'seaborn~=0.13.1',
-        'matplotlib~=3.7.1'
+        'matplotlib~=3.7.1',
+        'pydssr @ git+https://github.com/YesselmanLab/py_dssr.git#egg=pydssr'
     ],
     zip_safe=False,
     keywords='RNA motif library',

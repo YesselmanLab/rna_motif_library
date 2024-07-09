@@ -18,12 +18,6 @@ from biopandas.mmcif.mmcif_parser import load_cif_data
 from biopandas.mmcif.engines import mmcif_col_types
 from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
 
-# NOT CODE THINGS but things to do nonetheless
-# TODO read RNA 3d structure database papers
-# TODO look into packaging this stuff and getting ready to distribute as a python package
-# TODO write a real readme file (does anything need to be downloaded, set up, etc)
-# TODO figures; describe what's in figure and then explain results in a paragraph
-
 # list of residue types to filter out
 canon_res_list = [
     "A",
@@ -252,9 +246,8 @@ def __generate_motif_files() -> None:
             #    continue
             name = os.path.basename(pdb_path)[:-4]
             print(f"{count + 1}, {pdb_path}, {name}")
-            # if name != "6S0X":
+            # if name != "7EQG":
             #    continue
-
             json_path = os.path.join(
                 settings.LIB_PATH, "data/dssr_output", f"{name}.json"
             )
@@ -428,7 +421,9 @@ def main():
     warnings.filterwarnings("ignore")
     current_time = datetime.datetime.now()
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.320_3.5A.csv"
+    csv_directory = os.path.join(settings.LIB_PATH, "data/csvs/")
+    csv_files = [file for file in os.listdir(csv_directory) if file.endswith('.csv')]
+    csv_path = os.path.join(csv_directory, csv_files[0])
     __download_cif_files(csv_path)
     print("!!!!! CIF FILES DOWNLOADED !!!!!")
     current_time = datetime.datetime.now()
