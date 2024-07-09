@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='rna_motif_library',
@@ -8,16 +8,15 @@ setup(
     author='Joe Yesselman',
     author_email='jyesselm@unl.edu',
     url='https://github.com/jyesselm/rna_motif_library',
-    packages=['rna_motif_library'],
-    package_dir={'rna_motif_library': 'rna_motif_library'},
+    packages=find_packages(),  # Automatically find packages
     py_modules=[
-        'rna_motif_library.dssr',
-        'rna_motif_library.dssr_hbonds',
-        'rna_motif_library.figure_plotting',
-        'rna_motif_library.settings',
-        'rna_motif_library.snap',
-        'rna_motif_library.tertiary_contacts',
-        'rna_motif_library.update_library'
+        'dssr',
+        'dssr_hbonds',
+        'figure_plotting',
+        'settings',
+        'snap',
+        'tertiary_contacts',
+        'update_library'
     ],
     include_package_data=True,
     install_requires=[

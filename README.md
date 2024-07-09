@@ -14,13 +14,13 @@ In the directory `data/csvs`, delete the default CSV file and replace with your 
 ## Installation
 
 ```bash
+# Create a new conda environment
+conda create --name rna_motif_env python=3.8
+conda activate rna_motif_env
+
 # Clone the repository and navigate to project directory
 git clone https://github.com/YesselmanLab/rna_motif_library.git
 cd rna_motif_library
-
-# Set up virtual environment
-python -m venv venv
-source venv/bin/activate
 
 # Install the package
 pip install .
