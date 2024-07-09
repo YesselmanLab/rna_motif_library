@@ -13,7 +13,7 @@ An old CSV is in there by default; make sure to delete the old one and use the m
 ## Installation
 
 ```bash
-# Clone the repository
+# Clone the repository and navigate to project directory
 git clone https://github.com/YesselmanLab/rna_motif_library.git
 cd rna_motif_library
 
@@ -21,12 +21,22 @@ cd rna_motif_library
 python -m venv venv
 source venv/bin/activate
 
+# Install the package
+pip install .
 
 ```
 
-To run the code:<br>
-python update_library.py - will create the library
+## Creating the library
 
+```bash
+# To create the library
+python update_library.py
+# Everything will run and you will have the results when it's done
+```
+
+## Figure generation
+
+The figures used were generated 
 
 
 
