@@ -1,10 +1,9 @@
 # RNA Motif Library
 
-A Python package for RNA Motif Library creation.
-
-Before running:
-
-- Download CSV of nonredundant set from the website:
+A Python package for RNA Motif Library creation.<br>
+ 
+## Data Download
+Make sure to download the data used in this project from:
 http://rna.bgsu.edu/rna3dhub/nrlist/release/3.262/3.5A
 
 Move this CSV file to the directory "data/csvs/"
