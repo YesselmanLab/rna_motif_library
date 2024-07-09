@@ -233,7 +233,7 @@ def __generate_motif_files() -> None:
 
     # Open files for output
     with open("interactions.csv", "w") as f_inter_overview, open(
-        "interactions_detailed.csv", "w"
+            "interactions_detailed.csv", "w"
     ) as f_inter, open("motif_residues_list.csv", "w") as f_residues, open(
         "twoway_motif_list.csv", "w"
     ) as f_twoways:
@@ -248,11 +248,11 @@ def __generate_motif_files() -> None:
 
         count = 0
         for pdb_path in pdbs:
-            #if count > 21:
+            # if count > 21:
             #    continue
             name = os.path.basename(pdb_path)[:-4]
             print(f"{count + 1}, {pdb_path}, {name}")
-            #if name != "6S0X":
+            # if name != "6S0X":
             #    continue
 
             json_path = os.path.join(
@@ -405,7 +405,7 @@ def __final_statistics():
     filtered_hbond_df = hbond_df[
         hbond_df["res_1_name"].isin(canon_res_list)
         & hbond_df["res_2_name"].isin(canon_res_list)
-    ]
+        ]
 
     # reverse orders are sorted into the same group
     filtered_hbond_df["res_atom_pair"] = filtered_hbond_df.apply(
@@ -429,17 +429,17 @@ def main():
     current_time = datetime.datetime.now()
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
     csv_path = settings.LIB_PATH + "/data/csvs/nrlist_3.320_3.5A.csv"
-    # __download_cif_files(csv_path)
+    __download_cif_files(csv_path)
     print("!!!!! CIF FILES DOWNLOADED !!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
     print("Download finished on", time_string)
-    # __get_dssr_files()
+    __get_dssr_files()
     print("!!!!! DSSR PROCESSING FINISHED !!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
     print("DSSR processing finished on", time_string)
-    # __get_snap_files()
+    __get_snap_files()
     print("!!!!! SNAP PROCESSING FINISHED !!!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
