@@ -1,3 +1,4 @@
+import concurrent.futures
 import csv
 import os
 from typing import Dict, List, Optional
@@ -30,7 +31,7 @@ def load_motif_residues(motif_residues_csv_path: str) -> dict:
     return motif_residues_dict
 
 
-def find_tertiary_contacts(
+'''def find_tertiary_contacts(
         interactions_from_csv: pd.core.groupby.generic.DataFrameGroupBy,
         list_of_res_in_motifs: Dict[str, List[str]],
 ) -> None:
@@ -221,6 +222,64 @@ def find_tertiary_contacts(
                             + res_type_2
                             + "\n"
                         )
+'''
+
+def find_tertiary_contacts(interactions_from_csv, list_of_res_in_motifs, threads):
+    """
+    Multithreaded function to find tertiary contacts from interaction data and write them to CSV files.
+
+    Args:
+        interactions_from_csv: DataFrameGroupBy object of interactions grouped by motif name.
+        list_of_res_in_motifs: Dictionary of motif names to list of residues in each motif.
+        threads: Number of threads to use for parallel processing.
+    """
+    # Opening files outside the thread pool to avoid issues with concurrent writes
+    with open("tertiary_contact_list.csv", "w") as f_tert, open("single_motif_inter_list.csv", "w") as f_single:
+        # Write headers
+        f_tert.write("motif_1,motif_2,type_1,type_2,res_1,res_2,hairpin_len_1,hairpin_len_2,res_type_1,res_type_2\n")
+        f_single.write("motif,type_1,type_2,res_1,res_2,nt_1,nt_2,distance,angle,res_type_1,res_type_2\n")
+
+        def process_interaction_group(interaction_group):
+            name_of_source_motif, interaction_data_df = interaction_group
+            # Extract motif and CIF ID from the motif name
+            name_split = name_of_source_motif.split(".")
+            source_motif_type = name_split[0]
+            source_motif_cif_id = name_split[1]
+            residues_in_source_motif = list_of_res_in_motifs.get(name_of_source_motif, [])
+            dict_with_source_motif_PDB_motifs = {
+                key: value for key, value in list_of_res_in_motifs.items() if key.split(".")[1] == source_motif_cif_id
+            }
+
+            outputs = []
+
+            for _, row in interaction_data_df.iterrows():
+                res_1, res_2 = row['res_1'], row['res_2']
+                type_1, type_2 = row['type_1'], row['type_2']
+                res_type_1, res_type_2 = row['res_type_1'], row['res_type_2']
+                nt_1, nt_2 = "nt" if len(type_1) == 1 else "aa", "nt" if len(type_2) == 1 else "aa"
+                distance, angle = str(row['distance']), str(row['angle'])
+
+                if res_1 in residues_in_source_motif and res_2 in residues_in_source_motif:
+                    # Both residues are in the same motif, skip
+                    continue
+                elif res_1 in residues_in_source_motif or res_2 in residues_in_source_motif:
+                    # One of the residues is in the motif, tertiary contact
+                    outputs.append(f"{name_of_source_motif},{type_1},{type_2},{res_1},{res_2},{nt_1},{nt_2},{distance},{angle},{res_type_1},{res_type_2}\n")
+                else:
+                    # Neither of the residues is in the motif, single motif interaction
+                    f_single.write(f"{name_of_source_motif},{type_1},{type_2},{res_1},{res_2},{nt_1},{nt_2},{distance},{angle},{res_type_1},{res_type_2}\n")
+
+            return outputs
+
+        # Create a thread pool and process groups concurrently
+        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+            results = executor.map(process_interaction_group, interactions_from_csv)
+
+        # Write all results to the tertiary contact list file
+        for result in results:
+            for line in result:
+                f_tert.write(line)
+
 
 
 def find_unique_tertiary_contacts():

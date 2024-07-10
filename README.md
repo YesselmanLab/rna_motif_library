@@ -14,7 +14,7 @@ In the directory `data/csvs`, delete the default CSV file and replace with your 
 ## Installation
 
 ```bash
-# Create a new conda environment
+# Create and activate new conda environment
 conda create --name rna_motif_env python=3.8
 conda activate rna_motif_env
 
@@ -30,6 +30,8 @@ pip install .
 ## Creating the library
 
 ```bash
+# Make sure you put the CSV in the right place or you will get errors
+
 # To create the library first we need to download the PDBs specified in the CSV
 python cli.py download_cifs --threads 8
 # Replace "8" with the number of CPU cores you want to use
@@ -50,6 +52,9 @@ python cli.py generate_motifs --threads 8
 python cli.py find_tertiary_contacts --threads 8
 # Replace "8" with the number of CPU cores you want to use
 
+# Finally, make the figures
+python cli.py make_figures
+# This one is pretty quick, no multithreading needed
 
 
 ```

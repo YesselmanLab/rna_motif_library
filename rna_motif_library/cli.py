@@ -47,5 +47,19 @@ def generate_motifs(threads):
     pass
 
 
+@cli.command(name='find_tertiary_contacts')  # Set command name
+@click.option("--threads", default=1, help="Number of threads to use.")
+def find_tertiary_contacts(threads):
+    warnings.filterwarnings("ignore")
+    update_library.__find_tertiary_contacts(threads)
+
+
+
+@cli.command(name='make_figures')  # Set command name
+def make_figures():
+    warnings.filterwarnings("ignore")
+    update_library.__final_statistics()
+
+
 if __name__ == "__main__":
     cli()

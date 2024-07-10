@@ -329,6 +329,7 @@ def __get_snap_files(threads: int) -> None:
             count += 1
 '''
 
+
 def __generate_motif_files(threads: int) -> None:
     """Processes PDB files to extract and analyze motif interactions, storing detailed outputs."""
     pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
@@ -383,7 +384,7 @@ def __generate_motif_files(threads: int) -> None:
 
     # Write results to files after all threads complete their execution
     with open("interactions.csv", "w") as f_inter_overview, open(
-        "interactions_detailed.csv", "w"
+            "interactions_detailed.csv", "w"
     ) as f_inter, open("motif_residues_list.csv", "w") as f_residues, open(
         "twoway_motif_list.csv", "w"
     ) as f_twoways:
@@ -405,7 +406,7 @@ def __generate_motif_files(threads: int) -> None:
                 f_twoways.write(data['twoways'] + "\n")
 
 
-def __find_tertiary_contacts():
+def __find_tertiary_contacts(threads: int):
     """
         Finds and processes tertiary contacts in RNA motifs.print("Finding tertiary contacts...")
     # loads into a dictionary all residues in given motifs; motif names as keys
@@ -413,8 +414,7 @@ def __find_tertiary_contacts():
         groups the interactions by motif names, finds tertiary contacts, identifies unique# Read the interactions CSV file into a DataFrame and obtain its contents
         tertiary contacts, removes duplicates, prints the results to a CSV file, and plots histograms.interactions_csv_df = pd.read_csv("interactions_detailed.csv")
     # Group the DataFrame by the 'name' column # and Convert the DataFrameGroupBy back into individual DataFrames
-        Args:grouped_interactions_csv_df = interactions_csv_df.groupby("name")
-            None
+        Args: threads (int)
     # Iterate over each motif (group) to find tertiary contacts
         Returns:tertiary_contacts.find_tertiary_contacts(interactions_from_csv=grouped_interactions_csv_df,
             None                                         list_of_res_in_motifs=motif_residues_dict)
@@ -423,23 +423,15 @@ def __find_tertiary_contacts():
     grouped_interactions_csv_df = interactions_from_csv.groupby("name")
     motif_residues_csv_path = "motif_residues_list.csv"
     motif_residues_dict = tertiary_contacts.load_motif_residues(motif_residues_csv_path)
+
     tertiary_contacts.find_tertiary_contacts(
         interactions_from_csv=grouped_interactions_csv_df,
         list_of_res_in_motifs=motif_residues_dict,
+        threads=threads
     )
+
     tertiary_contacts.find_unique_tertiary_contacts()
     unique_tert_contact_df = tertiary_contacts.delete_duplicate_contacts()
-    """# Delete tert contact if motif doesn't exist
-    motifs_dir = 'motifs'
-    filtered_df = unique_tert_contact_df.copy()
-    for index, row in unique_tert_contact_df.iterrows():
-        motif_1_file = f"{row['motif_1']}.cif"
-        motif_2_file = f"{row['motif_2']}.cif"
-        motif_1_exists = __file_exists_in_dir(motif_1_file, motifs_dir)
-        motif_2_exists = __file_exists_in_dir(motif_2_file, motifs_dir)
-        if not motif_1_exists or not motif_2_exists:
-            filtered_df = filtered_df.drop(index)
-    unique_tert_contact_df = filtered_df"""
     tertiary_contacts.print_tert_contacts_to_csv(unique_tert_contact_df)
     tertiary_contacts.plot_tert_histograms(unique_tert_contact_df)
 
@@ -459,9 +451,9 @@ def __final_statistics():
     Returns:
         None
     """
-    motif_directory = "/Users/jyesselm/PycharmProjects/rna_motif_library/motifs"
+    motif_directory = os.path.join(settings.LIB_PATH, "motifs")
     tert_motif_directory = (
-        "/Users/jyesselm/PycharmProjects/rna_motif_library/tertiary_contacts"
+        os.path.join(settings.LIB_PATH, "tertiary_contacts")
     )
     tert_contact_csv_directory = "unique_tert_contacts.csv"
 
@@ -501,7 +493,7 @@ def __final_statistics():
     filtered_hbond_df = hbond_df[
         hbond_df["res_1_name"].isin(canon_res_list)
         & hbond_df["res_2_name"].isin(canon_res_list)
-    ]
+        ]
 
     # reverse orders are sorted into the same group
     filtered_hbond_df["res_atom_pair"] = filtered_hbond_df.apply(
@@ -516,7 +508,6 @@ def __final_statistics():
     # next, group by (res_1_name, res_2_name) as well as by atoms involved in the interaction
     # grouped_hbond_df = filtered_hbond_df.groupby(["res_1_name", "res_2_name", "atom_1", "atom_2"])
     grouped_hbond_df = filtered_hbond_df.groupby(["res_atom_pair"])
-
     figure_plotting.plot_present_hbonds(grouped_hbond_df=grouped_hbond_df)
 
 
@@ -524,32 +515,29 @@ def main():
     warnings.filterwarnings("ignore")
     current_time = datetime.datetime.now()
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-
-
-    exit(0)
     print("!!!!! CIF FILES DOWNLOADED !!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
     print("Download finished on", time_string)
-    __get_dssr_files()
+    # __get_dssr_files()
     print("!!!!! DSSR PROCESSING FINISHED !!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
     print("DSSR processing finished on", time_string)
-    __get_snap_files()
+    # __get_snap_files()
     print("!!!!! SNAP PROCESSING FINISHED !!!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
     print("SNAP processing finished on", time_string)
-    __generate_motif_files()
+    # __generate_motif_files()
     print("!!!!! MOTIF EXTRACTION FINISHED !!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
     print("Motif extraction finished on", time_string)
-    __find_tertiary_contacts()
+    # __find_tertiary_contacts()
     print("!!!!! TERTIARY CONTACT PROCESSING FINISHED !!!!!")
     print("Plotting data...")
-    __final_statistics()
+    # __final_statistics()
     print("!!!!! PLOTS COMPLETED !!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
