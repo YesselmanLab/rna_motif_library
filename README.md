@@ -5,7 +5,7 @@ preprint: (insert paper link here)
 
 ## Data Download
 
-A default CSV (`nrlist_3.320_3.5A.csv`) is in the directory `data/csvs`.<br>
+A default CSV (`nrlist_3.262_3.5A.csv`) is in the directory `data/csvs`.<br>
 Make sure to download the most recent data (3.5 Å resolution) from:
 http://rna.bgsu.edu/rna3dhub/nrlist
 
@@ -30,9 +30,28 @@ pip install .
 ## Creating the library
 
 ```bash
-# To create the library
-python update_library.py
-# Everything will run and you will have the results when it's done
+# To create the library first we need to download the PDBs specified in the CSV
+python cli.py download_cifs --threads 8
+# Replace "8" with the number of CPU cores you want to use
+
+# After downloading we need to process with DSSR
+python cli.py process_dssr --threads 8
+# Replace "8" with the number of CPU cores you want to use
+
+# After processing with DSSR we need to process with SNAP
+python cli.py process_snap --threads 8
+# Replace "8" with the number of CPU cores you want to use
+
+# After processing with SNAP we need to generate motif files
+python cli.py generate_motifs --threads 8
+# Replace "8" with the number of CPU cores you want to use
+
+# After generating motifs we find tertiary contacts
+python cli.py find_tertiary_contacts --threads 8
+# Replace "8" with the number of CPU cores you want to use
+
+
+
 ```
 
 When finished, you will see several new directories, CSVs, and figures in the project directory. <br>

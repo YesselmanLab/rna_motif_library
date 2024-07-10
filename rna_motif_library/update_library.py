@@ -1,8 +1,11 @@
+from concurrent.futures import ThreadPoolExecutor
+
 import wget
 import glob
 import os
 import datetime
 import warnings
+import threading
 import concurrent.futures
 from math import ceil
 
@@ -107,109 +110,124 @@ def __file_exists_in_dir(filename, directory):
     return False
 
 
-def download_cif_files(csv_path: str, threads: int) -> None:
+def __download_cif_files(csv_path: str, threads: int) -> None:
     """Downloads CIF files based on a CSV that specifies the non-redundant set.
 
     Args:
         csv_path: The path to the CSV file that contains data about which PDB files to download.
         threads: The number of threads to use for downloading.
     """
-    pdb_dir = os.path.join(settings.LIB_PATH, "data", "pdbs")
-    count = 0
+    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
+
     # Ensure the directory exists
-    os.makedirs(pdb_dir, exist_ok=True)
+    if not os.path.exists(pdb_dir):
+        os.makedirs(pdb_dir)
+
     # Define the structure of the CSV file
     column_names = ["equivalence_class", "represent", "class_members"]
+
     # Read the CSV
     df = pd.read_csv(csv_path, header=None, names=column_names)
-    total_rows = len(df)
-    chunk_size = ceil(total_rows / threads)
 
-    def download_chunk(chunk: pd.DataFrame) -> int:
-        nonlocal count
-        local_count = 0
-        for _, row in chunk.iterrows():
-            pdb_name = row["represent"].split("|")[0]
-            out_path = os.path.join(pdb_dir, f"{pdb_name}.cif")
-            if os.path.isfile(out_path):
-                local_count += 1
-                continue
-            print(f"{pdb_name} DOWNLOADING")
-            wget.download(
-                f"https://files.rcsb.org/download/{pdb_name}.cif", out=out_path
-            )
-        return local_count
+    def download_pdb(row):
+        pdb_name = row[1].split("|")[0]  # Access 'represent' by index since it's the second column
+        out_path = os.path.join(pdb_dir, f"{pdb_name}.cif")
 
-    chunks = [df[i : i + chunk_size] for i in range(0, total_rows, chunk_size)]
+        if os.path.isfile(out_path):
+            return f"{pdb_name} ALREADY DOWNLOADED"
+
+        print(f"{pdb_name} DOWNLOADING")
+        wget.download(f"https://files.rcsb.org/download/{pdb_name}.cif", out=out_path)
+        return f"{pdb_name} DOWNLOADED"
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-        futures = [executor.submit(download_chunk, chunk) for chunk in chunks]
-        for future in concurrent.futures.as_completed(futures):
-            count += future.result()
-    print(f"{count} PDBs already downloaded!")
+        results = executor.map(download_pdb, df.itertuples(index=False))
+
+    already_downloaded = sum(1 for result in results if 'ALREADY DOWNLOADED' in result)
+    print(f"{already_downloaded} PDBs already downloaded!")
+
+    # Clean up files with parentheses in their names
+    files_with_parentheses = glob.glob(os.path.join(pdb_dir, "*(*.cif"))
+    for file in files_with_parentheses:
+        os.remove(file)
+        print(f"Removed file: {file}")
+
+    # Count remaining .cif files
+    remaining_files = glob.glob(os.path.join(pdb_dir, "*.cif"))
+    print(f"Total .cif files after cleanup: {len(remaining_files)}")
 
 
-def __get_dssr_files() -> None:
+def __get_dssr_files(threads: int) -> None:
     """Runs DSSR on PDB files to extract and store secondary structure information in JSON format."""
-    count = 1
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     dssr_path = settings.DSSR_EXE
-    out_path = settings.LIB_PATH + "/data/dssr_output"
+    out_path = settings.LIB_PATH + "/data/dssr_output/"
 
     # Ensure output directory exists
     if not os.path.exists(out_path):
-        os.mkdir(out_path)
+        os.makedirs(out_path, exist_ok=True)
 
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
+    count = 0
+    lock = threading.Lock()
 
-    for pdb_path in pdbs:
-        s = os.path.getsize(pdb_path)  # size of file in bytes
-        print(count, pdb_path, s)  # Print the count, file path, and size
-
-        # Uncomment to skip files larger than 10 MB
-        # if s > 10000000:
-        #     continue
-
+    def process_pdb(pdb_path):
+        nonlocal count
         name = os.path.basename(pdb_path)[:-4]
+        json_out_path = os.path.join(out_path, name + ".json")
 
-        if os.path.isfile(os.path.join(out_path, name + ".json")):
-            count += 1
-            continue
+        if os.path.isfile(json_out_path):
+            return 0  # File already processed, no need to increment count
 
         # Writes raw JSON data
-        write_dssr_json_output_to_file(
-            dssr_path, pdb_path, os.path.join(out_path, name + ".json")
-        )
+        write_dssr_json_output_to_file(dssr_path, pdb_path, json_out_path)
 
-        count += 1
+        with lock:
+            count += 1
+            print(count, pdb_path)
+
+        return 1
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+        executor.map(process_pdb, pdbs)
+
+    print(f"{count} PDB files processed")
 
 
-def __get_snap_files() -> None:
+def __get_snap_files(threads: int) -> None:
     """Runs snap to extract RNP interactions for each PDB file and stores the results in .out files."""
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
-    out_path = settings.LIB_PATH + "/data/snap_output"
+    out_path = settings.LIB_PATH + "/data/snap_output/"
 
     # Ensure the output directory exists
     if not os.path.isdir(out_path):
-        os.mkdir(out_path)
+        os.makedirs(out_path, exist_ok=True)
 
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
-    count = 1
 
-    for pdb_path in pdbs:
-        print(count, pdb_path)  # Debug: prints the count and current PDB path
+    def process_pdb(pdb_path):
         name = os.path.basename(pdb_path)[:-4]
         out_file = os.path.join(out_path, f"{name}.out")
 
         if os.path.isfile(out_file):
-            count += 1
-            continue
+            return f"{name}.out ALREADY EXISTS"
 
-        print(pdb_path)  # Debug: prints the PDB path being processed
+        print(f"Processing {pdb_path}")  # Debug: prints the PDB path being processed
         snap.__generate_out_file(pdb_path, out_file)  # Call to generate the .out file
-        count += 1
+        return f"{name}.out GENERATED"
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+        results = list(executor.map(process_pdb, pdbs))
+
+    # Count the results
+    already_exists_count = sum(1 for result in results if 'ALREADY EXISTS' in result)
+    generated_count = sum(1 for result in results if 'GENERATED' in result)
+
+    print(f"{already_exists_count} files already existed.")
+    print(f"{generated_count} new .out files generated.")
 
 
-def __generate_motif_files() -> None:
+'''def __generate_motif_files(threads: int) -> None:
     """Processes PDB files to extract and analyze motif interactions, storing detailed outputs."""
     pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
@@ -309,6 +327,82 @@ def __generate_motif_files() -> None:
                     f_inter_overview,
                 )
             count += 1
+'''
+
+def __generate_motif_files(threads: int) -> None:
+    """Processes PDB files to extract and analyze motif interactions, storing detailed outputs."""
+    pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
+    pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
+
+    # Define directories for output
+    motif_dir = os.path.join("motifs", "nways", "all")
+    __safe_mkdir(motif_dir)
+
+    # Interaction types
+    hbond_vals = [
+        "base:base", "base:sugar", "base:phos", "sugar:base", "sugar:sugar", "sugar:phos",
+        "phos:base", "phos:sugar", "phos:phos", "base:aa", "sugar:aa", "phos:aa",
+    ]
+
+    # Multithreaded processing of PDB files
+    def process_pdb(pdb_path):
+        name = os.path.basename(pdb_path)[:-4]
+        json_path = os.path.join(settings.LIB_PATH, "data/dssr_output", f"{name}.json")
+        rnp_out_path = os.path.join(settings.LIB_PATH, "data/snap_output", f"{name}.out")
+        rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
+        rnp_data = [
+            (
+                interaction.nt_atom.split("@")[1], interaction.aa_atom.split("@")[1],
+                interaction.nt_atom.split("@")[0], interaction.aa_atom.split("@")[0],
+                str(interaction.dist), interaction.type.split(":")[0], interaction.type.split(":")[1]
+            )
+            for interaction in rnp_interactions
+        ]
+
+        pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
+        (
+            motifs, motif_hbonds, motif_interactions, hbonds_in_motif,
+        ) = dssr.get_motifs_from_structure(json_path)
+        hbonds_in_motif.extend(rnp_data)
+        unique_inter_motifs = list(set(hbonds_in_motif))
+
+        results = []
+        for m in motifs:
+            if m.name.split(".")[0] not in ["TWOWAY", "NWAY", "HAIRPIN", "HELIX", "SSTRAND"]:
+                continue
+            interactions = motif_interactions.get(m.name, None)
+            result = dssr.write_res_coords_to_pdb(
+                m.nts_long, interactions, pdb_model, os.path.join(motif_dir, m.name),
+                unique_inter_motifs
+            )
+            results.append(result)
+        return results
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+        all_results = executor.map(process_pdb, pdbs)
+
+    # Write results to files after all threads complete their execution
+    with open("interactions.csv", "w") as f_inter_overview, open(
+        "interactions_detailed.csv", "w"
+    ) as f_inter, open("motif_residues_list.csv", "w") as f_residues, open(
+        "twoway_motif_list.csv", "w"
+    ) as f_twoways:
+
+        # Write headers
+        f_inter_overview.write("name,type,size," + ",".join(hbond_vals) + "\n")
+        f_inter.write(
+            "name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2\n"
+        )
+        f_residues.write("motif_name,residues\n")
+        f_twoways.write("motif_name,motif_type,bridging_nts_0,bridging_nts_1\n")
+
+        # Process and write all results from threads
+        for results in all_results:
+            for data in results:
+                f_inter_overview.write(data['overview'] + "\n")
+                f_inter.write(data['details'] + "\n")
+                f_residues.write(data['residues'] + "\n")
+                f_twoways.write(data['twoways'] + "\n")
 
 
 def __find_tertiary_contacts():
@@ -430,11 +524,9 @@ def main():
     warnings.filterwarnings("ignore")
     current_time = datetime.datetime.now()
     start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    csv_directory = os.path.join(settings.LIB_PATH, "data/csvs/")
-    csv_files = [file for file in os.listdir(csv_directory) if file.endswith(".csv")]
-    csv_path = os.path.join(csv_directory, csv_files[0])
-    download_cif_files(csv_path)
-    exit()
+
+
+    exit(0)
     print("!!!!! CIF FILES DOWNLOADED !!!!!")
     current_time = datetime.datetime.now()
     time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
