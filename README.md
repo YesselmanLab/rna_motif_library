@@ -74,4 +74,27 @@ Figure 4 also consists of PNGs, however, every interaction/atom combination gets
 These figures can be found in the directory `heatmaps`.<br>
 Data for each respective figure is broken down in CSV files, which are in `heatmap_data`.<br>
 
+## Potential errors
+
+I've found some bugs relating to bugged files that can be fixed by rerunning the code.
+If you run into such problems, I have some remedies down below:<br>
+
+```bash
+# One such error is a JSON decode error.
+# You might run into this while generating motifs.
+# It will generate some error message that says something along the lines of "expected a bracket"
+# You didn't do anything wrong, DSSR may have just bugged out
+# To fix this, run the following again:
+python cli.py process_dssr --threads 8
+# Replace "8" with the number of CPU cores you want to use
+# This should fix any bugged DSSR JSON outputs
+
+# Another such error is a blank or otherwise bugged .out file
+# In this case just run the SNAP command again:
+python cli.py process_snap --threads 8
+# Replace "8" with the number of CPU cores you want to use
+# This should fix any empty/bugged .out files
+
+
+```
 

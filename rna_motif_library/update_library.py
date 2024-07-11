@@ -7,7 +7,6 @@ import datetime
 import warnings
 import threading
 import concurrent.futures
-from math import ceil
 
 from typing import Dict
 import pandas as pd
@@ -110,7 +109,46 @@ def __file_exists_in_dir(filename, directory):
     return False
 
 
+
+
 def __download_cif_files(csv_path: str, threads: int) -> None:
+    """Downloads CIF files based on a CSV that specifies the non-redundant set.
+
+    Args:
+        csv_path: The path to the CSV file that contains data about which PDB files to download.
+        threads: number of threads to use
+    """
+    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
+
+    # Ensure the directory exists
+    if not os.path.exists(pdb_dir):
+        os.makedirs(pdb_dir)
+
+    # Read the CSV
+    df = pd.read_csv(csv_path, header=None, names=["equivalence_class", "represent", "class_members"])
+
+    def download_pdbs(row):
+        pdb_name = row.represent.split("|")[0]
+        out_path = os.path.join(pdb_dir, f"{pdb_name}.cif")
+
+        if os.path.isfile(out_path):
+            print(f"{pdb_name} ALREADY DOWNLOADED!")
+        else:
+            print(f"{pdb_name} DOWNLOADING")
+            wget.download(f"https://files.rcsb.org/download/{pdb_name}.cif", out=out_path)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+        # Map each row to the download function
+        executor.map(download_pdbs, df.itertuples(index=False))
+
+    # Clean up files with parentheses in their names (duplicates)
+    files_with_parentheses = glob.glob(os.path.join(pdb_dir, "*(*.cif"))
+    for file in files_with_parentheses:
+        os.remove(file)
+        print(f"Removed file: {file}")
+
+
+'''def __download_cif_files(csv_path: str, threads: int) -> None:
     """Downloads CIF files based on a CSV that specifies the non-redundant set.
 
     Args:
@@ -155,7 +193,7 @@ def __download_cif_files(csv_path: str, threads: int) -> None:
     # Count remaining .cif files
     remaining_files = glob.glob(os.path.join(pdb_dir, "*.cif"))
     print(f"Total .cif files after cleanup: {len(remaining_files)}")
-
+'''
 
 def __get_dssr_files(threads: int) -> None:
     """Runs DSSR on PDB files to extract and store secondary structure information in JSON format."""
@@ -227,7 +265,7 @@ def __get_snap_files(threads: int) -> None:
     print(f"{generated_count} new .out files generated.")
 
 
-'''def __generate_motif_files(threads: int) -> None:
+def __generate_motif_files(threads: int) -> None:
     """Processes PDB files to extract and analyze motif interactions, storing detailed outputs."""
     pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
@@ -306,31 +344,36 @@ def __get_snap_files(threads: int) -> None:
             unique_inter_motifs = list(set(hbonds_in_motif))
 
             for m in motifs:
-                if m.name.split(".")[0] not in [
-                    "TWOWAY",
-                    "NWAY",
-                    "HAIRPIN",
-                    "HELIX",
-                    "SSTRAND",
-                ]:
-                    continue
-                interactions = motif_interactions.get(m.name, None)
-                dssr.write_res_coords_to_pdb(
-                    m.nts_long,
-                    interactions,
-                    pdb_model,
-                    os.path.join(motif_dir, m.name),
-                    unique_inter_motifs,
-                    f_inter,
-                    f_residues,
-                    f_twoways,
-                    f_inter_overview,
-                )
+
+                def process_motifs(m, motif_interactions, pdb_model, motif_dir, unique_inter_motifs, f_inter,
+                                   f_residues, f_twoways, f_inter_overview):
+                    if m.name.split(".")[0] not in ["TWOWAY", "NWAY", "HAIRPIN", "HELIX", "SSTRAND"]:
+                        return  # Skip motifs not of the specified types
+
+                    interactions = motif_interactions.get(m.name, None)
+                    dssr.write_res_coords_to_pdb(
+                        m.nts_long,
+                        interactions,
+                        pdb_model,
+                        os.path.join(motif_dir, m.name),
+                        unique_inter_motifs,
+                        f_inter,
+                        f_residues,
+                        f_twoways,
+                        f_inter_overview,
+                    )
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+                    # Pass each motif to the executor
+                    futures = [executor.submit(process_motifs, m, motif_interactions, pdb_model, motif_dir,
+                                               unique_inter_motifs, f_inter, f_residues, f_twoways, f_inter_overview)
+                               for m in motifs]
+                    concurrent.futures.wait(futures)  # Optional: wait for all futures to complete
+
             count += 1
-'''
 
 
-def __generate_motif_files(threads: int) -> None:
+'''def __generate_motif_files(threads: int) -> None:
     """Processes PDB files to extract and analyze motif interactions, storing detailed outputs."""
     pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
@@ -348,9 +391,13 @@ def __generate_motif_files(threads: int) -> None:
     # Multithreaded processing of PDB files
     def process_pdb(pdb_path):
         name = os.path.basename(pdb_path)[:-4]
-        json_path = os.path.join(settings.LIB_PATH, "data/dssr_output", f"{name}.json")
-        rnp_out_path = os.path.join(settings.LIB_PATH, "data/snap_output", f"{name}.out")
+        json_path = settings.LIB_PATH + "/data/dssr_output/" + f"{name}.json"
+        rnp_out_path = settings.LIB_PATH + "/data/snap_output/" + f"{name}.out"
+
+        print(json_path)
+        print(rnp_out_path)
         rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
+
         rnp_data = [
             (
                 interaction.nt_atom.split("@")[1], interaction.aa_atom.split("@")[1],
@@ -369,6 +416,7 @@ def __generate_motif_files(threads: int) -> None:
 
         results = []
         for m in motifs:
+            print(m.name)
             if m.name.split(".")[0] not in ["TWOWAY", "NWAY", "HAIRPIN", "HELIX", "SSTRAND"]:
                 continue
             interactions = motif_interactions.get(m.name, None)
@@ -376,6 +424,7 @@ def __generate_motif_files(threads: int) -> None:
                 m.nts_long, interactions, pdb_model, os.path.join(motif_dir, m.name),
                 unique_inter_motifs
             )
+            print(result)
             results.append(result)
         return results
 
@@ -404,7 +453,7 @@ def __generate_motif_files(threads: int) -> None:
                 f_inter.write(data['details'] + "\n")
                 f_residues.write(data['residues'] + "\n")
                 f_twoways.write(data['twoways'] + "\n")
-
+'''
 
 def __find_tertiary_contacts(threads: int):
     """
