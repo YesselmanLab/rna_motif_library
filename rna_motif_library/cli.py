@@ -38,11 +38,9 @@ def process_snap(threads):
 
 
 @cli.command(name='generate_motifs')  # Set command name
-@click.option("--threads", default=1, help="Number of threads to use.")
-def generate_motifs(threads):
+def generate_motifs():
     warnings.filterwarnings("ignore")
-    update_library.__generate_motif_files(threads)
-    pass
+    update_library.__generate_motif_files()
 
 
 @cli.command(name='find_tertiary_contacts')  # Set command name

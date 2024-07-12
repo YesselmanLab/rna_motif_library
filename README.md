@@ -45,8 +45,8 @@ python cli.py process_snap --threads 8
 # Replace "8" with the number of CPU cores you want to use
 
 # After processing with SNAP we need to generate motif files
-python cli.py generate_motifs --threads 8
-# Replace "8" with the number of CPU cores you want to use
+python cli.py generate_motifs
+# No threading for this one
 
 # After generating motifs we find tertiary contacts
 python cli.py find_tertiary_contacts --threads 8
