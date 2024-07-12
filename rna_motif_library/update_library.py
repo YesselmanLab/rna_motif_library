@@ -109,8 +109,6 @@ def __file_exists_in_dir(filename, directory):
     return False
 
 
-
-
 def __download_cif_files(csv_path: str, threads: int) -> None:
     """Downloads CIF files based on a CSV that specifies the non-redundant set.
 
@@ -195,6 +193,7 @@ def __download_cif_files(csv_path: str, threads: int) -> None:
     print(f"Total .cif files after cleanup: {len(remaining_files)}")
 '''
 
+
 def __get_dssr_files(threads: int) -> None:
     """Runs DSSR on PDB files to extract and store secondary structure information in JSON format."""
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
@@ -264,196 +263,6 @@ def __get_snap_files(threads: int) -> None:
     print(f"{already_exists_count} files already existed.")
     print(f"{generated_count} new .out files generated.")
 
-
-'''def __generate_motif_files(threads: int) -> None:
-    """Processes PDB files to extract and analyze motif interactions, storing detailed outputs."""
-    pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
-    pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
-
-    # Define directories for output
-    motif_dir = os.path.join("motifs", "nways", "all")
-    __safe_mkdir(motif_dir)
-
-    # Interaction types
-    hbond_vals = [
-        "base:base",
-        "base:sugar",
-        "base:phos",
-        "sugar:base",
-        "sugar:sugar",
-        "sugar:phos",
-        "phos:base",
-        "phos:sugar",
-        "phos:phos",
-        "base:aa",
-        "sugar:aa",
-        "phos:aa",
-    ]
-
-    # Open files for output
-    with open("interactions.csv", "w") as f_inter_overview, open(
-        "interactions_detailed.csv", "w"
-    ) as f_inter, open("motif_residues_list.csv", "w") as f_residues, open(
-        "twoway_motif_list.csv", "w"
-    ) as f_twoways:
-
-        # Write headers
-        f_inter_overview.write("name,type,size," + ",".join(hbond_vals) + "\n")
-        f_inter.write(
-            "name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2\n"
-        )
-        f_residues.write("motif_name,residues\n")
-        f_twoways.write("motif_name,motif_type,bridging_nts_0,bridging_nts_1\n")
-
-        count = 0
-        for pdb_path in pdbs:
-            # if count > 21:
-            #    continue
-            name = os.path.basename(pdb_path)[:-4]
-            print(f"{count + 1}, {pdb_path}, {name}")
-            # if name != "7EQG":
-            #    continue
-            json_path = os.path.join(
-                settings.LIB_PATH, "data/dssr_output", f"{name}.json"
-            )
-            rnp_out_path = os.path.join(
-                settings.LIB_PATH, "data/snap_output", f"{name}.out"
-            )
-            rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
-            rnp_data = [
-                (
-                    interaction.nt_atom.split("@")[1],
-                    interaction.aa_atom.split("@")[1],
-                    interaction.nt_atom.split("@")[0],
-                    interaction.aa_atom.split("@")[0],
-                    str(interaction.dist),
-                    interaction.type.split(":")[0],
-                    interaction.type.split(":")[1],
-                )
-                for interaction in rnp_interactions
-            ]
-
-            pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
-            (
-                motifs,
-                motif_hbonds,
-                motif_interactions,
-                hbonds_in_motif,
-            ) = dssr.get_motifs_from_structure(json_path)
-            hbonds_in_motif.extend(rnp_data)
-            unique_inter_motifs = list(set(hbonds_in_motif))
-
-            for m in motifs:
-
-                def process_motifs(m, motif_interactions, pdb_model, motif_dir, unique_inter_motifs, f_inter,
-                                   f_residues, f_twoways, f_inter_overview):
-                    if m.name.split(".")[0] not in ["TWOWAY", "NWAY", "HAIRPIN", "HELIX", "SSTRAND"]:
-                        return  # Skip motifs not of the specified types
-
-                    interactions = motif_interactions.get(m.name, None)
-                    dssr.write_res_coords_to_pdb(
-                        m.nts_long,
-                        interactions,
-                        pdb_model,
-                        os.path.join(motif_dir, m.name),
-                        unique_inter_motifs,
-                        f_inter,
-                        f_residues,
-                        f_twoways,
-                        f_inter_overview,
-                    )
-
-                with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-                    # Pass each motif to the executor
-                    futures = [executor.submit(process_motifs, m, motif_interactions, pdb_model, motif_dir,
-                                               unique_inter_motifs, f_inter, f_residues, f_twoways, f_inter_overview)
-                               for m in motifs]
-                    concurrent.futures.wait(futures)  # Optional: wait for all futures to complete
-
-            count += 1
-'''
-
-'''def __generate_motif_files(threads: int) -> None:
-    """Processes PDB files to extract and analyze motif interactions, storing detailed outputs."""
-    pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
-    pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
-
-    # Define directories for output
-    motif_dir = os.path.join("motifs", "nways", "all")
-    __safe_mkdir(motif_dir)
-
-    # Interaction types
-    hbond_vals = [
-        "base:base", "base:sugar", "base:phos", "sugar:base", "sugar:sugar", "sugar:phos",
-        "phos:base", "phos:sugar", "phos:phos", "base:aa", "sugar:aa", "phos:aa",
-    ]
-
-    # Multithreaded processing of PDB files
-    def process_pdb(pdb_path):
-        name = os.path.basename(pdb_path)[:-4]
-        json_path = settings.LIB_PATH + "/data/dssr_output/" + f"{name}.json"
-        rnp_out_path = settings.LIB_PATH + "/data/snap_output/" + f"{name}.out"
-
-        print(json_path)
-        print(rnp_out_path)
-        rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
-
-        rnp_data = [
-            (
-                interaction.nt_atom.split("@")[1], interaction.aa_atom.split("@")[1],
-                interaction.nt_atom.split("@")[0], interaction.aa_atom.split("@")[0],
-                str(interaction.dist), interaction.type.split(":")[0], interaction.type.split(":")[1]
-            )
-            for interaction in rnp_interactions
-        ]
-
-        pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
-        (
-            motifs, motif_hbonds, motif_interactions, hbonds_in_motif,
-        ) = dssr.get_motifs_from_structure(json_path)
-        hbonds_in_motif.extend(rnp_data)
-        unique_inter_motifs = list(set(hbonds_in_motif))
-
-        results = []
-        for m in motifs:
-            print(m.name)
-            if m.name.split(".")[0] not in ["TWOWAY", "NWAY", "HAIRPIN", "HELIX", "SSTRAND"]:
-                continue
-            interactions = motif_interactions.get(m.name, None)
-            result = dssr.write_res_coords_to_pdb(
-                m.nts_long, interactions, pdb_model, os.path.join(motif_dir, m.name),
-                unique_inter_motifs
-            )
-            print(result)
-            results.append(result)
-        return results
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-        all_results = executor.map(process_pdb, pdbs)
-
-    # Write results to files after all threads complete their execution
-    with open("interactions.csv", "w") as f_inter_overview, open(
-            "interactions_detailed.csv", "w"
-    ) as f_inter, open("motif_residues_list.csv", "w") as f_residues, open(
-        "twoway_motif_list.csv", "w"
-    ) as f_twoways:
-
-        # Write headers
-        f_inter_overview.write("name,type,size," + ",".join(hbond_vals) + "\n")
-        f_inter.write(
-            "name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2\n"
-        )
-        f_residues.write("motif_name,residues\n")
-        f_twoways.write("motif_name,motif_type,bridging_nts_0,bridging_nts_1\n")
-
-        # Process and write all results from threads
-        for results in all_results:
-            for data in results:
-                f_inter_overview.write(data['overview'] + "\n")
-                f_inter.write(data['details'] + "\n")
-                f_residues.write(data['residues'] + "\n")
-                f_twoways.write(data['twoways'] + "\n")
-'''
 
 def __generate_motif_files() -> None:
     """Processes PDB files to extract and analyze motif interactions, storing detailed outputs."""
