@@ -38,9 +38,10 @@ def process_snap(threads):
 
 
 @cli.command(name='generate_motifs')  # Set command name
-def generate_motifs():
+@click.option("--errored_count", default=0, help="At which number did the JSON decode error happen?")
+def generate_motifs(errored_count):
     warnings.filterwarnings("ignore")
-    update_library.__generate_motif_files()
+    update_library.__generate_motif_files(errored_count=errored_count)
 
 
 @cli.command(name='find_tertiary_contacts')  # Set command name

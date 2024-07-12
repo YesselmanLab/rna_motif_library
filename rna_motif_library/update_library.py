@@ -264,7 +264,7 @@ def __get_snap_files(threads: int) -> None:
     print(f"{generated_count} new .out files generated.")
 
 
-def __generate_motif_files() -> None:
+def __generate_motif_files(errored_count: int) -> None:
     """Processes PDB files to extract and analyze motif interactions, storing detailed outputs."""
     pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
@@ -306,10 +306,12 @@ def __generate_motif_files() -> None:
 
         count = 0
         for pdb_path in pdbs:
-            # if count > 21:
-            #    continue
+            count += 1
+            if count < errored_count:
+                continue
+
             name = os.path.basename(pdb_path)[:-4]
-            print(f"{count + 1}, {pdb_path}, {name}")
+            print(f"{count}, {pdb_path}, {name}")
             # if name != "7EQG":
             #    continue
             json_path = os.path.join(
@@ -363,7 +365,6 @@ def __generate_motif_files() -> None:
                     f_twoways,
                     f_inter_overview,
                 )
-            count += 1
 
 
 def __find_tertiary_contacts(threads: int):

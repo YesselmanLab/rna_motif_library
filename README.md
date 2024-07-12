@@ -84,10 +84,16 @@ If you run into such problems, I have some remedies down below:<br>
 # You might run into this while generating motifs.
 # It will generate some error message that says something along the lines of "expected a bracket"
 # You didn't do anything wrong, DSSR may have just bugged out
-# To fix this, run the following again:
+# To fix this, find the DSSR JSON outputs at data/dssr_output and delete the erroring JSON, then run the following again:
 python cli.py process_dssr --threads 8
 # Replace "8" with the number of CPU cores you want to use
-# This should fix any bugged DSSR JSON outputs
+# This should instantly replace the bugged file
+# Next you want to resume generating the motifs from where it errored:
+python cli.py generate_motifs --errored_count 8
+# Replace "8" with the number printed on the left just before the error in this type of line:
+# 59, /path/to/your/rna_motif_library/data/pdbs/5M3H.cif, 5M3H
+# ^ If this errored you would enter 59
+
 
 # Another such error is a blank or otherwise bugged .out file
 # In this case just run the SNAP command again:
