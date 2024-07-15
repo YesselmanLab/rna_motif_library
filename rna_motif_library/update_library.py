@@ -265,10 +265,18 @@ def __get_snap_files(threads: int) -> None:
     print(f"{generated_count} new .out files generated.")
 
 
-def __generate_motif_files() -> None:
+def __generate_motif_files(limit=None, pdb_name=None) -> None:
     """Processes PDB files to extract and analyze motif interactions, storing detailed outputs."""
     pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
+
+    if pdb_name is not None:
+        pdb_name_path = os.path.join(pdb_dir, str(pdb_name) + ".cif")
+        if not os.path.exists(pdb_name_path):
+            print(f"The provided PDB '{pdb_name}' doesn't exist.")
+            print("Make sure to run DSSR and SNAP first before generating motifs.")
+            print("Exiting run.")
+            exit(1)
 
     # Define directories for output
     motif_dir = os.path.join("motifs", "nways", "all")
@@ -308,16 +316,19 @@ def __generate_motif_files() -> None:
         count = 0
         for pdb_path in pdbs:
             count += 1
-            #if count > 20:
-            #    continue
-
             name = os.path.basename(pdb_path)[:-4]
             print(f"{count}, {pdb_path}, {name}")
-            # if name != "7EQG":
-            #    continue
+            # Keep processed files under the limit if specified
+            if limit is not None and count > limit:
+                break
+            # Limit processing to specified PDB
+            if (pdb_name != None) and (name != pdb_name):
+                continue
+
             json_path = os.path.join(
                 settings.LIB_PATH, "data/dssr_output", f"{name}.json"
             )
+
             rnp_out_path = os.path.join(
                 settings.LIB_PATH, "data/snap_output", f"{name}.out"
             )

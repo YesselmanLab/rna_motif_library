@@ -31,6 +31,7 @@ pip install .
 
 ```bash
 # Make sure you put the CSV in the right place or you will get errors
+# Note, despite the use of "PDB" in language, all files are actually ".cif", not ".pdb"
 
 # Navigate to directory
 cd rna_motif_library
@@ -76,6 +77,24 @@ Figure 4 also consists of PNGs, however, every interaction/atom combination gets
 These figures can be found in the directory `heatmaps`.<br>
 Data for each respective figure is broken down in CSV files, which are in `heatmap_data`.<br>
 
+
+## Other functions
+
+If you are interested in only a certain number of PDBs, you can run the following:
+```bash
+# Make sure to delete the directories "motifs", "interactions", "tertiary_contacts", "heatmaps", and "heatmap_data" if you've run the full code already
+python cli.py generate_motifs --limit 8
+# replace "8" with your desired number
+```
+
+If you are interested in a specific PDB, you can run the following:
+```bash
+# Make sure to delete the directories "motifs", "interactions", "tertiary_contacts", "heatmaps", and "heatmap_data" if you've run the full code already
+# Make sure your file is within the nonredundant set
+# Look for "PDB_name.json" and "PDB_name.out" in /dssr_output and /snap_output
+python cli.py generate_motifs --PDB 3R9X
+# Replace "3R9X" with your desired PDB
+```
 
 ```
 

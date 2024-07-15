@@ -38,9 +38,11 @@ def process_snap(threads):
 
 
 @cli.command(name='generate_motifs')  # Set command name
-def generate_motifs():
+@click.option("--limit", default=None, type=int, help="Limit the number of PDB files processed.")
+@click.option("--PDB", default=None, type=str, help="Process a specific PDB within the set, without extensions")
+def generate_motifs(limit, pdb):
     warnings.filterwarnings("ignore")
-    update_library.__generate_motif_files()
+    update_library.__generate_motif_files(limit, pdb)
 
 
 @cli.command(name='find_tertiary_contacts')  # Set command name
