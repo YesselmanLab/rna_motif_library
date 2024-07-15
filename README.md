@@ -32,6 +32,9 @@ pip install .
 ```bash
 # Make sure you put the CSV in the right place or you will get errors
 
+# Navigate to directory
+cd rna_motif_library
+
 # To create the library first we need to download the PDBs specified in the CSV
 python cli.py download_cifs --threads 8
 # Replace "8" with the number of CPU cores you want to use

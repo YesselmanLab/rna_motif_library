@@ -308,7 +308,7 @@ def __generate_motif_files() -> None:
         count = 0
         for pdb_path in pdbs:
             count += 1
-            #if count < errored_count:
+            #if count > 20:
             #    continue
 
             name = os.path.basename(pdb_path)[:-4]
