@@ -96,5 +96,4 @@ python cli.py generate_motifs --PDB 3R9X
 # Replace "3R9X" with your desired PDB
 ```
 
-```
 
