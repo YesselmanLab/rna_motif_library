@@ -265,7 +265,7 @@ def __get_snap_files(threads: int) -> None:
     print(f"{generated_count} new .out files generated.")
 
 
-def __generate_motif_files(errored_count: int) -> None:
+def __generate_motif_files() -> None:
     """Processes PDB files to extract and analyze motif interactions, storing detailed outputs."""
     pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
@@ -308,8 +308,8 @@ def __generate_motif_files(errored_count: int) -> None:
         count = 0
         for pdb_path in pdbs:
             count += 1
-            if count < errored_count:
-                continue
+            #if count < errored_count:
+            #    continue
 
             name = os.path.basename(pdb_path)[:-4]
             print(f"{count}, {pdb_path}, {name}")
