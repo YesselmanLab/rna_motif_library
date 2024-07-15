@@ -28,7 +28,8 @@ setup(
         'numpy~=1.24.2',
         'seaborn~=0.13.1',
         'matplotlib~=3.7.1',
-        'pydssr @ git+https://github.com/YesselmanLab/py_dssr.git#egg=pydssr'
+        'pydssr @ git+https://github.com/YesselmanLab/py_dssr.git#egg=pydssr',
+        'click~=8.1.7'
     ],
     zip_safe=False,
     keywords='RNA motif library',
