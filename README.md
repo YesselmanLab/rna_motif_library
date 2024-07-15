@@ -84,7 +84,7 @@ If you are interested in only a certain number of PDBs, you can run the followin
 ```bash
 # Make sure to delete the directories "motifs", "interactions", "tertiary_contacts", "heatmaps", and "heatmap_data" if you've run the full code already
 python cli.py generate_motifs --limit 8
-# replace "8" with your desired number
+# Replace "8" with your desired number
 ```
 
 If you are interested in a specific PDB, you can run the following:
