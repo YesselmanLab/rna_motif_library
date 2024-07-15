@@ -47,6 +47,7 @@ python cli.py process_snap --threads 8
 # After processing with SNAP we need to generate motif files
 python cli.py generate_motifs
 # No threading for this one
+# If this errors see error handling below
 
 # After generating motifs we find tertiary contacts
 python cli.py find_tertiary_contacts --threads 8
@@ -74,25 +75,40 @@ Figure 4 also consists of PNGs, however, every interaction/atom combination gets
 These figures can be found in the directory `heatmaps`.<br>
 Data for each respective figure is broken down in CSV files, which are in `heatmap_data`.<br>
 
-## Potential errors
+## Error handling
 
-I've found some bugs relating to bugged files that can be fixed by rerunning the code.
+I've found some bugs relating to bugged files that can be fixed by rerunning some code.
 If you run into such problems, I have some remedies down below:<br>
 
 ```bash
-# One such error is a JSON decode error.
-# You might run into this while generating motifs.
+
+# No error handling yet
+
+
+
+
+
+### This error handling is old, I'll remove it if the new version doesn't work
+# One such error is a JSON decode error
+# You might run into this while generating motifs
 # It will generate some error message that says something along the lines of "expected a bracket"
-# You didn't do anything wrong, DSSR may have just bugged out
+# You didn't do anything wrong, DSSR may have just bugged out whilst generating the JSON files
 # To fix this, find the DSSR JSON outputs at data/dssr_output and delete the erroring JSON, then run the following again:
 python cli.py process_dssr --threads 8
 # Replace "8" with the number of CPU cores you want to use
-# This should instantly replace the bugged file
-# Next you want to resume generating the motifs from where it errored:
+# This should re-create the bugged file
+# Next you want to resume generating the motifs from where it errored
+# You should save the generated data first to save from being overwritten, so copy and paste the following files to another place in your computer:
+# interactions.csv
+# interactions_detailed.csv
+# motif_residues_list.csv 
+# Next run the command:
 python cli.py generate_motifs --errored_count 8
-# Replace "8" with the number printed on the left just before the error in this type of line:
+# Replace "8" with the number printed on the left just before the error in a line that looks like this:
 # 59, /path/to/your/rna_motif_library/data/pdbs/5M3H.cif, 5M3H
-# ^ If this errored you would enter 59
+# ^ If this errored, you would enter 59 for the argument
+# If this happens multiple times, save all versions of the CSV files
+# When it is done running, copy/paste the CSV data from the saved files into the newly generated CSV
 
 
 # Another such error is a blank or otherwise bugged .out file

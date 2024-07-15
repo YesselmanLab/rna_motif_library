@@ -224,61 +224,197 @@ def load_motif_residues(motif_residues_csv_path: str) -> dict:
                         )
 '''
 
-def find_tertiary_contacts(interactions_from_csv, list_of_res_in_motifs, threads):
+def find_tertiary_contacts(
+        interactions_from_csv: pd.core.groupby.generic.DataFrameGroupBy,
+        list_of_res_in_motifs: Dict[str, List[str]],
+) -> None:
     """
-    Multithreaded function to find tertiary contacts from interaction data and write them to CSV files.
+    Find tertiary contacts from interaction data and write them to CSV files.
 
     Args:
-        interactions_from_csv: DataFrameGroupBy object of interactions grouped by motif name.
-        list_of_res_in_motifs: Dictionary of motif names to list of residues in each motif.
-        threads: Number of threads to use for parallel processing.
+        interactions_from_csv (DataFrameGroupBy): Grouped DataFrame of interactions.
+        list_of_res_in_motifs (dict): Dictionary of residues in each motif.
     """
-    # Opening files outside the thread pool to avoid issues with concurrent writes
-    with open("tertiary_contact_list.csv", "w") as f_tert, open("single_motif_inter_list.csv", "w") as f_single:
-        # Write headers
-        f_tert.write("motif_1,motif_2,type_1,type_2,res_1,res_2,hairpin_len_1,hairpin_len_2,res_type_1,res_type_2\n")
-        f_single.write("motif,type_1,type_2,res_1,res_2,nt_1,nt_2,distance,angle,res_type_1,res_type_2\n")
-
-        def process_interaction_group(interaction_group):
-            name_of_source_motif, interaction_data_df = interaction_group
-            # Extract motif and CIF ID from the motif name
-            name_split = name_of_source_motif.split(".")
-            source_motif_type = name_split[0]
-            source_motif_cif_id = name_split[1]
-            residues_in_source_motif = list_of_res_in_motifs.get(name_of_source_motif, [])
-            dict_with_source_motif_PDB_motifs = {
-                key: value for key, value in list_of_res_in_motifs.items() if key.split(".")[1] == source_motif_cif_id
-            }
-
-            outputs = []
-
-            for _, row in interaction_data_df.iterrows():
-                res_1, res_2 = row['res_1'], row['res_2']
-                type_1, type_2 = row['type_1'], row['type_2']
-                res_type_1, res_type_2 = row['res_type_1'], row['res_type_2']
-                nt_1, nt_2 = "nt" if len(type_1) == 1 else "aa", "nt" if len(type_2) == 1 else "aa"
-                distance, angle = str(row['distance']), str(row['angle'])
-
-                if res_1 in residues_in_source_motif and res_2 in residues_in_source_motif:
-                    # Both residues are in the same motif, skip
+    f_tert = open("tertiary_contact_list.csv", "w")
+    f_tert.write(
+        "motif_1,motif_2,type_1,type_2,res_1,res_2,hairpin_len_1,hairpin_len_2,res_type_1,res_type_2"
+        + "\n"
+    )
+    f_single = open("single_motif_inter_list.csv", "w")
+    f_single.write(
+        "motif,type_1,type_2,res_1,res_2,nt_1,nt_2,distance,angle,res_type_1,res_type_2"
+        + "\n"
+    )
+    for interaction_group in interactions_from_csv:
+        # interaction_group[0] is the name, [1] is the actual DF
+        # HELIX.7PKQ.3.UGC-GCA.0 is the format; now you have the motif name as str
+        name_of_source_motif = interaction_group[0]
+        name_split = name_of_source_motif.split(".")
+        source_motif_type = name_split[0]
+        source_motif_cif_id = str(name_split[1])
+        # get the residues for the motif of interest; look up in the dictionary
+        residues_in_source_motif = list_of_res_in_motifs.get(
+            name_of_source_motif
+        )  # is a list of strings
+        # now get the DF with the interaction data in it
+        interaction_data_df = interaction_group[1]
+        # iterate over each interaction in the motif
+        for _, row in interaction_data_df.iterrows():
+            # interaction data format: name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2
+            # convert datatype series to list
+            interaction_data = row.tolist()
+            res_1 = interaction_data[1]
+            res_2 = interaction_data[2]  # all are strings
+            # only for f_single
+            type_1 = interaction_data[3]
+            type_2 = interaction_data[4]
+            res_type_1 = interaction_data[11]
+            res_type_2 = interaction_data[12]
+            if len(type_1) == 1:
+                nt_1 = "nt"
+            else:
+                nt_1 = "aa"
+            if len(type_2) == 1:
+                nt_2 = "nt"
+            else:
+                nt_2 = "aa"
+            distance_data = str(interaction_data[7])
+            angle_data = str(interaction_data[8])
+            res_1_present = False
+            res_2_present = False
+            # need to check if the residue is present in ANY residue list where the CIF id is the same
+            # so first we filter to get all the motifs in the same CIF
+            dict_with_source_motif_PDB_motifs = {}
+            first_line_skipped = False
+            # filter mechanism
+            for key, value in list_of_res_in_motifs.items():
+                if not first_line_skipped:
+                    first_line_skipped = True
                     continue
-                elif res_1 in residues_in_source_motif or res_2 in residues_in_source_motif:
-                    # One of the residues is in the motif, tertiary contact
-                    outputs.append(f"{name_of_source_motif},{type_1},{type_2},{res_1},{res_2},{nt_1},{nt_2},{distance},{angle},{res_type_1},{res_type_2}\n")
-                else:
-                    # Neither of the residues is in the motif, single motif interaction
-                    f_single.write(f"{name_of_source_motif},{type_1},{type_2},{res_1},{res_2},{nt_1},{nt_2},{distance},{angle},{res_type_1},{res_type_2}\n")
-
-            return outputs
-
-        # Create a thread pool and process groups concurrently
-        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-            results = executor.map(process_interaction_group, interactions_from_csv)
-
-        # Write all results to the tertiary contact list file
-        for result in results:
-            for line in result:
-                f_tert.write(line)
+                if key.split(".")[1] == source_motif_cif_id:
+                    dict_with_source_motif_PDB_motifs[key] = value
+            # if either residue in the interaction is present in the source motif
+            if res_1 in residues_in_source_motif:
+                res_1_present = True
+            if res_2 in residues_in_source_motif:
+                res_2_present = True
+            # check if residues are present, and if they are, handle them accordingly
+            if (res_1_present == False) and (res_2_present == False):
+                # not a tertiary contact, write to single_motif_inter_list.csv
+                f_single.write(
+                    name_of_source_motif
+                    + ","
+                    + type_1
+                    + ","
+                    + type_2
+                    + ","
+                    + res_1
+                    + ","
+                    + res_2
+                    + ","
+                    + nt_1
+                    + ","
+                    + nt_2
+                    + ","
+                    + distance_data
+                    + ","
+                    + angle_data
+                    + ","
+                    + res_type_1
+                    + ","
+                    + res_type_2
+                    + "\n"
+                )
+            elif (res_1_present == True) and (res_2_present == True):
+                # not a tert_contact
+                pass
+            elif (res_1_present == True) and (res_2_present == False):
+                # tert contact found
+                # res_1 is present in the current motif, res_2 is elsewhere so need to find it
+                # now find which motif res_2 is in
+                for (
+                        motif_name,
+                        motif_residue_list,
+                ) in dict_with_source_motif_PDB_motifs.items():
+                    # Check if the given string is present in the list
+                    if res_2 in motif_residue_list:
+                        print(motif_name)
+                        motif_name_split = motif_name.split(".")
+                        motif_name_type = motif_name_split[0]
+                        # if the motifs are hairpins, get length
+                        if motif_name_type == "HAIRPIN":
+                            hairpin_length_1 = str(name_split[2])
+                            hairpin_length_2 = str(motif_name_split[2])
+                        else:
+                            hairpin_length_1 = "0"
+                            hairpin_length_2 = "0"
+                        # print data to CSV
+                        f_tert.write(
+                            name_of_source_motif
+                            + ","
+                            + motif_name
+                            + ","
+                            + source_motif_type
+                            + ","
+                            + motif_name_type
+                            + ","
+                            + res_1
+                            + ","
+                            + res_2
+                            + ","
+                            + hairpin_length_1
+                            + ","
+                            + hairpin_length_2
+                            + ","
+                            + res_type_1
+                            + ","
+                            + res_type_2
+                            + "\n"
+                        )
+            elif (res_1_present == False) and (res_2_present == True):
+                # tert contact found
+                # res_2 is present in the current motif, res_1 is elsewhere
+                res_2_data = (res_2, name_of_source_motif)
+                # now find which motif res_1 is in
+                for (
+                        motif_name,
+                        motif_residue_list,
+                ) in dict_with_source_motif_PDB_motifs.items():
+                    # Check if the given string is present in the list
+                    if res_1 in motif_residue_list:
+                        print(motif_name)
+                        motif_name_split = motif_name.split(".")
+                        motif_name_type = motif_name_split[0]
+                        # if the motifs are hairpins, get length
+                        if motif_name_type == "HAIRPIN":
+                            hairpin_length_1 = str(name_split[2])
+                            hairpin_length_2 = str(motif_name_split[2])
+                        else:
+                            hairpin_length_1 = "0"
+                            hairpin_length_2 = "0"
+                        # print data to CSV (only if the motif names are the same)
+                        f_tert.write(
+                            name_of_source_motif
+                            + ","
+                            + motif_name
+                            + ","
+                            + source_motif_type
+                            + ","
+                            + motif_name_type
+                            + ","
+                            + res_1
+                            + ","
+                            + res_2
+                            + ","
+                            + hairpin_length_1
+                            + ","
+                            + hairpin_length_2
+                            + ","
+                            + res_type_1
+                            + ","
+                            + res_type_2
+                            + "\n"
+                        )
 
 
 

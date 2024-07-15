@@ -45,10 +45,9 @@ def generate_motifs(errored_count):
 
 
 @cli.command(name='find_tertiary_contacts')  # Set command name
-@click.option("--threads", default=1, help="Number of threads to use.")
-def find_tertiary_contacts(threads):
+def find_tertiary_contacts():
     warnings.filterwarnings("ignore")
-    update_library.__find_tertiary_contacts(threads)
+    update_library.__find_tertiary_contacts()
 
 
 

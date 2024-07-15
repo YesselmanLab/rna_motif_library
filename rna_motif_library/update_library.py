@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from json import JSONDecodeError
 
 import wget
 import glob
@@ -335,12 +336,26 @@ def __generate_motif_files(errored_count: int) -> None:
             ]
 
             pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
-            (
-                motifs,
-                motif_hbonds,
-                motif_interactions,
-                hbonds_in_motif,
-            ) = dssr.get_motifs_from_structure(json_path)
+            # In case of bugged JSON file
+            while True:
+                try:
+                    (
+                        motifs,
+                        motif_hbonds,
+                        motif_interactions,
+                        hbonds_in_motif,
+                    ) = dssr.get_motifs_from_structure(json_path)
+                    break
+                except JSONDecodeError:
+                    os.remove(json_path)
+                    __get_dssr_files(1)
+                    (
+                        motifs,
+                        motif_hbonds,
+                        motif_interactions,
+                        hbonds_in_motif,
+                    ) = dssr.get_motifs_from_structure(json_path)
+
             hbonds_in_motif.extend(rnp_data)
             unique_inter_motifs = list(set(hbonds_in_motif))
 
@@ -367,7 +382,7 @@ def __generate_motif_files(errored_count: int) -> None:
                 )
 
 
-def __find_tertiary_contacts(threads: int):
+def __find_tertiary_contacts():
     """
         Finds and processes tertiary contacts in RNA motifs.print("Finding tertiary contacts...")
     # loads into a dictionary all residues in given motifs; motif names as keys
@@ -375,7 +390,8 @@ def __find_tertiary_contacts(threads: int):
         groups the interactions by motif names, finds tertiary contacts, identifies unique# Read the interactions CSV file into a DataFrame and obtain its contents
         tertiary contacts, removes duplicates, prints the results to a CSV file, and plots histograms.interactions_csv_df = pd.read_csv("interactions_detailed.csv")
     # Group the DataFrame by the 'name' column # and Convert the DataFrameGroupBy back into individual DataFrames
-        Args: threads (int)
+        Args:grouped_interactions_csv_df = interactions_csv_df.groupby("name")
+            None
     # Iterate over each motif (group) to find tertiary contacts
         Returns:tertiary_contacts.find_tertiary_contacts(interactions_from_csv=grouped_interactions_csv_df,
             None                                         list_of_res_in_motifs=motif_residues_dict)
@@ -384,13 +400,10 @@ def __find_tertiary_contacts(threads: int):
     grouped_interactions_csv_df = interactions_from_csv.groupby("name")
     motif_residues_csv_path = "motif_residues_list.csv"
     motif_residues_dict = tertiary_contacts.load_motif_residues(motif_residues_csv_path)
-
     tertiary_contacts.find_tertiary_contacts(
         interactions_from_csv=grouped_interactions_csv_df,
         list_of_res_in_motifs=motif_residues_dict,
-        threads=threads
     )
-
     tertiary_contacts.find_unique_tertiary_contacts()
     unique_tert_contact_df = tertiary_contacts.delete_duplicate_contacts()
     tertiary_contacts.print_tert_contacts_to_csv(unique_tert_contact_df)
