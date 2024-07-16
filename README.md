@@ -96,4 +96,55 @@ python cli.py generate_motifs --PDB 3R9X
 # Replace "3R9X" with your desired PDB
 ```
 
+## CSV documentation
+
+When running is finished you will see a number of new CSVs with data.<br>
+Here I will describe the most important CSVs.
+
+interactions.csv - shows the size of each motif (in nucleotides) and number of each type (base:base/sugar/phos/aa/etc) of interaction within a motif
+- columns: (name,type,size,base:base,base:sugar,base:phos,sugar:base,sugar:sugar,sugar:phos,phos:base,phos:sugar,phos:phos,base:aa,sugar:aa,phos:aa)
+- name: name of motif
+- type: type of motif (SSTRAND/HELIX/HAIRPIN/NWAY/TWOWAY)
+- size: number of nucleotides in the motif
+- base:base: # of base-base interactions involving the motif
+- base:sugar: # of base-sugar interactions involving the motif
+- all further columns in the CSV follow a similar pattern
+
+interactions_detailed.csv - shows detailed information about each interaction found/listed in interactions.csv (though not by name)
+- columns: (name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2)
+- name: name of motif
+- res_1: residue #1 in the interaction
+- res_2: residue #2 in the interaction
+- res_1_name: residue type (what base/amino acid is it? A/U/C/G/LEU/etc)
+- res_2_name: same as res_1_name
+- atom_1: the exact atom inside res_1 interacting with atom_2
+- atom_2: the exact atom inside res_2 interacting with atom_1
+- distance: distance between atom_1 and atom_2
+- angle: dihedral angle between residues at atom_1 and atom_2, along with the closest atoms they are connected to on their respective residues
+- nt_1: is res_1 an amino acid or nucleotide (nt/aa)
+- nt_2: is res_2 an amino acid or nucleotide (nt/aa)
+
+unique_tert_contacts.csv - shows detailed information about tertiary contacts
+- columns: (seq_1,seq_2,motif_1,motif_2,type_1,type_2,res_1,res_2,count)
+- seq_1: sequence of motif_1
+- seq_2: sequence of motif_2
+- motif_1: name of motif_1
+- motif_2: name of motif_2
+- type_1: type of motif_1 (hairpin, helix, 2way/nway junction, single strand)
+- type_2: type of motif_2 (hairpin, helix, 2way/nway junction, single strand)
+- res_1: was used in intermediate processes, irrelevant here; is the name of one of the residues in motif_1 involved in the tertiary contact
+- res_2: was used in intermediate processes, irrelevant here; is the name of one of the residues in motif_2 involved in the tertiary contact
+- count: number of interactions (h-bonds) between motif_1 and motif_2 in the tertiary contact
+
+twoway_motif_list.csv - shows surface level information about two-way junctions and is used to make a heatmap showing sizes of two-way junctions
+- columns: (motif_name, motif_type, nucleotides_in_strand_1, nucleotides_in_strand_2, bridging_nts_0, bridging_nts_1)
+- motif_name: name of the two-way junction
+- motif_type: original classification of junction; irrelevant
+- nucleotides_in_strand_1: nucleotides in strand 1 of junction; retrieved from raw counting of strand NTs
+- nucleotides_in_strand_2: nucleotides in strand 2 of junction; retrieved from raw counting of strand NTs
+- bridging_nts_0: nucleotides in strand 1 of junction - 2; used to classify junction size
+- bridging_nts_1: nucleotides in strand 2 of junction - 2; used to classify junction size
+
+
+
 
