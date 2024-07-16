@@ -10,6 +10,8 @@ Make sure to download the most recent data (3.5 Å resolution):<br>
 http://rna.bgsu.edu/rna3dhub/nrlist
 
 In the directory `data/csvs`, delete the default CSV file and replace with your download.<br>
+Delete the directory `data/pdbs`, it was used to create the results of the paper.<br>
+Optionally you can run the program with these files to reproduce the results.<br>
 
 ## Installation
 
@@ -36,6 +38,7 @@ pip install .
 # Navigate to directory
 cd rna_motif_library
 
+# If you didn't delete the directory "data/pdbs" then skip running this command and go directly to the next step
 # To create the library first we need to download the PDBs specified in the CSV
 python cli.py download_cifs --threads 8
 # Replace "8" with the number of CPU cores you want to use
