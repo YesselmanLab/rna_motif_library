@@ -5,8 +5,6 @@ from json import JSONDecodeError
 import wget
 import glob
 import os
-import datetime
-import warnings
 import threading
 import concurrent.futures
 
@@ -14,16 +12,17 @@ from typing import Dict
 import pandas as pd
 from tqdm import tqdm
 
-import settings
-import snap
-import dssr
-import tertiary_contacts
-import figure_plotting
 from pydssr.dssr import write_dssr_json_output_to_file
 from biopandas.mmcif.pandas_mmcif import PandasMmcif
 from biopandas.mmcif.mmcif_parser import load_cif_data
 from biopandas.mmcif.engines import mmcif_col_types
 from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
+
+from rna_motif_library import tert_contacts
+from rna_motif_library import settings
+from rna_motif_library import snap
+from rna_motif_library import dssr
+from rna_motif_library import figure_plotting
 
 # list of residue types to filter out
 canon_res_list = [
@@ -369,15 +368,15 @@ def __find_tertiary_contacts():
     interactions_from_csv = pd.read_csv("interactions_detailed.csv")
     grouped_interactions_csv_df = interactions_from_csv.groupby("name")
     motif_residues_csv_path = "motif_residues_list.csv"
-    motif_residues_dict = tertiary_contacts.load_motif_residues(motif_residues_csv_path)
-    tertiary_contacts.find_tertiary_contacts(
+    motif_residues_dict = tert_contacts.load_motif_residues(motif_residues_csv_path)
+    tert_contacts.find_tertiary_contacts(
         interactions_from_csv=grouped_interactions_csv_df,
         list_of_res_in_motifs=motif_residues_dict,
     )
-    tertiary_contacts.find_unique_tertiary_contacts()
-    unique_tert_contact_df = tertiary_contacts.delete_duplicate_contacts()
-    tertiary_contacts.print_tert_contacts_to_csv(unique_tert_contact_df)
-    tertiary_contacts.plot_tert_histograms(unique_tert_contact_df)
+    tert_contacts.find_unique_tertiary_contacts()
+    unique_tert_contact_df = tert_contacts.delete_duplicate_contacts()
+    tert_contacts.print_tert_contacts_to_csv(unique_tert_contact_df)
+    tert_contacts.plot_tert_histograms(unique_tert_contact_df)
 
 
 # calculate some final statistics

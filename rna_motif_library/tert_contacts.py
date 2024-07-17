@@ -605,7 +605,7 @@ def print_tert_contacts_to_csv(unique_tert_contact_df: pd.DataFrame) -> None:
         unique_tert_contact_df (pd.DataFrame): DataFrame containing unique tertiary contacts.
     """
     # make directory for tert contacts
-    __safe_mkdir("tertiary_contacts")
+    __safe_mkdir("data/tertiary_contacts")
     print("Saving tertiary contacts to CIF files...")
     # for printing the tert contact CIFs need to prepare data
     motifs_1 = unique_tert_contact_df["motif_1"].tolist()
@@ -644,7 +644,7 @@ def print_tert_contacts_to_csv(unique_tert_contact_df: pd.DataFrame) -> None:
                 (motif_1_name == "HAIRPIN" or motif_2_name == "HAIRPIN")
                 and ((0 < motif_1_hairpin_len < 3) or (0 < motif_2_hairpin_len < 3))
         ):
-            directory_to_search = "motifs"
+            directory_to_search = "data/motifs"
             motif_cif_1 = str(motif_1) + ".cif"
             motif_cif_2 = str(motif_2) + ".cif"
             path_to_cif_1 = find_cif_file(directory_to_search, motif_cif_1)
@@ -659,12 +659,12 @@ def print_tert_contacts_to_csv(unique_tert_contact_df: pd.DataFrame) -> None:
             motif_types = str(motif_types_sorted[0]) + "-" + str(motif_types_sorted[1])
 
             if motif_types:
-                __safe_mkdir("tertiary_contacts/" + motif_types)
+                __safe_mkdir("data/tertiary_contacts/" + motif_types)
                 tert_contact_out_path = (
-                        "tertiary_contacts/" + motif_types + "/" + tert_contact_name
+                        "data/tertiary_contacts/" + motif_types + "/" + tert_contact_name
                 )
             else:
-                tert_contact_out_path = "tertiary_contacts/" + tert_contact_name
+                tert_contact_out_path = "data/tertiary_contacts/" + tert_contact_name
             print(tert_contact_name)
             # take the CIF files and merge them
             try:
