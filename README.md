@@ -35,7 +35,6 @@ pip install .
 # Make sure you put the CSV in the right place or you will get errors
 # Note, despite the use of "PDB" in language, all files are actually ".cif", not ".pdb"
 
-# If you didn't delete the directory "data/pdbs" then skip running this command and go directly to the next step
 # To create the library first we need to download the PDBs specified in the CSV
 python rna_motif_library/cli.py download_cifs --threads 8
 # Replace "8" with the number of CPU cores you want to use
