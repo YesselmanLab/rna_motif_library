@@ -280,7 +280,7 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
             exit(1)
 
     # Define directories for output
-    motif_dir = os.path.join("motifs", "nways", "all")
+    motif_dir = os.path.join(settings.LIB_PATH, "data", "motifs")
     __safe_mkdir(motif_dir)
 
     # Interaction types

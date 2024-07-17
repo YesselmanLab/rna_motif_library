@@ -327,8 +327,8 @@ def write_res_coords_to_pdb(
     """
     # directory setup for later
     dir_parts = pdb_path.split("/")
-    sub_dir_parts = dir_parts[3].split(".")
-    motif_name = dir_parts[3]
+    sub_dir_parts = dir_parts[-1].split(".")
+    motif_name = dir_parts[-1]
 
     nt_list = []
     res = []
@@ -396,9 +396,8 @@ def write_res_coords_to_pdb(
             )
             if basepair_ends != 1:
                 new_path = os.path.join(
-                    dir_parts[0],
+                    "data", "motifs",
                     f"{basepair_ends}ways",
-                    dir_parts[2],
                     motif_name.split(".")[2],
                     sub_dir_parts[3],
                 )
@@ -415,7 +414,7 @@ def write_res_coords_to_pdb(
             motif_name = ".".join(sub_dir_parts)
             hairpin_path = (
                 os.path.join(
-                    dir_parts[0],
+                    "data", "motifs",
                     "hairpins",
                     str(hairpin_bridge_length),
                     sub_dir_parts[3],
@@ -432,7 +431,7 @@ def write_res_coords_to_pdb(
 
         if sub_dir_parts[0] == "HELIX":
             helix_path = os.path.join(
-                dir_parts[0], "helices", sub_dir_parts[2], sub_dir_parts[3]
+                "data", "motifs", "helices", sub_dir_parts[2], sub_dir_parts[3]
             )
             make_dir(helix_path)
             name_path = os.path.join(helix_path, motif_name)
@@ -441,15 +440,13 @@ def write_res_coords_to_pdb(
         if sub_dir_parts[0] == "SSTRAND":
             sstrand_length = len(nts)
             sstrand_path = os.path.join(
-                dir_parts[0], "sstrand", str(sstrand_length), sub_dir_parts[3]
+                "data", "motifs", "sstrand", str(sstrand_length), sub_dir_parts[3]
             )
             make_dir(sstrand_path)
             name_path = os.path.join(sstrand_path, motif_name)
             cif_path = f"{name_path}.cif"
 
-        if not os.path.exists(
-                cif_path
-        ):  # if motif already exists, don't bother overwriting
+        if not os.path.exists(cif_path):  # if motif already exists, don't bother overwriting
             dssr_hbonds.dataframe_to_cif(
                 df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
             )

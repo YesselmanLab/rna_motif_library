@@ -68,9 +68,9 @@ python rna_motif_library/cli.py make_figures
 
 ```
 
-When finished, you will see several new directories, CSVs, and figures in the directory with the scripts. <br>
-`motifs` - motifs found in the non-redundant set go here, categorized by type, size, and sequence
-`interactions` - individual residues which hydrogen-bond with each other go here, classified by which residues are
+When finished, you will see several new directories. <br>
+`data/motifs` - motifs found in the non-redundant set go here, categorized by type, size, and sequence
+`data/interactions` - individual residues which hydrogen-bond with each other go here, classified by which residues are
 interacting
 `tertiary_contacts` - tertiary contacts found go here, classified by what two types of motifs are in the contact
 

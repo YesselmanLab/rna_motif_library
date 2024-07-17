@@ -66,7 +66,7 @@ def extract_individual_interactions(
             if target_value in hbond_inter:
                 list_of_matching_interactions.append(hbond_inter)
     # make directories just in case
-    make_dir("interactions/all")
+    make_dir("data/interactions")
     # print all individual interactons to CIF and write to CSV
     for interaction in list_of_matching_interactions:
         # 'interaction' format: ('A.ASP126', 'A.GNP402', 'OD2', 'N2', '2.824', 'base', 'aa')
@@ -193,7 +193,7 @@ def print_interactions_to_csv(
     """
     # folder assignment
     folder_name = alpha_sorted_types[0] + "-" + alpha_sorted_types[1]
-    ind_folder_path = "interactions/all/" + folder_name + "/"
+    ind_folder_path = "data/interactions/" + folder_name + "/"
     make_dir(ind_folder_path)
     name_inter_2 = name_inter.replace("/", "-")
     ind_inter_path = ind_folder_path + name_inter_2
@@ -220,7 +220,6 @@ def print_interactions_to_csv(
         hbond_class = type_2 + ":" + type_1
     # then increment the dictionary
     start_interactions_dict[hbond_class] += 1
-    # TODO take all these CSV files and dump them into dataframes
     csv_file.write(
         motif_name
         + ","
