@@ -232,8 +232,6 @@ def __get_dssr_files(threads: int) -> None:
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
         executor.map(process_pdb, pdbs)
 
-    print(f"{count} PDB files processed")
-
 
 def __get_snap_files(threads: int) -> None:
     """Runs snap to extract RNP interactions for each PDB file and stores the results in .out files."""
