@@ -39,27 +39,27 @@ pip install .
 # To create the library first we need to download the PDBs specified in the CSV
 python rna_motif_library/cli.py download_cifs --threads 8
 # Replace "8" with the number of CPU cores you want to use
-# Estimated time: 15 minutes for around 1700 .cifs
+# Estimated time: 15 minutes for around 2000 .cifs
 
 # After downloading we need to process with DSSR
 python rna_motif_library/cli.py process_dssr --threads 8
 # Replace "8" with the number of CPU cores you want to use
-# Estimated time: 40 minutes for around 1700 .cifs
+# Estimated time: 40 minutes for around 2000 .cifs
 
 # After processing with DSSR we need to process with SNAP
 python rna_motif_library/cli.py process_snap --threads 8
 # Replace "8" with the number of CPU cores you want to use
-# Estimated time: 12 hours for around 1700 .cifs
+# Estimated time: 12 hours for around 2000 .cifs
 
 # After processing with SNAP we need to generate motif files
 python rna_motif_library/cli.py generate_motifs
 # No threading for this one
-# Estimated time: 72 hours for around 1700 .cifs
+# Estimated time: 72 hours for around 2000 .cifs
 
 # After generating motifs we find tertiary contacts
 python rna_motif_library/cli.py find_tertiary_contacts
 # No threading for this one
-# Estimated time: 24-36 hours for around 1700 .cifs
+# Estimated time: 24-36 hours for around 2000 .cifs
 
 # Finally, make the figures
 python rna_motif_library/cli.py make_figures
