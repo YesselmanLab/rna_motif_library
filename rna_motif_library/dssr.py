@@ -15,7 +15,7 @@ def make_dir(directory: str) -> None:
 
 
 def count_strands(
-    master_res_df: pd.DataFrame, motif_name: str, twoway_jct_csv: Any
+        master_res_df: pd.DataFrame, motif_name: str, twoway_jct_csv: Any
 ) -> Tuple[int, str]:
     """Counts the number of strands in a motif and updates its name accordingly.
 
@@ -88,10 +88,10 @@ def count_strands(
     # step 5: keep residues which are connected (2.7 seems a good cutoff)
     connected_residues_df = combined_combo_distance_df[
         combined_combo_distance_df["Distances"] < 2.7
-    ]
+        ]
     connected_residues_df_final = connected_residues_df[
         connected_residues_df["Distances"] != 0
-    ]
+        ]
 
     # step 6: extract the column with the combinations and put it back inside a list, take out the DFs
     list_of_residue_combos = connected_residues_df_final["Residues"].tolist()
@@ -150,15 +150,15 @@ def count_strands(
             new_motif_type = "TWOWAY"
             new_motif_class = str(class_0) + "-" + str(class_1)
             new_motif_name = (
-                new_motif_type
-                + "."
-                + motif_type_list[1]
-                + "."
-                + new_motif_class
-                + "."
-                + motif_type_list[2]
-                + "."
-                + motif_type_list[3]
+                    new_motif_type
+                    + "."
+                    + motif_type_list[1]
+                    + "."
+                    + new_motif_class
+                    + "."
+                    + motif_type_list[2]
+                    + "."
+                    + motif_type_list[3]
             )
             motif_name = new_motif_name
 
@@ -181,14 +181,14 @@ def count_strands(
         # Write new motif name
         old_motif_name_spl = motif_name.split(".")
         motif_name = (
-            "NWAY."
-            + old_motif_name_spl[1]
-            + "."
-            + structure_result
-            + "."
-            + old_motif_name_spl[3]
-            + "."
-            + old_motif_name_spl[4]
+                "NWAY."
+                + old_motif_name_spl[1]
+                + "."
+                + structure_result
+                + "."
+                + old_motif_name_spl[3]
+                + "."
+                + old_motif_name_spl[4]
         )
 
     return len_chains, motif_name
@@ -301,15 +301,15 @@ def find_continuous_chains(pair_list: List[List[str]]) -> List[List[str]]:
 
 
 def write_res_coords_to_pdb(
-    nts: List[str],
-    interactions: Optional[List[str]],
-    pdb_model: Any,
-    pdb_path: str,
-    motif_bond_list: List[str],
-    csv_file: Any,
-    residue_csv_list: Any,
-    twoway_csv: Any,
-    interactions_overview_csv: Any,
+        nts: List[str],
+        interactions: Optional[List[str]],
+        pdb_model: Any,
+        pdb_path: str,
+        motif_bond_list: List[str],
+        csv_file: Any,
+        residue_csv_list: Any,
+        twoway_csv: Any,
+        interactions_overview_csv: Any,
 ) -> None:
     """
     Writes motifs and interactions to PDB files, based on provided nucleotide and interaction data.
@@ -362,7 +362,10 @@ def write_res_coords_to_pdb(
     for nt in nts:
         nt_spl = nt.split(".")
         chain_id = nt_spl[0]
-        residue_id = dssr_hbonds.extract_longest_numeric_sequence(nt_spl[1])
+        if "--" in nt_spl[1] and len(nt_spl) > 2:
+            residue_id = dssr_hbonds.extract_longest_numeric_sequence(nt_spl[2])
+        else:
+            residue_id = dssr_hbonds.extract_longest_numeric_sequence(nt_spl[1])
         if "/" in nt_spl[1]:
             residue_id = nt_spl[1].split("/")[1]
         nt_list.append(chain_id + "." + residue_id)
@@ -374,7 +377,7 @@ def write_res_coords_to_pdb(
         for residue in residue_list:
             chain_res = model_df[
                 model_df["auth_asym_id"].astype(str) == str(chain_number)
-            ]
+                ]
             res_subset = chain_res[chain_res["auth_seq_id"].astype(str) == str(residue)]
             res.append(res_subset)
         list_of_chains.append(res)
@@ -445,7 +448,7 @@ def write_res_coords_to_pdb(
             cif_path = f"{name_path}.cif"
 
         if not os.path.exists(
-            cif_path
+                cif_path
         ):  # if motif already exists, don't bother overwriting
             dssr_hbonds.dataframe_to_cif(
                 df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
@@ -542,16 +545,16 @@ def group_residues_by_chain(input_list: List[str]) -> Tuple[List[List[int]], Lis
             residue_id = int(residue_id)
 
             # Create a list for the current chain_id if not already present
-            if chain_id not in chain_residues:
-                chain_residues[chain_id] = []
+        if chain_id not in chain_residues:
+            chain_residues[chain_id] = []
 
             # Append the residue_id to the corresponding chain_id's list
-            chain_residues[chain_id].append(residue_id)
+        chain_residues[chain_id].append(residue_id)
 
-            # Store the chain_id for this residue in the dictionary
-            if residue_id not in chain_ids_for_residues:
-                chain_ids_for_residues[residue_id] = []
-            chain_ids_for_residues[residue_id].append(chain_id)
+        # Store the chain_id for this residue in the dictionary
+        if residue_id not in chain_ids_for_residues:
+            chain_ids_for_residues[residue_id] = []
+        chain_ids_for_residues[residue_id].append(chain_id)
 
     # Sort each chain's residue IDs and store them in the list of lists
     sorted_chain_residues = []
@@ -586,7 +589,7 @@ def euclidean_distance_dataframe(df1: pd.DataFrame, df2: pd.DataFrame) -> float:
     """
     required_columns = {"Cartn_x", "Cartn_y", "Cartn_z"}
     if not required_columns.issubset(df1.columns) or not required_columns.issubset(
-        df2.columns
+            df2.columns
     ):
         raise ValueError(
             "DataFrames must have 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns"
@@ -604,7 +607,7 @@ def euclidean_distance_dataframe(df1: pd.DataFrame, df2: pd.DataFrame) -> float:
 
 
 def calc_residue_distances(
-    res_1: Tuple[str, pd.DataFrame], res_2: Tuple[str, pd.DataFrame]
+        res_1: Tuple[str, pd.DataFrame], res_2: Tuple[str, pd.DataFrame]
 ) -> float:
     """Calculate the Euclidean distance between two residues.
 
