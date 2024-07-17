@@ -1,6 +1,5 @@
 import time
 import warnings
-import datetime
 import os
 
 import click
