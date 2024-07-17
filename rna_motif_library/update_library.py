@@ -11,6 +11,7 @@ import concurrent.futures
 
 from typing import Dict
 import pandas as pd
+from tqdm import tqdm
 
 import settings
 import snap
@@ -131,20 +132,22 @@ def __download_cif_files(csv_path: str, threads: int) -> None:
         out_path = os.path.join(pdb_dir, f"{pdb_name}.cif")
 
         if os.path.isfile(out_path):
-            print(f"{pdb_name} ALREADY DOWNLOADED!")
-        else:
-            print(f"{pdb_name} DOWNLOADING")
+            return  # Skip this row because the file is already downloaded
+        try:
             wget.download(f"https://files.rcsb.org/download/{pdb_name}.cif", out=out_path)
+        except Exception as e:
+            tqdm.write(f"Failed to download {pdb_name}: {e}")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-        # Map each row to the download function
-        executor.map(download_pdbs, df.itertuples(index=False))
+        # Make sure 'total=len(df)' is correctly set
+        list(tqdm(executor.map(download_pdbs, df.itertuples(index=False)), total=len(df)))
 
     # Clean up files with parentheses in their names (duplicates)
     files_with_parentheses = glob.glob(os.path.join(pdb_dir, "*(*.cif"))
     for file in files_with_parentheses:
         os.remove(file)
-        print(f"Removed file: {file}")
+        # Uncomment next line to show removed file message
+        # tqdm.write(f"Removed file: {file}")
 
 
 '''def __download_cif_files(csv_path: str, threads: int) -> None:

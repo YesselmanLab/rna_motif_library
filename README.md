@@ -35,37 +35,40 @@ pip install .
 # Make sure you put the CSV in the right place or you will get errors
 # Note, despite the use of "PDB" in language, all files are actually ".cif", not ".pdb"
 
-# Navigate to directory
-cd rna_motif_library
-
 # If you didn't delete the directory "data/pdbs" then skip running this command and go directly to the next step
 # To create the library first we need to download the PDBs specified in the CSV
-python cli.py download_cifs --threads 8
+python rna_motif_library/cli.py download_cifs --threads 8
 # Replace "8" with the number of CPU cores you want to use
+# Estimated time: 15 minutes for around 1700 .cifs
 
 # After downloading we need to process with DSSR
-python cli.py process_dssr --threads 8
+python rna_motif_library/cli.py process_dssr --threads 8
 # Replace "8" with the number of CPU cores you want to use
+# Estimated time: 40 minutes for around 1700 .cifs
 
 # After processing with DSSR we need to process with SNAP
-python cli.py process_snap --threads 8
+python rna_motif_library/cli.py process_snap --threads 8
 # Replace "8" with the number of CPU cores you want to use
+# Estimated time: 12 hours for around 1700 .cifs
 
 # After processing with SNAP we need to generate motif files
-python cli.py generate_motifs
+python rna_motif_library/cli.py generate_motifs
 # No threading for this one
+# Estimated time: 72 hours for around 1700 .cifs
 
 # After generating motifs we find tertiary contacts
-python cli.py find_tertiary_contacts
+python rna_motif_library/cli.py find_tertiary_contacts
 # No threading for this one
+# Estimated time: 24-36 hours for around 1700 .cifs
 
 # Finally, make the figures
-python cli.py make_figures
+python rna_motif_library/cli.py make_figures
 # No threading for this one
+# Estimated time: 10 minutes
 
 ```
 
-When finished, you will see several new directories, CSVs, and figures in the project directory. <br>
+When finished, you will see several new directories, CSVs, and figures in the directory with the scripts. <br>
 `motifs` - motifs found in the non-redundant set go here, categorized by type, size, and sequence
 `interactions` - individual residues which hydrogen-bond with each other go here, classified by which residues are
 interacting
