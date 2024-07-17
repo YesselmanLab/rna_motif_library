@@ -1,3 +1,4 @@
+import csv
 from concurrent.futures import ThreadPoolExecutor
 from json import JSONDecodeError
 
@@ -148,54 +149,6 @@ def __download_cif_files(csv_path: str, threads: int) -> None:
         os.remove(file)
         # Uncomment next line to show removed file message
         # tqdm.write(f"Removed file: {file}")
-
-
-'''def __download_cif_files(csv_path: str, threads: int) -> None:
-    """Downloads CIF files based on a CSV that specifies the non-redundant set.
-
-    Args:
-        csv_path: The path to the CSV file that contains data about which PDB files to download.
-        threads: The number of threads to use for downloading.
-    """
-    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
-
-    # Ensure the directory exists
-    if not os.path.exists(pdb_dir):
-        os.makedirs(pdb_dir)
-
-    # Define the structure of the CSV file
-    column_names = ["equivalence_class", "represent", "class_members"]
-
-    # Read the CSV
-    df = pd.read_csv(csv_path, header=None, names=column_names)
-
-    def download_pdb(row):
-        pdb_name = row[1].split("|")[0]  # Access 'represent' by index since it's the second column
-        out_path = os.path.join(pdb_dir, f"{pdb_name}.cif")
-
-        if os.path.isfile(out_path):
-            return f"{pdb_name} ALREADY DOWNLOADED"
-
-        print(f"{pdb_name} DOWNLOADING")
-        wget.download(f"https://files.rcsb.org/download/{pdb_name}.cif", out=out_path)
-        return f"{pdb_name} DOWNLOADED"
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-        results = executor.map(download_pdb, df.itertuples(index=False))
-
-    already_downloaded = sum(1 for result in results if 'ALREADY DOWNLOADED' in result)
-    print(f"{already_downloaded} PDBs already downloaded!")
-
-    # Clean up files with parentheses in their names
-    files_with_parentheses = glob.glob(os.path.join(pdb_dir, "*(*.cif"))
-    for file in files_with_parentheses:
-        os.remove(file)
-        print(f"Removed file: {file}")
-
-    # Count remaining .cif files
-    remaining_files = glob.glob(os.path.join(pdb_dir, "*.cif"))
-    print(f"Total .cif files after cleanup: {len(remaining_files)}")
-'''
 
 
 def __get_dssr_files(threads: int) -> None:
@@ -393,6 +346,11 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
                     f_inter_overview,
                 )
 
+    # When all is said and done need to count number of motifs and print to CSV
+    motif_directory = "data/motifs"
+    output_csv = "motif_cif_counts.csv"
+    write_counts_to_csv(motif_directory, output_csv)
+
 
 def __find_tertiary_contacts():
     """
@@ -497,39 +455,39 @@ def __final_statistics():
     figure_plotting.plot_present_hbonds(grouped_hbond_df=grouped_hbond_df)
 
 
-def main():
-    warnings.filterwarnings("ignore")
-    current_time = datetime.datetime.now()
-    start_time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    print("!!!!! CIF FILES DOWNLOADED !!!!!")
-    current_time = datetime.datetime.now()
-    time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    print("Download finished on", time_string)
-    # __get_dssr_files()
-    print("!!!!! DSSR PROCESSING FINISHED !!!!!")
-    current_time = datetime.datetime.now()
-    time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    print("DSSR processing finished on", time_string)
-    # __get_snap_files()
-    print("!!!!! SNAP PROCESSING FINISHED !!!!!!")
-    current_time = datetime.datetime.now()
-    time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    print("SNAP processing finished on", time_string)
-    # __generate_motif_files()
-    print("!!!!! MOTIF EXTRACTION FINISHED !!!!!")
-    current_time = datetime.datetime.now()
-    time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    print("Motif extraction finished on", time_string)
-    # __find_tertiary_contacts()
-    print("!!!!! TERTIARY CONTACT PROCESSING FINISHED !!!!!")
-    print("Plotting data...")
-    # __final_statistics()
-    print("!!!!! PLOTS COMPLETED !!!!!")
-    current_time = datetime.datetime.now()
-    time_string = current_time.strftime("%Y-%m-%d %H:%M:%S")
-    print("Job started on", start_time_string)
-    print("Job finished on", time_string)
+def count_cif_files(directory):
+    """Recursively count .cif files in the given directory.
+
+    Args:
+        directory: A string, the path to the directory to count .cif files in.
+
+    Returns:
+        An integer count of .cif files.
+    """
+    cif_count = 0
+    for root, dirs, files in os.walk(directory):
+        cif_count += sum(1 for file in files if file.endswith('.cif'))
+    return cif_count
 
 
-if __name__ == "__main__":
-    main()
+def write_counts_to_csv(motif_directory, output_csv):
+    """Writes the counts of .cif files for each subdirectory to a CSV file.
+
+    Args:
+        motif_directory: A string, the directory containing motif subdirectories.
+        output_csv: A string, the path to the output CSV file.
+    """
+    # List subdirectories in the motif directory
+    subdirectories = [os.path.join(motif_directory, d) for d in os.listdir(motif_directory) if
+                      os.path.isdir(os.path.join(motif_directory, d))]
+
+    # Prepare data to write
+    data_to_write = [['Folder Name', 'CIF Count']]
+    for subdirectory in subdirectories:
+        cif_count = count_cif_files(subdirectory)
+        data_to_write.append([os.path.basename(subdirectory), cif_count])
+
+    # Write data to CSV
+    with open(output_csv, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerows(data_to_write)

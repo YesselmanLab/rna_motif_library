@@ -101,7 +101,7 @@ If you are interested in a specific PDB, you can run the following:
 # Make sure to delete the directories "motifs", "interactions", "tertiary_contacts", "heatmaps", and "heatmap_data" if you've run the full code already
 # Make sure your file is within the nonredundant set
 # Look for "PDB_name.json" and "PDB_name.out" in /dssr_output and /snap_output
-python cli.py generate_motifs --PDB 3R9X
+python cli.py generate_motifs --pdb 3R9X
 # Replace "3R9X" with your desired PDB
 ```
 
@@ -115,7 +115,7 @@ If such errors do come up, contact us at (email), and send the traceback in a .t
 
 ## CSV documentation
 
-When running is finished you will see a number of new CSVs with data.<br>
+When running is finished you may see a number of new CSVs with data inside the package directory.<br>
 Here I will describe the most important CSVs.
 
 interactions.csv - shows the size of each motif (in nucleotides) and number of each type (base:base/sugar/phos/aa/etc)
