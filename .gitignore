@@ -1,2 +1,3 @@
 build/
+rna_motif_library/data/csvs/
 *.pyc
