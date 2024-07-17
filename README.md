@@ -67,12 +67,14 @@ python cli.py make_figures
 
 When finished, you will see several new directories, CSVs, and figures in the project directory. <br>
 `motifs` - motifs found in the non-redundant set go here, categorized by type, size, and sequence
-`interactions` - individual residues which hydrogen-bond with each other go here, classified by which residues are interacting
+`interactions` - individual residues which hydrogen-bond with each other go here, classified by which residues are
+interacting
 `tertiary_contacts` - tertiary contacts found go here, classified by what two types of motifs are in the contact
 
 ## Figure generation
 
-The figures used were generated whilst running `update_library.py` using the default CSV inside the directory `data/csvs`.<br>
+The figures used were generated whilst running `update_library.py` using the default CSV inside the
+directory `data/csvs`.<br>
 For further details, check out `figure_plotting.py`.
 
 Figures 2 and 3 are PNGs; they are in the project directory.<br>
@@ -80,10 +82,10 @@ Figure 4 also consists of PNGs, however, every interaction/atom combination gets
 These figures can be found in the directory `heatmaps`.<br>
 Data for each respective figure is broken down in CSV files, which are in `heatmap_data`.<br>
 
-
 ## Other functions
 
 If you are interested in only a certain number of PDBs, you can run the following:
+
 ```bash
 # Make sure to delete the directories "motifs", "interactions", "tertiary_contacts", "heatmaps", and "heatmap_data" if you've run the full code already
 python cli.py generate_motifs --limit 8
@@ -91,6 +93,7 @@ python cli.py generate_motifs --limit 8
 ```
 
 If you are interested in a specific PDB, you can run the following:
+
 ```bash
 # Make sure to delete the directories "motifs", "interactions", "tertiary_contacts", "heatmaps", and "heatmap_data" if you've run the full code already
 # Make sure your file is within the nonredundant set
@@ -99,13 +102,24 @@ python cli.py generate_motifs --PDB 3R9X
 # Replace "3R9X" with your desired PDB
 ```
 
+## Error handling
+
+You may get a very unusual error involving DSSR (or other aspects of the program) that I have yet to discover.<br>
+In that case, remove the offending `.cif`, `.json`, and `.out` from `data/pdbs`, `data/dssr_output` ,
+and `data/snap_output`, before running the `generate_motifs` command again.<br>
+This will remove the offending PDB from the end data set.<br>
+If such errors do come up, contact us at (email), and send the traceback in a .txt file, along with the files you removed.
+
 ## CSV documentation
 
 When running is finished you will see a number of new CSVs with data.<br>
 Here I will describe the most important CSVs.
 
-interactions.csv - shows the size of each motif (in nucleotides) and number of each type (base:base/sugar/phos/aa/etc) of interaction within a motif
-- columns: (name,type,size,base:base,base:sugar,base:phos,sugar:base,sugar:sugar,sugar:phos,phos:base,phos:sugar,phos:phos,base:aa,sugar:aa,phos:aa)
+interactions.csv - shows the size of each motif (in nucleotides) and number of each type (base:base/sugar/phos/aa/etc)
+of interaction within a motif
+
+- columns: (name,type,size,base:base,base:sugar,base:phos,sugar:base,sugar:sugar,sugar:phos,phos:base,phos:sugar,phos:
+  phos,base:aa,sugar:aa,phos:aa)
 - name: name of motif
 - type: type of motif (SSTRAND/HELIX/HAIRPIN/NWAY/TWOWAY)
 - size: number of nucleotides in the motif
@@ -113,7 +127,9 @@ interactions.csv - shows the size of each motif (in nucleotides) and number of e
 - base:sugar: # of base-sugar interactions involving the motif
 - all further columns in the CSV follow a similar pattern
 
-interactions_detailed.csv - shows detailed information about each interaction found/listed in interactions.csv (though not by name)
+interactions_detailed.csv - shows detailed information about each interaction found/listed in interactions.csv (though
+not by name)
+
 - columns: (name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2)
 - name: name of motif
 - res_1: residue #1 in the interaction
@@ -123,11 +139,13 @@ interactions_detailed.csv - shows detailed information about each interaction fo
 - atom_1: the exact atom inside res_1 interacting with atom_2
 - atom_2: the exact atom inside res_2 interacting with atom_1
 - distance: distance between atom_1 and atom_2
-- angle: dihedral angle between residues at atom_1 and atom_2, along with the closest atoms they are connected to on their respective residues
+- angle: dihedral angle between residues at atom_1 and atom_2, along with the closest atoms they are connected to on
+  their respective residues
 - nt_1: is res_1 an amino acid or nucleotide (nt/aa)
 - nt_2: is res_2 an amino acid or nucleotide (nt/aa)
 
 unique_tert_contacts.csv - shows detailed information about tertiary contacts
+
 - columns: (seq_1,seq_2,motif_1,motif_2,type_1,type_2,res_1,res_2,count)
 - seq_1: sequence of motif_1
 - seq_2: sequence of motif_2
@@ -135,11 +153,15 @@ unique_tert_contacts.csv - shows detailed information about tertiary contacts
 - motif_2: name of motif_2
 - type_1: type of motif_1 (hairpin, helix, 2way/nway junction, single strand)
 - type_2: type of motif_2 (hairpin, helix, 2way/nway junction, single strand)
-- res_1: was used in intermediate processes, irrelevant here; is the name of one of the residues in motif_1 involved in the tertiary contact
-- res_2: was used in intermediate processes, irrelevant here; is the name of one of the residues in motif_2 involved in the tertiary contact
+- res_1: was used in intermediate processes, irrelevant here; is the name of one of the residues in motif_1 involved in
+  the tertiary contact
+- res_2: was used in intermediate processes, irrelevant here; is the name of one of the residues in motif_2 involved in
+  the tertiary contact
 - count: number of interactions (h-bonds) between motif_1 and motif_2 in the tertiary contact
 
-twoway_motif_list.csv - shows surface level information about two-way junctions and is used to make a heatmap showing sizes of two-way junctions
+twoway_motif_list.csv - shows surface level information about two-way junctions and is used to make a heatmap showing
+sizes of two-way junctions
+
 - columns: (motif_name, motif_type, nucleotides_in_strand_1, nucleotides_in_strand_2, bridging_nts_0, bridging_nts_1)
 - motif_name: name of the two-way junction
 - motif_type: original classification of junction; irrelevant
