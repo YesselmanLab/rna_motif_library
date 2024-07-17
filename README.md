@@ -105,7 +105,7 @@ python cli.py generate_motifs --PDB 3R9X
 ## Error handling
 
 You may get a very unusual error involving DSSR (or other aspects of the program) that I have yet to discover.<br>
-In that case, remove the offending `.cif`, `.json`, and `.out` from `data/pdbs`, `data/dssr_output` ,
+In that case, remove the offending `.cif`, `.json`, and `.out` from `data/pdbs`, `data/dssr_output` , and `data/snap_output`
 and `data/snap_output`, before running the `generate_motifs` command again.<br>
 This will remove the offending PDB from the end data set.<br>
 If such errors do come up, contact us at (email), and send the traceback in a .txt file, along with the files you removed.
