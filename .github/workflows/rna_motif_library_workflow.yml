@@ -20,16 +20,25 @@ jobs:
         uses: conda-incubator/setup-miniconda@v2
         with:
           auto-update-conda: true
-          miniconda-version: "latest"  # Explicitly specify to install the latest Miniconda if not found
+          miniconda-version: "latest"  # Ensures the latest Miniconda is installed if not found
           python-version: 3.9
           activate-environment: rna_motif_env
           auto-activate-base: false
 
+      - name: Cache Conda packages
+        uses: actions/cache@v2
+        with:
+          path: ~/miniconda3/pkgs  # Cache the Conda package cache directory
+          key: ${{ runner.os }}-conda-${{ hashFiles('**/setup.py', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-conda-
+
       - name: Install the RNA Motif Library
         run: |
+          conda activate rna_motif_env
           pip install .
 
       - name: Verify installation
         run: |
+          conda activate rna_motif_env
           python -m pip list
-
