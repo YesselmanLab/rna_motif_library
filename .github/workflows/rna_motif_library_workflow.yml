@@ -20,11 +20,15 @@ jobs:
         uses: conda-incubator/setup-miniconda@v2
         with:
           auto-update-conda: true
-          miniconda-version: "latest"  # Explicitly specify to install the latest Miniconda
+          miniconda-version: "latest"
           python-version: 3.8
-          conda-channels: conda-forge, bioconda
+          channels: conda-forge, bioconda  # Corrected from 'conda-channels' to 'channels'
           activate-environment: rna_motif_env
           auto-activate-base: false
+          remove-profiles: true
+          architecture: x64
+          clean-patched-environment-file: true
+          run-post: true
 
       - name: Install dependencies using setup.py
         run: |
