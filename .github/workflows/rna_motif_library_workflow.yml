@@ -32,3 +32,9 @@ jobs:
       - name: Verify installation
         run: |
           conda run -n rna_motif_env python -m pip list
+
+      - name: Download CIFs
+        shell: bash -l {0}
+        run: |
+          conda activate rna_motif_env
+          python rna_motif_library/cli.py download_cifs --threads 8

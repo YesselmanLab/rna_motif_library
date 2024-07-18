@@ -27,6 +27,9 @@ cd rna_motif_library
 # Install the package
 pip install .
 
+# Verify installation
+python -m pip list
+
 ```
 
 ## Creating the library
