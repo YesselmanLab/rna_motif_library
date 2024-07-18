@@ -34,6 +34,7 @@ python -m pip list
 
 ```bash
 # Make sure you put the CSV in the right place or you will get errors
+# Put the CSV where the default CSV is and delete the default
 # Note, despite the use of "PDB" in language, all files are actually ".cif", not ".pdb"
 
 # To create the library first we need to download the PDBs specified in the CSV
