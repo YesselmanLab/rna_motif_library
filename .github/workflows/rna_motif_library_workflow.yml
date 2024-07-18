@@ -20,8 +20,8 @@ jobs:
         uses: conda-incubator/setup-miniconda@v2
         with:
           auto-update-conda: true
-          miniconda-version: "latest"  # Ensures the latest Miniconda is installed if not found
-          python-version: 3.9
+          miniconda-version: "latest"
+          python-version: 3.8
           activate-environment: rna_motif_env
           auto-activate-base: false
 
@@ -33,12 +33,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-conda-
 
+      - name: Initialize Conda
+        run: |
+          source ~/miniconda3/etc/profile.d/conda.sh
+          conda activate rna_motif_env
+
       - name: Install the RNA Motif Library
         run: |
+          source ~/miniconda3/etc/profile.d/conda.sh
           conda activate rna_motif_env
           pip install .
 
       - name: Verify installation
         run: |
+          source ~/miniconda3/etc/profile.d/conda.sh
           conda activate rna_motif_env
           python -m pip list
