@@ -10,8 +10,6 @@ Make sure to download the most recent data (3.5 Å resolution):<br>
 http://rna.bgsu.edu/rna3dhub/nrlist
 
 In the directory `data/csvs`, delete the default CSV file and replace with your download.<br>
-Delete the directory `data/pdbs`, it was used to create the results of the paper.<br>
-Optionally you can run the program with these files to reproduce the results.<br>
 
 ## Installation
 
