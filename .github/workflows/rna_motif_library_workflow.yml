@@ -20,22 +20,19 @@ jobs:
         uses: conda-incubator/setup-miniconda@v2
         with:
           auto-update-conda: true
-          miniconda-version: "latest"
           python-version: 3.8
-          channels: conda-forge, bioconda  # Corrected from 'conda-channels' to 'channels'
           activate-environment: rna_motif_env
           auto-activate-base: false
-          remove-profiles: true
-          architecture: x64
-          clean-patched-environment-file: true
-          run-post: true
 
-      - name: Install dependencies using setup.py
+      - name: Clone the RNA Motif Library repository
         run: |
-          conda activate rna_motif_env
-          python setup.py install
+          git clone https://github.com/YesselmanLab/rna_motif_library.git
+          cd rna_motif_library
+
+      - name: Install the RNA Motif Library
+        run: |
+          pip install .
 
       - name: Verify installation
         run: |
-          conda activate rna_motif_env
           python -m pip list
