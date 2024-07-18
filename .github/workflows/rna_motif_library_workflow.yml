@@ -1,0 +1,39 @@
+name: Setup RNA Motif Library
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**.py'
+      - 'setup.py'
+
+jobs:
+  setup-environment:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup Conda environment
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: 3.8
+          conda-channels: conda-forge, bioconda
+          activate-environment: rna_motif_env
+          auto-activate-base: false
+
+      - name: Install dependencies using setup.py
+        run: |
+          conda activate rna_motif_env
+          python setup.py install
+
+      - name: Verify installation
+        run: |
+          conda activate rna_motif_env
+          python -m pip list

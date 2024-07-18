@@ -102,10 +102,10 @@ def find_tertiary_contacts():
 
 
 # I'm probably going to junk this once I get the notebooks running
-@cli.command(name='make_figures')  # Set command name
+"""@cli.command(name='make_figures')  # Set command name
 def make_figures():
     warnings.filterwarnings("ignore")
-    update_library.__final_statistics()
+    update_library.__final_statistics()"""
 
 
 if __name__ == "__main__":

@@ -60,18 +60,16 @@ python rna_motif_library/cli.py find_tertiary_contacts
 # No threading for this one
 # Estimated time: 24-36 hours for around 2000 .cifs
 
-# Finally, make the figures
-python rna_motif_library/cli.py make_figures
-# No threading for this one
-# Estimated time: 10 minutes
-
 ```
 
 When finished, you will see several new directories. <br>
 `data/motifs` - motifs found in the non-redundant set go here, categorized by type, size, and sequence
 `data/interactions` - individual residues which hydrogen-bond with each other go here, classified by which residues are
 interacting
-`tertiary_contacts` - tertiary contacts found go here, classified by what two types of motifs are in the contact
+`data/tertiary_contacts` - tertiary contacts found go here, classified by what two types of motifs are in the contact
+`data/out_csvs` - CSVs with further data go here
+
+Note: folders in `data/motifs` named `nways` refer to n-way junctions (2ways, 3ways, etc)
 
 ## Figure generation
 

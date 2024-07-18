@@ -233,7 +233,9 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
 
     # Define directories for output
     motif_dir = os.path.join(settings.LIB_PATH, "data", "motifs")
+    csv_dir = os.path.join(settings.LIB_PATH, "data", "out_csvs")
     __safe_mkdir(motif_dir)
+    __safe_mkdir(csv_dir)
 
     # Interaction types
     hbond_vals = [
@@ -252,10 +254,10 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
     ]
 
     # Open files for output
-    with open("interactions.csv", "w") as f_inter_overview, open(
-            "interactions_detailed.csv", "w"
-    ) as f_inter, open("motif_residues_list.csv", "w") as f_residues, open(
-        "twoway_motif_list.csv", "w"
+    with open(os.path.join(csv_dir, "interactions.csv"), "w") as f_inter_overview, open(
+            os.path.join(csv_dir, "interactions_detailed.csv"), "w"
+    ) as f_inter, open(os.path.join(csv_dir, "motif_residues_list.csv"), "w") as f_residues, open(
+        os.path.join(csv_dir, "twoway_motif_list.csv"), "w"
     ) as f_twoways:
 
         # Write headers
@@ -346,9 +348,12 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
                 )
 
     # When all is said and done need to count number of motifs and print to CSV
-    motif_directory = "data/motifs"
-    output_csv = "motif_cif_counts.csv"
+    motif_directory = os.path.join("data/motifs")
+    __safe_mkdir(motif_directory)
+    output_csv = os.path.join("data/out_csvs/motif_cif_counts.csv")
     write_counts_to_csv(motif_directory, output_csv)
+
+    # Need to print data for every H-bond group
 
 
 def __find_tertiary_contacts():
@@ -365,18 +370,28 @@ def __find_tertiary_contacts():
         Returns:tertiary_contacts.find_tertiary_contacts(interactions_from_csv=grouped_interactions_csv_df,
             None                                         list_of_res_in_motifs=motif_residues_dict)
     """
-    interactions_from_csv = pd.read_csv("interactions_detailed.csv")
+    csv_dir = os.path.join(settings.LIB_PATH, "data", "out_csvs")
+
+    interactions_from_csv = pd.read_csv(os.path.join(csv_dir, "interactions_detailed.csv"))
     grouped_interactions_csv_df = interactions_from_csv.groupby("name")
-    motif_residues_csv_path = "motif_residues_list.csv"
+    motif_residues_csv_path = os.path.join(csv_dir, "motif_residues_list.csv")
     motif_residues_dict = tert_contacts.load_motif_residues(motif_residues_csv_path)
     tert_contacts.find_tertiary_contacts(
         interactions_from_csv=grouped_interactions_csv_df,
         list_of_res_in_motifs=motif_residues_dict,
+        csv_dir=csv_dir
     )
-    tert_contacts.find_unique_tertiary_contacts()
-    unique_tert_contact_df = tert_contacts.delete_duplicate_contacts()
-    tert_contacts.print_tert_contacts_to_csv(unique_tert_contact_df)
-    tert_contacts.plot_tert_histograms(unique_tert_contact_df)
+    tert_contacts.find_unique_tertiary_contacts(csv_dir=csv_dir)
+    unique_tert_contact_df = tert_contacts.delete_duplicate_contacts(csv_dir=csv_dir)
+    tert_contacts.print_tert_contacts_to_cif(unique_tert_contact_df=unique_tert_contact_df)
+    #tert_contacts.plot_tert_histograms(unique_tert_contact_df=unique_tert_contact_df, csv_dir=csv_dir)
+    # TODO Now need to print CSVs with tertiary contact data to plot in notebooks
+    # print sstrands_tert
+    # print helices_tert
+    # print hairpins_tert
+
+
+
 
 
 # calculate some final statistics
@@ -394,11 +409,11 @@ def __final_statistics():
     Returns:
         None
     """
-    motif_directory = os.path.join(settings.LIB_PATH, "motifs")
+    motif_directory = os.path.join(settings.LIB_PATH, "data", "motifs")
     tert_motif_directory = (
-        os.path.join(settings.LIB_PATH, "tertiary_contacts")
+        os.path.join(settings.LIB_PATH, "data", "tertiary_contacts")
     )
-    tert_contact_csv_directory = "unique_tert_contacts.csv"
+    tert_contact_csv_directory = os.path.join(settings.LIB_PATH, "data/out_csvs", "unique_tert_contacts.csv")
 
     figure_plotting.plot_motif_counts(motif_directory=motif_directory)
     figure_plotting.plot_hairpin_counts(motif_directory=motif_directory)
@@ -411,7 +426,7 @@ def __final_statistics():
 
     print("Plotting heatmaps...")
     # Read the CSV data into a DataFrame
-    csv_path = "twoway_motif_list.csv"
+    csv_path = os.path.join(settings.LIB_PATH, "data/out_csvs", "twoway_motif_list.csv")
     figure_plotting.plot_twoway_size_heatmap(csv_path=csv_path)
     hbond_df_unfiltered = pd.read_csv("interactions_detailed.csv")
     # also delete res_1_name and res_2_name where they are hairpins less than 3
@@ -481,7 +496,7 @@ def write_counts_to_csv(motif_directory, output_csv):
                       os.path.isdir(os.path.join(motif_directory, d))]
 
     # Prepare data to write
-    data_to_write = [['Folder Name', 'CIF Count']]
+    data_to_write = [['motif_type', 'count']]
     for subdirectory in subdirectories:
         cif_count = count_cif_files(subdirectory)
         data_to_write.append([os.path.basename(subdirectory), cif_count])

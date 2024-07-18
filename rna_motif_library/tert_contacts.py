@@ -33,6 +33,7 @@ def load_motif_residues(motif_residues_csv_path: str) -> dict:
 def find_tertiary_contacts(
         interactions_from_csv: pd.core.groupby.generic.DataFrameGroupBy,
         list_of_res_in_motifs: Dict[str, List[str]],
+        csv_dir: str
 ) -> None:
     """
     Find tertiary contacts from interaction data and write them to CSV files.
@@ -40,13 +41,14 @@ def find_tertiary_contacts(
     Args:
         interactions_from_csv (DataFrameGroupBy): Grouped DataFrame of interactions.
         list_of_res_in_motifs (dict): Dictionary of residues in each motif.
+        csv_dir (str): Directory of CSV results.
     """
-    f_tert = open("tertiary_contact_list.csv", "w")
+    f_tert = open(os.path.join(csv_dir, "tertiary_contact_list.csv"), "w")
     f_tert.write(
         "motif_1,motif_2,type_1,type_2,res_1,res_2,hairpin_len_1,hairpin_len_2,res_type_1,res_type_2"
         + "\n"
     )
-    f_single = open("single_motif_inter_list.csv", "w")
+    f_single = open(os.path.join(csv_dir, "single_motif_inter_list.csv"), "w")
     f_single.write(
         "motif,type_1,type_2,res_1,res_2,nt_1,nt_2,distance,angle,res_type_1,res_type_2"
         + "\n"
@@ -223,13 +225,15 @@ def find_tertiary_contacts(
                         )
 
 
-def find_unique_tertiary_contacts():
+def find_unique_tertiary_contacts(csv_dir: str):
     """
     Finds unique tertiary contacts from the CSV file and writes them to another CSV file.
+    Args:
+        csv_dir: Directory of CSV results
     """
     # after the CSV for tertiary contacts are made we need to go through and extract all unique pairs in CSV
     tert_contact_csv_df = pd.read_csv(
-        "tertiary_contact_list.csv"
+        os.path.join(csv_dir, "tertiary_contact_list.csv")
     )  # used to make unique list which then is used for everything else
 
     # Check if the required columns are present
@@ -248,7 +252,7 @@ def find_unique_tertiary_contacts():
     # Specify the file path
     # Making the unique_tert_contacts.csv file
     print("Opened unique_tert_contacts.csv")
-    csv_file_path = "unique_tert_contacts.csv"
+    csv_file_path = os.path.join(csv_dir, "unique_tert_contacts.csv")
     print("Writing to unique_tert_contacts.csv...")
     with open(csv_file_path, mode="w", newline="") as file:
         # Create a CSV writer object
@@ -311,15 +315,17 @@ def find_unique_tertiary_contacts():
     file.close()
 
 
-def delete_duplicate_contacts() -> pd.DataFrame:
+def delete_duplicate_contacts(csv_dir: str) -> pd.DataFrame:
     """
     Deletes duplicate tertiary contacts where motif_1 and motif_2 are switched and processes the data to remove further duplicates.
+    Args:
+        csv_dir (str): Directory of CSV results
 
     Returns:
         pd.DataFrame: A DataFrame of unique tertiary contacts.
     """
     # graph hydrogen bonds per overall tertiary contact
-    unique_tert_contact_df_new = pd.read_csv("unique_tert_contacts.csv")
+    unique_tert_contact_df_new = pd.read_csv(os.path.join(csv_dir, "unique_tert_contacts.csv"))
 
     print("Deleting duplicates...")
     # Now delete duplicate interactions (where motif_1 and 2 are switched)
@@ -336,7 +342,7 @@ def delete_duplicate_contacts() -> pd.DataFrame:
         remove_duplicate_res
     ).reset_index(drop=True)
     unique_tert_contact_df_for_hbonds.to_csv(
-        "unique_tert_contacts_for_hbonds.csv", index=False
+        os.path.join(csv_dir, "unique_tert_contacts_for_hbonds.csv"), index=False
     )
     # If there are fewer than two residues interacting in the contact, delete
     grouped_df = unique_tert_contact_df_for_hbonds.groupby(["motif_1", "motif_2"])
@@ -373,7 +379,7 @@ def delete_duplicate_contacts() -> pd.DataFrame:
     unique_tert_contact_df.reset_index(drop=True, inplace=True)
 
     # Print it for good measure
-    unique_tert_contact_df.to_csv("unique_tert_contacts.csv", index=False)
+    unique_tert_contact_df.to_csv(os.path.join(csv_dir, "unique_tert_contacts.csv"), index=False)
 
     return unique_tert_contact_df
 
@@ -403,9 +409,9 @@ def sort_res(row: pd.Series) -> pd.Series:
     return pd.Series(np.sort(row.values))
 
 
-def print_tert_contacts_to_csv(unique_tert_contact_df: pd.DataFrame) -> None:
+def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
     """
-    Print tertiary contacts to CSV files.
+    Print tertiary contacts to CIF files.
     Args:
         unique_tert_contact_df (pd.DataFrame): DataFrame containing unique tertiary contacts.
     """
@@ -549,7 +555,7 @@ def find_cif_file(directory_path: str, file_name: str) -> Optional[str]:
     return None
 
 
-def plot_tert_histograms(unique_tert_contact_df: pd.DataFrame) -> None:
+def plot_tert_histograms(unique_tert_contact_df: pd.DataFrame, csv_dir: str) -> None:
     """
     Plot histograms of tertiary contacts.
 
@@ -558,7 +564,7 @@ def plot_tert_histograms(unique_tert_contact_df: pd.DataFrame) -> None:
     """
     print("Plotting...")
     unique_tert_contact_df_for_hbonds = pd.read_csv(
-        "unique_tert_contacts_for_hbonds.csv"
+        os.path.join(csv_dir, "unique_tert_contacts_for_hbonds.csv")
     )
 
     # Group by motif_1 and motif_2 and sum the counts; to determine how many h-bonds there are between tert contacts
