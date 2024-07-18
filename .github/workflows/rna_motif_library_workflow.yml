@@ -21,7 +21,7 @@ jobs:
         with:
           auto-update-conda: true
           miniconda-version: "latest"  # Explicitly specify to install the latest Miniconda if not found
-          python-version: 3.8
+          python-version: 3.9
           activate-environment: rna_motif_env
           auto-activate-base: false
 
