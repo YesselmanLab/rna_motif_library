@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - '**.py'
-      - 'setup.py'
 
 jobs:
   setup-environment:
@@ -23,6 +20,7 @@ jobs:
         uses: conda-incubator/setup-miniconda@v2
         with:
           auto-update-conda: true
+          miniconda-version: "latest"  # Explicitly specify to install the latest Miniconda
           python-version: 3.8
           conda-channels: conda-forge, bioconda
           activate-environment: rna_motif_env
