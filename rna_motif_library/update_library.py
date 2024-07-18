@@ -354,6 +354,46 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
     write_counts_to_csv(motif_directory, output_csv)
 
     # Need to print data for every H-bond group
+    hbond_df_unfiltered = pd.read_csv("data/out_csvs/interactions_detailed.csv")
+    # also delete res_1_name and res_2_name where they are hairpins less than 3
+    # Create an empty DataFrame to store the filtered data
+    filtered_data = []
+    # Iterate through each row in the unfiltered DataFrame
+    for index, row in hbond_df_unfiltered.iterrows():
+        # Split motif_1 and motif_2 by "."
+        motif_1_split = row["name"].split(".")
+
+        # Check conditions for deletion
+        if motif_1_split[0] == "HAIRPIN" and 0 < float(motif_1_split[2]) < 3:
+            continue
+        else:
+            # Keep the row by appending it to the filtered_data list
+            filtered_data.append(row)
+    # Create a new DataFrame with the filtered data
+    hbond_df = pd.DataFrame(filtered_data)
+    # Reset the index of the new DataFrame
+    hbond_df.reset_index(drop=True, inplace=True)
+    # now delete all non-canonical residues (if we need to keep DA/DC/DU/etc here is where to do it)
+    filtered_hbond_df = hbond_df[
+        hbond_df["res_1_name"].isin(canon_res_list)
+        & hbond_df["res_2_name"].isin(canon_res_list)
+        ]
+
+    # reverse orders are sorted into the same group
+    filtered_hbond_df["res_atom_pair"] = filtered_hbond_df.apply(
+        lambda row: tuple(
+            sorted(
+                [(row["res_1_name"], row["atom_1"]), (row["res_2_name"], row["atom_2"])]
+            )
+        ),
+        axis=1,
+    )
+
+    # next, group by (res_1_name, res_2_name) as well as by atoms involved in the interaction
+    # grouped_hbond_df = filtered_hbond_df.groupby(["res_1_name", "res_2_name", "atom_1", "atom_2"])
+    grouped_hbond_df = filtered_hbond_df.groupby(["res_atom_pair"])
+    figure_plotting.save_present_hbonds(grouped_hbond_df=grouped_hbond_df)
+
 
 
 def __find_tertiary_contacts():
