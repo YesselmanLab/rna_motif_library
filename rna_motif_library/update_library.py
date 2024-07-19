@@ -395,7 +395,6 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
     figure_plotting.save_present_hbonds(grouped_hbond_df=grouped_hbond_df)
 
 
-
 def __find_tertiary_contacts():
     """
         Finds and processes tertiary contacts in RNA motifs.print("Finding tertiary contacts...")
@@ -424,17 +423,10 @@ def __find_tertiary_contacts():
     tert_contacts.find_unique_tertiary_contacts(csv_dir=csv_dir)
     unique_tert_contact_df = tert_contacts.delete_duplicate_contacts(csv_dir=csv_dir)
     tert_contacts.print_tert_contacts_to_cif(unique_tert_contact_df=unique_tert_contact_df)
-    #tert_contacts.plot_tert_histograms(unique_tert_contact_df=unique_tert_contact_df, csv_dir=csv_dir)
-    # TODO Now need to print CSVs with tertiary contact data to plot in notebooks
-    # print sstrands_tert
-    # print helices_tert
-    # print hairpins_tert
-
-
-
 
 
 # calculate some final statistics
+# junk this function after moving to notebooks
 def __final_statistics():
     """
     Calculate and plot final statistics for RNA motifs and interactions.
@@ -449,25 +441,12 @@ def __final_statistics():
     Returns:
         None
     """
-    motif_directory = os.path.join(settings.LIB_PATH, "data", "motifs")
-    tert_motif_directory = (
-        os.path.join(settings.LIB_PATH, "data", "tertiary_contacts")
-    )
-    tert_contact_csv_directory = os.path.join(settings.LIB_PATH, "data/out_csvs", "unique_tert_contacts.csv")
 
-    figure_plotting.plot_motif_counts(motif_directory=motif_directory)
-    figure_plotting.plot_hairpin_counts(motif_directory=motif_directory)
-    figure_plotting.plot_helix_counts(motif_directory=motif_directory)
-    figure_plotting.plot_sstrand_counts(motif_directory=motif_directory)
-    figure_plotting.plot_tert_contact_counts(tert_motif_directory=tert_motif_directory)
-    figure_plotting.plot_tert_contact_type_counts(
-        tert_contact_csv_directory=tert_contact_csv_directory
-    )
+
 
     print("Plotting heatmaps...")
     # Read the CSV data into a DataFrame
-    csv_path = os.path.join(settings.LIB_PATH, "data/out_csvs", "twoway_motif_list.csv")
-    figure_plotting.plot_twoway_size_heatmap(csv_path=csv_path)
+
     hbond_df_unfiltered = pd.read_csv("interactions_detailed.csv")
     # also delete res_1_name and res_2_name where they are hairpins less than 3
     # Create an empty DataFrame to store the filtered data
