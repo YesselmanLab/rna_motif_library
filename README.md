@@ -16,6 +16,7 @@ In the directory `data/csvs`, delete the default CSV file and replace with your 
 ```bash
 # Create and activate new conda environment
 conda create --name rna_motif_env python=3.8
+# Delete any existing environments by this name if you have any and start with a fresh installation
 conda activate rna_motif_env
 
 # Clone the repository and navigate to project directory
@@ -41,26 +42,39 @@ python -m pip list
 python rna_motif_library/cli.py download_cifs --threads 8
 # Replace "8" with the number of CPU cores you want to use
 # Estimated time: 15 minutes for around 2000 .cifs
+# Expect a progress bar when it's working
 
 # After downloading we need to process with DSSR
 python rna_motif_library/cli.py process_dssr --threads 8
 # Replace "8" with the number of CPU cores you want to use
 # Estimated time: 40 minutes for around 2000 .cifs
+# There will be visual feedback in the terminal window if it's working properly
+# Feedback will consist of the path to the PDB/CIF files
 
 # After processing with DSSR we need to process with SNAP
 python rna_motif_library/cli.py process_snap --threads 8
 # Replace "8" with the number of CPU cores you want to use
-# Estimated time: 12 hours for around 2000 .cifs
+# Estimated time: 9 hours for around 2000 .cifs
+# There will be visual feedback in the terminal window if it's working properly
+# Feedback will consist of the path + other information on nucleotides/etc
 
 # After processing with SNAP we need to generate motif files
 python rna_motif_library/cli.py generate_motifs
 # No threading for this one
 # Estimated time: 72 hours for around 2000 .cifs
+# There will be visual feedback in the terminal window if it's working properly
+# Feedback will display the names of the motifs being processed
 
 # After generating motifs we find tertiary contacts
 python rna_motif_library/cli.py find_tertiary_contacts
 # No threading for this one
 # Estimated time: 24-36 hours for around 2000 .cifs
+# There will be visual feedback in the terminal window if it's working properly
+# Feedback will display which motifs' hydrogen bonding it's looking at
+
+# You don't need to take note of any of the feedback on the command prompt while it's running
+# Just sit back, relax, crack open a cold one, and watch it run (it's about as fun as watching paint dry)
+# It's there to let you know it's thinking properly
 
 ```
 
@@ -110,7 +124,7 @@ You may get a very unusual error involving DSSR (or other aspects of the program
 In that case, remove the offending `.cif`, `.json`, and `.out` from `data/pdbs`, `data/dssr_output` , and `data/snap_output`
 and `data/snap_output`, before running the `generate_motifs` command again.<br>
 This will remove the offending PDB from the end data set.<br>
-If such errors do come up, contact us at (email), and send the traceback in a .txt file, along with the files you removed.
+I have added automated error handling for this, but if it doesn't work (ends up in an infinite loop), or other errors come up, contact us at (email), and send the traceback in a .txt file, along with the files you removed.
 
 ## CSV documentation
 
