@@ -3,6 +3,11 @@ import pandas as pd
 
 
 def save_present_hbonds(grouped_hbond_df: pd.DataFrame):
+    """
+    Saves groups of H-bonding data into CSVs.
+    :param grouped_hbond_df: dataframe containing H-bonding data
+    :return:
+    """
     for group_name, hbonds in grouped_hbond_df:
         # type_1, type_2, atom_1, atom_2 = map(str, group_name)
         (res_1, atom_1), (res_2, atom_2) = group_name
