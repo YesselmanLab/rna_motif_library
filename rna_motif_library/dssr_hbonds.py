@@ -563,11 +563,6 @@ def calculate_bond_angle(
     cos_theta = dot_product / (magnitude_n1 * magnitude_n2)
     angle_rad = np.arccos(np.clip(cos_theta, -1.0, 1.0))
     angle_deg = str(np.degrees(angle_rad))
-    if np.degrees(angle_rad) > 180.0:
-        print(
-            "Dihedral angle over 180 for some reason, double check and add math as needed"
-        )
-        exit(0)
     # Label and return the atoms used in calculation
     center_atom_type = center_atom["auth_atom_id"].to_list()[0]
     carbon_atom_type = carbon_atom["auth_atom_id"].to_list()[0]
