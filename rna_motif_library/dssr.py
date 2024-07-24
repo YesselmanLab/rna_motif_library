@@ -6,7 +6,6 @@ from typing import List, Optional, Any, Tuple
 
 import pandas as pd
 import numpy as np
-from pydssr import dssr
 from pydssr.dssr import DSSROutput
 import dssr_hbonds
 from rna_motif_library import settings, snap
@@ -21,8 +20,6 @@ def make_dir(directory: str) -> None:
 def process_pdbs(count: int, pdb_path: str, limit: int, pdb_name: str, motif_dir: str, f_inter: Any, f_residues: Any, f_twoways: Any, f_inter_overview: Any):
     """
     Function for extracting motifs from a PDB in the loop
-
-
 
     :param count: # of PDBs processed (loaded from outside)
     :param pdb_path: path to the source PDB
@@ -116,15 +113,14 @@ def process_pdbs(count: int, pdb_path: str, limit: int, pdb_name: str, motif_dir
 def count_strands(
         master_res_df: pd.DataFrame, motif_name: str, twoway_jct_csv: Any
 ) -> Tuple[int, str]:
-    """Counts the number of strands in a motif and updates its name accordingly.
+    """Counts the number of strands in a motif and updates its name accordingly to better reflect structure.
 
-    Args:
-        master_res_df: DataFrame containing motif data from PDB.
-        motif_name: Name of the motif being processed.
-        twoway_jct_csv: CSV file object to record data regarding two-way junctions.
+    :param master_res_df: DataFrame containing motif data from PDB.
+    :param motif_name: Name of the motif being processed.
+    :param twoway_jct_csv: CSV file object to record data regarding two-way junctions.
 
-    Returns:
-        A tuple containing the number of strands in the motif and its updated name.
+    :return len_chains: The number of strands in the motif.
+    :return motif_name: Updated motif name.
     """
     # step 1: make a list of all known residues
     # there are several cases where the IDs don't represent the actual residues, so we have to account for each case
@@ -297,11 +293,9 @@ def find_continuous_chains(pair_list: List[List[str]]) -> List[List[str]]:
     """
     Finds and returns a list of lists of all the connected residues.
 
-    Args:
-        pair_list: List of pairs of residues (strings).
+    :param pair_list: List of pairs of residues (strings).
 
-    Returns:
-        A list of lists of all the connected residues.
+    :return merged: A list of lists of all the connected residues.
     """
     chains = []
     chain_map = {}  # Dictionary to map the end points to their respective chains
@@ -413,16 +407,15 @@ def write_res_coords_to_pdb(
     """
     Writes motifs and interactions to PDB files, based on provided nucleotide and interaction data.
 
-    Args:
-        nts: List of nucleotides.
-        interactions: Optional list of interactions.
-        pdb_model: PDB model data, typically loaded from an external library.
-        pdb_path: Path to the PDB file.
-        motif_bond_list: List of motif bonds.
-        csv_file: CSV file handler.
-        residue_csv_list: CSV list for residues.
-        twoway_csv: CSV file specific to two-way junctions.
-        interactions_overview_csv: CSV file for interactions overview.
+    :param nts: List of nucleotides.
+    :param interactions: Optional list of interactions.
+    :param pdb_model: PDB model data, typically loaded from an external library.
+    :param pdb_path: Path to the PDB file.
+    :param motif_bond_list: List of motif bonds.
+    :param csv_file: CSV file handler.
+    :param residue_csv_list: CSV list for residues.
+    :param twoway_csv: CSV file specific to two-way junctions.
+    :param interactions_overview_csv: CSV file for interactions overview.
     """
     # directory setup for later
     dir_parts = pdb_path.split("/")
@@ -569,11 +562,9 @@ def write_res_coords_to_pdb(
 def remove_empty_dataframes(dataframes_list: List[pd.DataFrame]) -> List[pd.DataFrame]:
     """Removes empty DataFrames from a list.
 
-    Args:
-        dataframes_list: A list of pandas DataFrames.
+    :param dataframes_list: A list of pandas DataFrames.
 
-    Returns:
-        A list of pandas DataFrames with empty DataFrames removed.
+    :return dataframes_list: A list of pandas DataFrames with empty DataFrames removed.
     """
     dataframes_list = [df for df in dataframes_list if not df.empty]
     return dataframes_list
@@ -582,11 +573,9 @@ def remove_empty_dataframes(dataframes_list: List[pd.DataFrame]) -> List[pd.Data
 def extract_longest_letter_sequence(input_string: str) -> str:
     """Extracts the longest sequence of letters from a given string.
 
-    Args:
-        input_string: The string to extract the letter sequence from.
+    :param input_string: The string to extract the letter sequence from.
 
-    Returns:
-        The longest sequence of letters found in the input string.
+    :return str(longest_sequence): The longest sequence of letters found in the input string.
     """
     # Find all sequences of letters using regular expression
     letter_sequences = re.findall("[a-zA-Z]+", input_string)
@@ -604,11 +593,9 @@ def extract_longest_letter_sequence(input_string: str) -> str:
 def remove_duplicate_residues_in_chain(original_list: list) -> list:
     """Removes duplicate items in a list, meant for removing duplicate residues in a chain.
 
-    Args:
-        original_list: The list from which to remove duplicate items.
+    :param original_list: The list from which to remove duplicate items.
 
-    Returns:
-        A list with duplicates removed.
+    :return unique_list: A list with duplicates removed.
     """
     unique_list = []
     for item in original_list:
