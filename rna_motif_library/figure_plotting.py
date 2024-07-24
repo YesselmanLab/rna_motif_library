@@ -5,7 +5,9 @@ import pandas as pd
 def save_present_hbonds(grouped_hbond_df: pd.DataFrame):
     """
     Saves groups of H-bonding data into CSVs.
+
     :param grouped_hbond_df: dataframe containing H-bonding data
+
     :return:
     """
     for group_name, hbonds in grouped_hbond_df:
@@ -34,8 +36,7 @@ def save_present_hbonds(grouped_hbond_df: pd.DataFrame):
 def __safe_mkdir(directory: str) -> None:
     """Safely creates a directory if it does not already exist.
 
-    Args:
-        directory: The path of the directory to create.
+    :param directory: The path of the directory to create.
     """
     if not os.path.isdir(directory):
         os.makedirs(directory)

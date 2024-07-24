@@ -90,8 +90,7 @@ class PandasMmcifOverride(PandasMmcif):
 def __safe_mkdir(directory: str) -> None:
     """Safely creates a directory if it does not already exist.
 
-    Args:
-        directory: The path of the directory to create.
+    :param directory: The path of the directory to create.
     """
     if not os.path.isdir(directory):
         os.makedirs(directory)
@@ -103,6 +102,7 @@ def __file_exists_in_dir(filename, directory):
 
     :param filename: name of file to search for
     :param directory: directory to look inside (includes subfolders)
+
     :return: returns Boolean (does the file exist or not?)
     """
     for root, dirs, files in os.walk(directory):
@@ -114,9 +114,8 @@ def __file_exists_in_dir(filename, directory):
 def __download_cif_files(csv_path: str, threads: int) -> None:
     """Downloads CIF files based on a CSV that specifies the non-redundant set.
 
-    Args:
-        csv_path: The path to the CSV file that contains data about which PDB files to download.
-        threads: number of threads to use
+    :param csv_path: The path to the CSV file that contains data about which PDB files to download.
+    :param threads: number of threads to use
     """
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
 
@@ -125,7 +124,9 @@ def __download_cif_files(csv_path: str, threads: int) -> None:
         os.makedirs(pdb_dir)
 
     # Read the CSV
-    df = pd.read_csv(csv_path, header=None, names=["equivalence_class", "represent", "class_members"])
+    df = pd.read_csv(
+        csv_path, header=None, names=["equivalence_class", "represent", "class_members"]
+    )
 
     def download_pdbs(row):
         pdb_name = row.represent.split("|")[0]
@@ -134,13 +135,17 @@ def __download_cif_files(csv_path: str, threads: int) -> None:
         if os.path.isfile(out_path):
             return  # Skip this row because the file is already downloaded
         try:
-            wget.download(f"https://files.rcsb.org/download/{pdb_name}.cif", out=out_path)
+            wget.download(
+                f"https://files.rcsb.org/download/{pdb_name}.cif", out=out_path
+            )
         except Exception as e:
             tqdm.write(f"Failed to download {pdb_name}: {e}")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
         # Make sure 'total=len(df)' is correctly set
-        list(tqdm(executor.map(download_pdbs, df.itertuples(index=False)), total=len(df)))
+        list(
+            tqdm(executor.map(download_pdbs, df.itertuples(index=False)), total=len(df))
+        )
 
     # Clean up files with parentheses in their names (duplicates)
     files_with_parentheses = glob.glob(os.path.join(pdb_dir, "*(*.cif"))
@@ -151,7 +156,10 @@ def __download_cif_files(csv_path: str, threads: int) -> None:
 
 
 def __get_dssr_files(threads: int) -> None:
-    """Runs DSSR on PDB files to extract and store secondary structure information in JSON format."""
+    """Runs DSSR on PDB files to extract and store secondary structure information in JSON format.
+
+    :param threads: number of threads to run on
+    """
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     dssr_path = settings.DSSR_EXE
     out_path = settings.LIB_PATH + "/data/dssr_output/"
@@ -186,7 +194,10 @@ def __get_dssr_files(threads: int) -> None:
 
 
 def __get_snap_files(threads: int) -> None:
-    """Runs snap to extract RNP interactions for each PDB file and stores the results in .out files."""
+    """Runs snap to extract RNP interactions for each PDB file and stores the results in .out files.
+
+    :param threads: number of threads to run on
+    """
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     out_path = settings.LIB_PATH + "/data/snap_output/"
 
@@ -211,15 +222,20 @@ def __get_snap_files(threads: int) -> None:
         results = list(executor.map(process_pdb, pdbs))
 
     # Count the results
-    already_exists_count = sum(1 for result in results if 'ALREADY EXISTS' in result)
-    generated_count = sum(1 for result in results if 'GENERATED' in result)
+    already_exists_count = sum(1 for result in results if "ALREADY EXISTS" in result)
+    generated_count = sum(1 for result in results if "GENERATED" in result)
 
     print(f"{already_exists_count} files already existed.")
     print(f"{generated_count} new .out files generated.")
 
 
 def __generate_motif_files(limit=None, pdb_name=None) -> None:
-    """Processes PDB files to extract and analyze motif interactions, storing detailed outputs."""
+    """Processes PDB files to extract and analyze motif interactions, storing detailed outputs.
+
+    :param limit: number of PDBs to process
+    :param pdb_name: which specific PDB to process (both are entered via command line)
+
+    """
     pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
 
@@ -255,8 +271,10 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
 
     # Open files for output
     with open(os.path.join(csv_dir, "interactions.csv"), "w") as f_inter_overview, open(
-            os.path.join(csv_dir, "interactions_detailed.csv"), "w"
-    ) as f_inter, open(os.path.join(csv_dir, "motif_residues_list.csv"), "w") as f_residues, open(
+        os.path.join(csv_dir, "interactions_detailed.csv"), "w"
+    ) as f_inter, open(
+        os.path.join(csv_dir, "motif_residues_list.csv"), "w"
+    ) as f_residues, open(
         os.path.join(csv_dir, "twoway_motif_list.csv"), "w"
     ) as f_twoways:
 
@@ -271,7 +289,17 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
         count = 0
         for pdb_path in pdbs:
             count += 1
-            dssr.process_pdbs(count, pdb_path, limit, pdb_name, motif_dir, f_inter, f_residues, f_twoways, f_inter_overview)
+            dssr.process_pdbs(
+                count,
+                pdb_path,
+                limit,
+                pdb_name,
+                motif_dir,
+                f_inter,
+                f_residues,
+                f_twoways,
+                f_inter_overview,
+            )
 
     # When all is said and done need to count number of motifs and print to CSV
     motif_directory = os.path.join("data/motifs")
@@ -303,7 +331,7 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
     filtered_hbond_df = hbond_df[
         hbond_df["res_1_name"].isin(canon_res_list)
         & hbond_df["res_2_name"].isin(canon_res_list)
-        ]
+    ]
 
     # reverse orders are sorted into the same group
     filtered_hbond_df["res_atom_pair"] = filtered_hbond_df.apply(
@@ -322,131 +350,60 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
 
 
 def __find_tertiary_contacts():
-    """
-        Finds and processes tertiary contacts in RNA motifs.print("Finding tertiary contacts...")
-    # loads into a dictionary all residues in given motifs; motif names as keys
-        This function loads residues from motifs, reads interactions from a CSV file,motif_residues_dict = tertiary_contacts.load_motif_residues(motif_residues_csv_path="motif_residues_list.csv")
-        groups the interactions by motif names, finds tertiary contacts, identifies unique# Read the interactions CSV file into a DataFrame and obtain its contents
-        tertiary contacts, removes duplicates, prints the results to a CSV file, and plots histograms.interactions_csv_df = pd.read_csv("interactions_detailed.csv")
-    # Group the DataFrame by the 'name' column # and Convert the DataFrameGroupBy back into individual DataFrames
-        Args:grouped_interactions_csv_df = interactions_csv_df.groupby("name")
-            None
-    # Iterate over each motif (group) to find tertiary contacts
-        Returns:tertiary_contacts.find_tertiary_contacts(interactions_from_csv=grouped_interactions_csv_df,
-            None                                         list_of_res_in_motifs=motif_residues_dict)
-    """
+    """Finds and processes tertiary contacts from the resultant motif/interaction data"""
     csv_dir = os.path.join(settings.LIB_PATH, "data", "out_csvs")
 
-    interactions_from_csv = pd.read_csv(os.path.join(csv_dir, "interactions_detailed.csv"))
+    interactions_from_csv = pd.read_csv(
+        os.path.join(csv_dir, "interactions_detailed.csv")
+    )
     grouped_interactions_csv_df = interactions_from_csv.groupby("name")
     motif_residues_csv_path = os.path.join(csv_dir, "motif_residues_list.csv")
     motif_residues_dict = tert_contacts.load_motif_residues(motif_residues_csv_path)
     tert_contacts.find_tertiary_contacts(
         interactions_from_csv=grouped_interactions_csv_df,
         list_of_res_in_motifs=motif_residues_dict,
-        csv_dir=csv_dir
+        csv_dir=csv_dir,
     )
     tert_contacts.find_unique_tertiary_contacts(csv_dir=csv_dir)
     unique_tert_contact_df = tert_contacts.delete_duplicate_contacts(csv_dir=csv_dir)
-    tert_contacts.print_tert_contacts_to_cif(unique_tert_contact_df=unique_tert_contact_df)
-
-
-# calculate some final statistics
-# junk this function after moving to notebooks
-def __final_statistics():
-    """
-    Calculate and plot final statistics for RNA motifs and interactions.
-
-    This function generates various plots for motif counts, hairpin counts, helix counts,
-    single-strand counts, and tertiary contact counts. It also filters and groups hydrogen
-    bond interactions and plots the results.
-
-    Args:
-        None
-
-    Returns:
-        None
-    """
-
-
-
-    print("Plotting heatmaps...")
-    # Read the CSV data into a DataFrame
-
-    hbond_df_unfiltered = pd.read_csv("interactions_detailed.csv")
-    # also delete res_1_name and res_2_name where they are hairpins less than 3
-    # Create an empty DataFrame to store the filtered data
-    filtered_data = []
-    # Iterate through each row in the unfiltered DataFrame
-    for index, row in hbond_df_unfiltered.iterrows():
-        # Split motif_1 and motif_2 by "."
-        motif_1_split = row["name"].split(".")
-
-        # Check conditions for deletion
-        if motif_1_split[0] == "HAIRPIN" and 0 < float(motif_1_split[2]) < 3:
-            continue
-        else:
-            # Keep the row by appending it to the filtered_data list
-            filtered_data.append(row)
-    # Create a new DataFrame with the filtered data
-    hbond_df = pd.DataFrame(filtered_data)
-    # Reset the index of the new DataFrame
-    hbond_df.reset_index(drop=True, inplace=True)
-    # now delete all non-canonical residues (if we need to keep DA/DC/DU/etc here is where to do it)
-    filtered_hbond_df = hbond_df[
-        hbond_df["res_1_name"].isin(canon_res_list)
-        & hbond_df["res_2_name"].isin(canon_res_list)
-        ]
-
-    # reverse orders are sorted into the same group
-    filtered_hbond_df["res_atom_pair"] = filtered_hbond_df.apply(
-        lambda row: tuple(
-            sorted(
-                [(row["res_1_name"], row["atom_1"]), (row["res_2_name"], row["atom_2"])]
-            )
-        ),
-        axis=1,
+    tert_contacts.print_tert_contacts_to_cif(
+        unique_tert_contact_df=unique_tert_contact_df
     )
-
-    # next, group by (res_1_name, res_2_name) as well as by atoms involved in the interaction
-    # grouped_hbond_df = filtered_hbond_df.groupby(["res_1_name", "res_2_name", "atom_1", "atom_2"])
-    grouped_hbond_df = filtered_hbond_df.groupby(["res_atom_pair"])
-    figure_plotting.plot_present_hbonds(grouped_hbond_df=grouped_hbond_df)
 
 
 def count_cif_files(directory):
     """Recursively count .cif files in the given directory.
 
-    Args:
-        directory: A string, the path to the directory to count .cif files in.
+    :param directory: A string, the path to the directory to count .cif files in.
 
-    Returns:
-        An integer count of .cif files.
+    :return cif_count: An integer count of .cif files.
     """
     cif_count = 0
     for root, dirs, files in os.walk(directory):
-        cif_count += sum(1 for file in files if file.endswith('.cif'))
+        cif_count += sum(1 for file in files if file.endswith(".cif"))
     return cif_count
 
 
 def write_counts_to_csv(motif_directory, output_csv):
     """Writes the counts of .cif files for each subdirectory to a CSV file.
 
-    Args:
-        motif_directory: A string, the directory containing motif subdirectories.
-        output_csv: A string, the path to the output CSV file.
+    :param motif_directory: A string, the directory containing motif subdirectories.
+    :param output_csv: A string, the path to the output CSV file.
     """
     # List subdirectories in the motif directory
-    subdirectories = [os.path.join(motif_directory, d) for d in os.listdir(motif_directory) if
-                      os.path.isdir(os.path.join(motif_directory, d))]
+    subdirectories = [
+        os.path.join(motif_directory, d)
+        for d in os.listdir(motif_directory)
+        if os.path.isdir(os.path.join(motif_directory, d))
+    ]
 
     # Prepare data to write
-    data_to_write = [['motif_type', 'count']]
+    data_to_write = [["motif_type", "count"]]
     for subdirectory in subdirectories:
         cif_count = count_cif_files(subdirectory)
         data_to_write.append([os.path.basename(subdirectory), cif_count])
 
     # Write data to CSV
-    with open(output_csv, 'w', newline='') as file:
+    with open(output_csv, "w", newline="") as file:
         writer = csv.writer(file)
         writer.writerows(data_to_write)

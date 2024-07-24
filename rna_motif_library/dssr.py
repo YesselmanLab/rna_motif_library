@@ -17,7 +17,17 @@ def make_dir(directory: str) -> None:
     os.makedirs(directory, exist_ok=True)
 
 
-def process_pdbs(count: int, pdb_path: str, limit: int, pdb_name: str, motif_dir: str, f_inter: Any, f_residues: Any, f_twoways: Any, f_inter_overview: Any):
+def process_pdbs(
+    count: int,
+    pdb_path: str,
+    limit: int,
+    pdb_name: str,
+    motif_dir: str,
+    f_inter: Any,
+    f_residues: Any,
+    f_twoways: Any,
+    f_inter_overview: Any,
+):
     """
     Function for extracting motifs from a PDB in the loop
 
@@ -42,13 +52,9 @@ def process_pdbs(count: int, pdb_path: str, limit: int, pdb_name: str, motif_dir
     if (pdb_name != None) and (name != pdb_name):
         return
 
-    json_path = os.path.join(
-        settings.LIB_PATH, "data/dssr_output", f"{name}.json"
-    )
+    json_path = os.path.join(settings.LIB_PATH, "data/dssr_output", f"{name}.json")
 
-    rnp_out_path = os.path.join(
-        settings.LIB_PATH, "data/snap_output", f"{name}.out"
-    )
+    rnp_out_path = os.path.join(settings.LIB_PATH, "data/snap_output", f"{name}.out")
     rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
     rnp_data = [
         (
@@ -111,7 +117,7 @@ def process_pdbs(count: int, pdb_path: str, limit: int, pdb_name: str, motif_dir
 
 
 def count_strands(
-        master_res_df: pd.DataFrame, motif_name: str, twoway_jct_csv: Any
+    master_res_df: pd.DataFrame, motif_name: str, twoway_jct_csv: Any
 ) -> Tuple[int, str]:
     """Counts the number of strands in a motif and updates its name accordingly to better reflect structure.
 
@@ -183,10 +189,10 @@ def count_strands(
     # step 5: keep residues which are connected (2.7 seems a good cutoff)
     connected_residues_df = combined_combo_distance_df[
         combined_combo_distance_df["Distances"] < 2.7
-        ]
+    ]
     connected_residues_df_final = connected_residues_df[
         connected_residues_df["Distances"] != 0
-        ]
+    ]
 
     # step 6: extract the column with the combinations and put it back inside a list, take out the DFs
     list_of_residue_combos = connected_residues_df_final["Residues"].tolist()
@@ -245,15 +251,15 @@ def count_strands(
             new_motif_type = "TWOWAY"
             new_motif_class = str(class_0) + "-" + str(class_1)
             new_motif_name = (
-                    new_motif_type
-                    + "."
-                    + motif_type_list[1]
-                    + "."
-                    + new_motif_class
-                    + "."
-                    + motif_type_list[2]
-                    + "."
-                    + motif_type_list[3]
+                new_motif_type
+                + "."
+                + motif_type_list[1]
+                + "."
+                + new_motif_class
+                + "."
+                + motif_type_list[2]
+                + "."
+                + motif_type_list[3]
             )
             motif_name = new_motif_name
 
@@ -276,14 +282,14 @@ def count_strands(
         # Write new motif name
         old_motif_name_spl = motif_name.split(".")
         motif_name = (
-                "NWAY."
-                + old_motif_name_spl[1]
-                + "."
-                + structure_result
-                + "."
-                + old_motif_name_spl[3]
-                + "."
-                + old_motif_name_spl[4]
+            "NWAY."
+            + old_motif_name_spl[1]
+            + "."
+            + structure_result
+            + "."
+            + old_motif_name_spl[3]
+            + "."
+            + old_motif_name_spl[4]
         )
 
     return len_chains, motif_name
@@ -394,15 +400,15 @@ def find_continuous_chains(pair_list: List[List[str]]) -> List[List[str]]:
 
 
 def write_res_coords_to_pdb(
-        nts: List[str],
-        interactions: Optional[List[str]],
-        pdb_model: Any,
-        pdb_path: str,
-        motif_bond_list: List[str],
-        csv_file: Any,
-        residue_csv_list: Any,
-        twoway_csv: Any,
-        interactions_overview_csv: Any,
+    nts: List[str],
+    interactions: Optional[List[str]],
+    pdb_model: Any,
+    pdb_path: str,
+    motif_bond_list: List[str],
+    csv_file: Any,
+    residue_csv_list: Any,
+    twoway_csv: Any,
+    interactions_overview_csv: Any,
 ) -> None:
     """
     Writes motifs and interactions to PDB files, based on provided nucleotide and interaction data.
@@ -469,7 +475,7 @@ def write_res_coords_to_pdb(
         for residue in residue_list:
             chain_res = model_df[
                 model_df["auth_asym_id"].astype(str) == str(chain_number)
-                ]
+            ]
             res_subset = chain_res[chain_res["auth_seq_id"].astype(str) == str(residue)]
             res.append(res_subset)
         list_of_chains.append(res)
@@ -488,7 +494,8 @@ def write_res_coords_to_pdb(
             )
             if basepair_ends != 1:
                 new_path = os.path.join(
-                    "data", "motifs",
+                    "data",
+                    "motifs",
                     f"{basepair_ends}ways",
                     motif_name.split(".")[2],
                     sub_dir_parts[3],
@@ -506,7 +513,8 @@ def write_res_coords_to_pdb(
             motif_name = ".".join(sub_dir_parts)
             hairpin_path = (
                 os.path.join(
-                    "data", "motifs",
+                    "data",
+                    "motifs",
                     "hairpins",
                     str(hairpin_bridge_length),
                     sub_dir_parts[3],
@@ -538,7 +546,9 @@ def write_res_coords_to_pdb(
             name_path = os.path.join(sstrand_path, motif_name)
             cif_path = f"{name_path}.cif"
 
-        if not os.path.exists(cif_path):  # if motif already exists, don't bother overwriting
+        if not os.path.exists(
+            cif_path
+        ):  # if motif already exists, don't bother overwriting
             dssr_hbonds.dataframe_to_cif(
                 df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
             )
@@ -607,13 +617,10 @@ def remove_duplicate_residues_in_chain(original_list: list) -> list:
 def group_residues_by_chain(input_list: List[str]) -> Tuple[List[List[int]], List[str]]:
     """Groups residues into their own chains for sequence counting.
 
-    Args:
-        input_list: List of strings containing chain ID and residue ID separated by a dot.
+    :param input_list: List of strings containing chain ID and residue ID separated by a dot.
 
-    Returns:
-        A tuple containing:
-            - A list of lists with grouped and sorted residue IDs by chain ID.
-            - A list of chain IDs corresponding to each group of residues.
+    :return sorted_chain_residues: A tuple containing a list of lists with grouped and sorted residue IDs by chain ID.
+    :return sorted_chain_ids: A list of chain IDs corresponding to each group of residues.
     """
     # Create a dictionary to hold grouped and sorted residue IDs by chain ID
     chain_residues = {}
@@ -660,19 +667,16 @@ def group_residues_by_chain(input_list: List[str]) -> Tuple[List[List[int]], Lis
 def euclidean_distance_dataframe(df1: pd.DataFrame, df2: pd.DataFrame) -> float:
     """Calculates the Euclidean distance between two points represented by DataFrames.
 
-    Args:
-        df1: A pandas DataFrame with 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns.
-        df2: A pandas DataFrame with 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns.
+    :param df1: A pandas DataFrame with 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns.
+    :param df2: A pandas DataFrame with 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns.
 
-    Returns:
-        The Euclidean distance between the two points.
+    :return distance: The Euclidean distance between the two points.
 
-    Raises:
-        ValueError: If the DataFrames do not have the required columns.
+    :raise ValueError: If the DataFrames do not have the required columns.
     """
     required_columns = {"Cartn_x", "Cartn_y", "Cartn_z"}
     if not required_columns.issubset(df1.columns) or not required_columns.issubset(
-            df2.columns
+        df2.columns
     ):
         raise ValueError(
             "DataFrames must have 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns"
@@ -690,16 +694,16 @@ def euclidean_distance_dataframe(df1: pd.DataFrame, df2: pd.DataFrame) -> float:
 
 
 def calc_residue_distances(
-        res_1: Tuple[str, pd.DataFrame], res_2: Tuple[str, pd.DataFrame]
+    res_1: Tuple[str, pd.DataFrame], res_2: Tuple[str, pd.DataFrame]
 ) -> float:
     """Calculate the Euclidean distance between two residues.
 
-    Args:
-        res_1: A tuple containing the residue ID and a DataFrame for the first residue.
-        res_2: A tuple containing the residue ID and a DataFrame for the second residue.
 
-    Returns:
-        The Euclidean distance between the two residues.
+    :param res_1: A tuple containing the residue ID and a DataFrame for the first residue.
+    :param res_2: A tuple containing the residue ID and a DataFrame for the second residue.
+
+
+    :return float(distance): The Euclidean distance between the two residues.
     """
     residue1 = res_1[1]
     residue2 = res_2[1]
@@ -734,8 +738,7 @@ class DSSRRes:
     def __init__(self, s: str) -> None:
         """Initialize a DSSRRes object.
 
-        Args:
-            s: A string representing the residue data.
+        :param s: A string representing the residue data.
         """
         s = s.split("^")[0]
         spl = s.split(".")
@@ -760,15 +763,12 @@ class DSSRRes:
 def get_motifs_from_structure(json_path):
     """Obtains motifs from DSSR.
 
-    Args:
-        json_path: The path to the JSON file containing DSSR output.
+    :param json_path: The path to the JSON file containing DSSR output.
 
-    Returns:
-        A tuple containing:
-            - List of motifs.
-            - Dictionary of motif hydrogen bonds.
-            - Dictionary of motif interactions.
-            - List of hydrogen bonds in motifs.
+    :return motifs: List of motifs.
+    :return motif_hbonds: Dictionary of motif hydrogen bonds.
+    :return motif_interactions: Dictionary of motif interactions.
+    :return hbonds_in_motifs: List of hydrogen bonds in motifs.
     """
     name = os.path.splitext(os.path.basename(json_path))[0]
     d_out = DSSROutput(json_path=json_path)
@@ -788,12 +788,10 @@ def get_motifs_from_structure(json_path):
 def assign_res_type(name: str, res_type: str) -> str:
     """Assign base, phosphate, sugar, or amino acid in interactions_detailed.csv.
 
-    Args:
-        name: The name of the residue.
-        res_type: The type of the residue (e.g., "aa" for amino acid).
+    :param name: The name of the residue.
+    :param res_type: The type of the residue (e.g., "aa" for amino acid).
 
-    Returns:
-        The assigned residue type as a string.
+    :return string: The assigned residue type as a string.
     """
     if res_type == "aa":
         return "aa"
@@ -811,11 +809,9 @@ def assign_res_type(name: str, res_type: str) -> str:
 def __assign_atom_group(name: str) -> str:
     """Assigns atom groups (base, sugar, phosphate) for making interactions.csv.
 
-    Args:
-        name: The name of the atom.
+    :param name: The name of the atom.
 
-    Returns:
-        The assigned atom group as a string.
+    :return string: The assigned atom group as a string.
     """
     if "P" in name:
         return "phos"
@@ -828,14 +824,12 @@ def __assign_atom_group(name: str) -> str:
 def __assign_hbond_class(atom1: str, atom2: str, rt1: str, rt2: str) -> list:
     """Assigns the hydrogen bond class for given atoms and residue types.
 
-    Args:
-        atom1: The name of the first atom.
-        atom2: The name of the second atom.
-        rt1: The residue type of the first atom (e.g., "nt" for nucleotide).
-        rt2: The residue type of the second atom (e.g., "nt" for nucleotide).
+    :param atom1: The name of the first atom.
+    :param atom2: The name of the second atom.
+    :param rt1: The residue type of the first atom (e.g., "nt" for nucleotide).
+    :param rt2: The residue type of the second atom (e.g., "nt" for nucleotide).
 
-    Returns:
-        A list containing the assigned classes for the two atoms.
+    :return classes: A list containing the assigned classes for the two atoms.
     """
     classes = []
     for atom, residue_type in zip([atom1, atom2], [rt1, rt2]):
@@ -849,13 +843,13 @@ def __assign_hbond_class(atom1: str, atom2: str, rt1: str, rt2: str) -> list:
 def __assign_hbonds_to_motifs(motifs: list, hbonds: list, shared: dict) -> tuple:
     """Assigns hydrogen bonds to motifs and counts interactions.
 
-    Args:
-        motifs: A list of motifs from DSSR.
-        hbonds: A list of hydrogen bonds.
-        shared: A dictionary of shared motifs.
+    :param motifs: A list of motifs from DSSR.
+    :param hbonds: A list of hydrogen bonds.
+    :param shared: A dictionary of shared motifs.
 
-    Returns:
-        A tuple containing motif_hbonds, motif_interactions, and hbonds_in_motif.
+    :return motif_hbonds: dictionary of motif h-bonds
+    :return motif_interactions: dictionary of residue interactions in each motif
+    :return hbonds_in_motif: list of tuples containing usable H-bond data
     """
     # All the data about the hbonds in this
     hbonds_in_motif = []
@@ -959,23 +953,15 @@ def __assign_hbonds_to_motifs(motifs: list, hbonds: list, shared: dict) -> tuple
             motif_hbonds[m2.name][hbond_class] += 1
             motif_interactions[m2.name].append(res1)
 
-    # Count the occurrences of each element
-    """hbond_counts = Counter(hbond_quality_list)
-    # Print the counts
-    for hbond_type, count in hbond_counts.items():
-        print(f"{hbond_type}: {count}")"""
-
     return motif_hbonds, motif_interactions, hbonds_in_motif
 
 
 def __remove_duplicate_motifs(motifs: list) -> list:
     """Removes duplicate motifs from a list of motifs.
 
-    Args:
-        motifs: A list of motifs.
+    :param motifs: A list of motifs.
 
-    Returns:
-        A list of unique motifs.
+    :return unique_motifs: A list of unique motifs.
     """
     # List of duplicates
     duplicates = []
@@ -1005,11 +991,9 @@ def __remove_duplicate_motifs(motifs: list) -> list:
 def __remove_large_motifs(motifs: list) -> list:
     """Removes motifs larger than 35 nucleotides.
 
-    Args:
-        motifs: A list of motifs.
+    :param motifs: A list of motifs.
 
-    Returns:
-        A list of motifs with 35 or fewer nucleotides.
+    :return new_motifs: A list of motifs with 35 or fewer nucleotides.
     """
     new_motifs = []
     for m in motifs:
@@ -1022,11 +1006,9 @@ def __remove_large_motifs(motifs: list) -> list:
 def __merge_singlet_seperated(motifs: list) -> list:
     """Merges singlet separated motifs into a unified list.
 
-    Args:
-        motifs: A list of motifs to be merged.
+    :param motifs: A list of motifs to be merged.
 
-    Returns:
-        A list of motifs that includes merged and non-merged motifs.
+    :return new_motifs: A list of motifs that includes merged and non-merged motifs.
     """
     junctions = []
     others = []
@@ -1069,11 +1051,9 @@ def __merge_singlet_seperated(motifs: list) -> list:
 def __find_motifs_that_share_basepair(motifs: list) -> dict:
     """Finds motifs that share base pairs.
 
-    Args:
-        motifs: A list of motifs to check for shared base pairs.
+    :param motifs: A list of motifs to check for shared base pairs.
 
-    Returns:
-        A dictionary where the keys are motif pairs (sorted by name)
+    :return pairs: A dictionary where the keys are motif pairs (sorted by name)
         that share base pairs, and the values are 1 indicating shared base pairs.
     """
     pairs = {}
@@ -1100,11 +1080,9 @@ def __find_motifs_that_share_basepair(motifs: list) -> dict:
 def __get_strands(motif) -> list:
     """Gets strands from a motif.
 
-    Args:
-        motif: A motif object containing nucleotide sequences.
+    :param motif: A motif object containing nucleotide sequences.
 
-    Returns:
-        A list of strands, where each strand is a list of DSSRRes objects.
+    :return strands A list of strands, where each strand is a list of DSSRRes objects.
     """
     nts = motif.nts_long
     strands = []
@@ -1137,12 +1115,10 @@ def __name_junction(motif, pdb_name: str) -> str:
 
     This name is later overwritten if need be.
 
-    Args:
-        motif: The motif object containing nucleotide sequences.
-        pdb_name: The name of the PDB file.
+    :param motif: The motif object containing nucleotide sequences.
+    :param pdb_name: The name of the PDB file.
 
-    Returns:
-        The initial name assigned to the junction motif.
+    :return The initial name assigned to the junction motif.
     """
     nts = motif.nts_long
     strands = __get_strands(motif)
@@ -1169,12 +1145,9 @@ def __name_junction(motif, pdb_name: str) -> str:
 def __name_motifs(motifs, name: str) -> None:
     """Assigns names to motifs (helix, strand, junction, etc).
 
-    Args:
-        motifs: A list of motif objects to be named.
-        name: The base name used in naming the motifs.
+    :param motifs: A list of motif objects to be named.
+    :param name: The base name used in naming the motifs.
 
-    Returns:
-        None
     """
     for m in motifs:
         m.nts_long = sorted(m.nts_long, key=__sorted_res_int)
@@ -1217,11 +1190,9 @@ def __name_motifs(motifs, name: str) -> None:
 def __sorted_res_int(item: str) -> Tuple[str, str]:
     """Sorts residues by their chain ID and residue number.
 
-    Args:
-        item: A string representing a residue in the format "chainID.residueID".
+    :param item: A string representing a residue in the format "chainID.residueID".
 
-    Returns:
-        A tuple containing the chain ID and residue number.
+    :return spl[0], spl[1][1:]: A tuple containing the chain ID and residue number.
     """
     spl = item.split(".")
     return spl[0], spl[1][1:]
@@ -1230,11 +1201,9 @@ def __sorted_res_int(item: str) -> Tuple[str, str]:
 def __sort_res(item: Any) -> Tuple[str, str]:
     """Sorts motifs by the first residue's chain ID and residue number.
 
-    Args:
-        item: An object with an attribute 'nts_long' containing residues in the format "chainID.residueID".
+    :param item: An object with an attribute 'nts_long' containing residues in the format "chainID.residueID".
 
-    Returns:
-        A tuple containing the chain ID and residue number of the first residue.
+    :return spl[0], spl[1][1:]: A tuple containing the chain ID and residue number of the first residue.
     """
     spl = item.nts_long[0].split(".")
     return spl[0], spl[1][1:]

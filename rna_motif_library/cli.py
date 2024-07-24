@@ -13,7 +13,7 @@ def cli():
     pass
 
 
-@cli.command(name='download_cifs')
+@cli.command(name="download_cifs")
 @click.option("--threads", default=1, help="Number of threads to use.")
 def download_cifs(threads):
     warnings.filterwarnings("ignore")
@@ -27,11 +27,18 @@ def download_cifs(threads):
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
-    print("Download started at", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    print("Download finished at", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
+    print(
+        "Download started at",
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
+    )
+    print(
+        "Download finished at",
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
+    )
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
-@cli.command(name='process_dssr')
+
+@cli.command(name="process_dssr")
 @click.option("--threads", default=1, help="Number of threads to use.")
 def process_dssr(threads):
     warnings.filterwarnings("ignore")
@@ -42,11 +49,18 @@ def process_dssr(threads):
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
-    print("DSSR processing started at", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    print("DSSR processing finished at", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
+    print(
+        "DSSR processing started at",
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
+    )
+    print(
+        "DSSR processing finished at",
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
+    )
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
-@cli.command(name='process_snap')
+
+@cli.command(name="process_snap")
 @click.option("--threads", default=1, help="Number of threads to use.")
 def process_snap(threads):
     warnings.filterwarnings("ignore")
@@ -57,15 +71,27 @@ def process_snap(threads):
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
-    print("SNAP processing started at", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    print("SNAP processing finished at", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
+    print(
+        "SNAP processing started at",
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
+    )
+    print(
+        "SNAP processing finished at",
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
+    )
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-
-@cli.command(name='generate_motifs')  # Set command name
-@click.option("--limit", default=None, type=int, help="Limit the number of PDB files processed.")
-@click.option("--pdb", default=None, type=str, help="Process a specific PDB within the set, without extensions")
+@cli.command(name="generate_motifs")  # Set command name
+@click.option(
+    "--limit", default=None, type=int, help="Limit the number of PDB files processed."
+)
+@click.option(
+    "--pdb",
+    default=None,
+    type=str,
+    help="Process a specific PDB within the set, without extensions",
+)
 def generate_motifs(limit, pdb):
     warnings.filterwarnings("ignore")
     start_time = time.time()
@@ -78,13 +104,18 @@ def generate_motifs(limit, pdb):
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
 
-    print("Motif generation started at", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    print("Motif generation finished at", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
+    print(
+        "Motif generation started at",
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
+    )
+    print(
+        "Motif generation finished at",
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
+    )
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-
-@cli.command(name='find_tertiary_contacts')  # Set command name
+@cli.command(name="find_tertiary_contacts")  # Set command name
 def find_tertiary_contacts():
     warnings.filterwarnings("ignore")
     start_time = time.time()
@@ -95,10 +126,15 @@ def find_tertiary_contacts():
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
 
-    print("Tertiary contact discovery started at", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)))
-    print("Tertiary contact discovery finished at", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)))
+    print(
+        "Tertiary contact discovery started at",
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
+    )
+    print(
+        "Tertiary contact discovery finished at",
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
+    )
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
-
 
 
 # I'm probably going to junk this once I get the notebooks running

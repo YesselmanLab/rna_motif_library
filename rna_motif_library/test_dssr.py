@@ -1,13 +1,12 @@
 import pandas as pd
 
 import dssr
-import dssr_hbonds
 
 
 def test_dssr_res():
     """
     Tests the parsing of resides from DSSR data
-    :return: returns nothing
+
     """
     s1 = "H.A9"
     s2 = "B.ARG270"
@@ -23,7 +22,6 @@ def test_dssr_res():
 def test_assign_res_type():
     """
     tests assigning residue types
-    :return:
     """
     list_of_residues = ["OP1", "O2'", "N1", "NZ"]
     list_of_residue_types = ["nt", "nt", "nt", "aa"]
@@ -61,7 +59,6 @@ def test_assign_res_type():
 def test_distance_calculation():
     """
     Tests distance calculation
-    :return: none
     """
     # Creating DataFrames with an explicit index for scalar initialization
     df_1 = pd.DataFrame({"Cartn_x": [1], "Cartn_y": [1], "Cartn_z": [1]})

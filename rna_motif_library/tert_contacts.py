@@ -12,11 +12,9 @@ def load_motif_residues(motif_residues_csv_path: str) -> dict:
     """
     Load motif residues from a CSV file into a dictionary.
 
-    Args:
-        motif_residues_csv_path (str): Path to the CSV file containing motif residues.
+    :param motif_residues_csv_path: Path to the CSV file containing motif residues.
 
-    Returns:
-        dict: A dictionary where keys are motif names and values are lists of residues.
+    :return motif_residues_dict: A dictionary where keys are motif names and values are lists of residues.
     """
     with open(motif_residues_csv_path, newline="") as csvfile:
         csv_reader = csv.reader(csvfile)
@@ -31,17 +29,16 @@ def load_motif_residues(motif_residues_csv_path: str) -> dict:
 
 
 def find_tertiary_contacts(
-        interactions_from_csv: pd.core.groupby.generic.DataFrameGroupBy,
-        list_of_res_in_motifs: Dict[str, List[str]],
-        csv_dir: str
+    interactions_from_csv: pd.core.groupby.generic.DataFrameGroupBy,
+    list_of_res_in_motifs: Dict[str, List[str]],
+    csv_dir: str,
 ) -> None:
     """
     Find tertiary contacts from interaction data and write them to CSV files.
 
-    Args:
-        interactions_from_csv (DataFrameGroupBy): Grouped DataFrame of interactions.
-        list_of_res_in_motifs (dict): Dictionary of residues in each motif.
-        csv_dir (str): Directory of CSV results.
+    :param interactions_from_csv: Grouped DataFrame of interactions.
+    :param list_of_res_in_motifs: Dictionary of residues in each motif.
+    :param csv_dir: Directory of CSV results.
     """
     f_tert = open(os.path.join(csv_dir, "tertiary_contact_list.csv"), "w")
     f_tert.write(
@@ -141,8 +138,8 @@ def find_tertiary_contacts(
                 # res_1 is present in the current motif, res_2 is elsewhere so need to find it
                 # now find which motif res_2 is in
                 for (
-                        motif_name,
-                        motif_residue_list,
+                    motif_name,
+                    motif_residue_list,
                 ) in dict_with_source_motif_PDB_motifs.items():
                     # Check if the given string is present in the list
                     if res_2 in motif_residue_list:
@@ -185,8 +182,8 @@ def find_tertiary_contacts(
                 res_2_data = (res_2, name_of_source_motif)
                 # now find which motif res_1 is in
                 for (
-                        motif_name,
-                        motif_residue_list,
+                    motif_name,
+                    motif_residue_list,
                 ) in dict_with_source_motif_PDB_motifs.items():
                     # Check if the given string is present in the list
                     if res_1 in motif_residue_list:
@@ -228,8 +225,8 @@ def find_tertiary_contacts(
 def find_unique_tertiary_contacts(csv_dir: str):
     """
     Finds unique tertiary contacts from the CSV file and writes them to another CSV file.
-    Args:
-        csv_dir: Directory of CSV results
+
+    :param csv_dir: Directory of CSV results
     """
     # after the CSV for tertiary contacts are made we need to go through and extract all unique pairs in CSV
     tert_contact_csv_df = pd.read_csv(
@@ -318,14 +315,15 @@ def find_unique_tertiary_contacts(csv_dir: str):
 def delete_duplicate_contacts(csv_dir: str) -> pd.DataFrame:
     """
     Deletes duplicate tertiary contacts where motif_1 and motif_2 are switched and processes the data to remove further duplicates.
-    Args:
-        csv_dir (str): Directory of CSV results
 
-    Returns:
-        pd.DataFrame: A DataFrame of unique tertiary contacts.
+    :param csv_dir: Directory of CSV results
+
+    :return pd.DataFrame: A DataFrame of unique tertiary contacts.
     """
     # graph hydrogen bonds per overall tertiary contact
-    unique_tert_contact_df_new = pd.read_csv(os.path.join(csv_dir, "unique_tert_contacts.csv"))
+    unique_tert_contact_df_new = pd.read_csv(
+        os.path.join(csv_dir, "unique_tert_contacts.csv")
+    )
 
     print("Deleting duplicates...")
     # Now delete duplicate interactions (where motif_1 and 2 are switched)
@@ -379,7 +377,9 @@ def delete_duplicate_contacts(csv_dir: str) -> pd.DataFrame:
     unique_tert_contact_df.reset_index(drop=True, inplace=True)
 
     # Print it for good measure
-    unique_tert_contact_df.to_csv(os.path.join(csv_dir, "unique_tert_contacts.csv"), index=False)
+    unique_tert_contact_df.to_csv(
+        os.path.join(csv_dir, "unique_tert_contacts.csv"), index=False
+    )
 
     return unique_tert_contact_df
 
@@ -387,10 +387,10 @@ def delete_duplicate_contacts(csv_dir: str) -> pd.DataFrame:
 def remove_duplicate_res(group):
     """
     Remove duplicate rows within each group based on sorted 'res_1' and 'res_2' values.
-    Args:
-        group (pd.DataFrame): DataFrame group to process.
-    Returns:
-        pd.DataFrame: DataFrame with duplicates removed.
+
+    :param group: DataFrame group to process.
+
+    :return pd.DataFrame: DataFrame with duplicates removed.
     """
     # Sort 'res_1' and 'res_2' columns within each row
     group[["res_1", "res_2"]] = group[["res_1", "res_2"]].apply(sort_res, axis=1)
@@ -401,10 +401,10 @@ def remove_duplicate_res(group):
 def sort_res(row: pd.Series) -> pd.Series:
     """
     Sort 'res_1' and 'res_2' columns within each row.
-    Args:
-        row (pd.Series): Series containing 'res_1' and 'res_2' values.
-    Returns:
-        pd.Series: Series with sorted 'res_1' and 'res_2' values.
+
+    :param row: Series containing 'res_1' and 'res_2' values.
+
+    :return pd.Series: Series with sorted 'res_1' and 'res_2' values.
     """
     return pd.Series(np.sort(row.values))
 
@@ -412,8 +412,8 @@ def sort_res(row: pd.Series) -> pd.Series:
 def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
     """
     Print tertiary contacts to CIF files.
-    Args:
-        unique_tert_contact_df (pd.DataFrame): DataFrame containing unique tertiary contacts.
+
+    :param unique_tert_contact_df: DataFrame containing unique tertiary contacts.
     """
     # make directory for tert contacts
     __safe_mkdir("data/tertiary_contacts")
@@ -452,8 +452,8 @@ def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
             motif_1_hairpin_len = 0
             motif_2_hairpin_len = 0
         if not (
-                (motif_1_name == "HAIRPIN" or motif_2_name == "HAIRPIN")
-                and ((0 < motif_1_hairpin_len < 3) or (0 < motif_2_hairpin_len < 3))
+            (motif_1_name == "HAIRPIN" or motif_2_name == "HAIRPIN")
+            and ((0 < motif_1_hairpin_len < 3) or (0 < motif_2_hairpin_len < 3))
         ):
             directory_to_search = "data/motifs"
             motif_cif_1 = str(motif_1) + ".cif"
@@ -472,7 +472,7 @@ def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
             if motif_types:
                 __safe_mkdir("data/tertiary_contacts/" + motif_types)
                 tert_contact_out_path = (
-                        "data/tertiary_contacts/" + motif_types + "/" + tert_contact_name
+                    "data/tertiary_contacts/" + motif_types + "/" + tert_contact_name
                 )
             else:
                 tert_contact_out_path = "data/tertiary_contacts/" + tert_contact_name
@@ -493,8 +493,8 @@ def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
 
 def __safe_mkdir(directory: str) -> None:
     """Safely creates a directory if it does not already exist.
-    Args:
-        directory: The path of the directory to create.
+
+    :param directory: The path of the directory to create.
     """
     if not os.path.isdir(directory):
         os.makedirs(directory)
@@ -502,16 +502,16 @@ def __safe_mkdir(directory: str) -> None:
 
 # merges the contents of CIF files
 def merge_cif_files(
-        file1_path: str, file2_path: str, output_path: str, lines_to_delete: int
+    file1_path: str, file2_path: str, output_path: str, lines_to_delete: int
 ) -> None:
     """
     Merge the contents of two CIF files into one.
 
-    Args:
-        file1_path (str): Path to the first CIF file.
-        file2_path (str): Path to the second CIF file.
-        output_path (str): Path to the output CIF file.
-        lines_to_delete (int): Number of lines to delete from the start of the second CIF file.
+
+    :param file1_path: Path to the first CIF file.
+    :param file2_path: Path to the second CIF file.
+    :param output_path: Path to the output CIF file.
+    :param lines_to_delete: Number of lines to delete from the start of the second CIF file.
     """
     # Read the contents of the first CIF file
     with open(file1_path, "r") as file1:
@@ -537,12 +537,10 @@ def find_cif_file(directory_path: str, file_name: str) -> Optional[str]:
     """
     Search for a CIF file in a directory and its subdirectories.
 
-    Args:
-        directory_path (str): The path of the directory to search.
-        file_name (str): The name of the CIF file to find.
+    :param directory_path: The path of the directory to search.
+    :param file_name: The name of the CIF file to find.
 
-    Returns:
-        Optional[str]: The full path to the found CIF file, or None if not found.
+    :return Optional[str]: The full path to the found CIF file, or None if not found.
     """
     # Walk through the directory and its subdirectories
     for root, dirs, files in os.walk(directory_path):
@@ -553,4 +551,3 @@ def find_cif_file(directory_path: str, file_name: str) -> Optional[str]:
 
     # If the file is not found
     return None
-

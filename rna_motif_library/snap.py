@@ -7,6 +7,7 @@ from typing import List, Optional
 class RNPInteraction:
     """
     Class to represent an RNA-Protein interaction.
+
     nt_atom: atom of nucleotide in interaction
     aa_atom: atom of amino acid in interaction
     distance: distance between atoms in interaction (angstroms)
@@ -27,15 +28,12 @@ def get_rnp_interactions(
 ) -> List[RNPInteraction]:
     """Retrieves RNA-Protein (RNP) interactions from an output file or a PDB file.
 
-    Args:
-        pdb_path: Optional; the file path to the PDB file if available.
-        out_file: Optional; the file path to the output file where interactions are recorded.
+    :param pdb_path: Optional; the file path to the PDB file if available.
+    :param out_file: Optional; the file path to the output file where interactions are recorded.
 
-    Returns:
-        A list of RNPInteraction instances capturing the details of each interaction.
+    :return interactions: A list of RNPInteraction instances capturing the details of each interaction.
 
-    Raises:
-        ValueError: If neither a pdb_path nor an out_file is provided.
+    :raise ValueError: If neither a pdb_path nor an out_file is provided.
     """
     if pdb_path is None and out_file is None:
         raise ValueError("Must supply either a pdb or out file")
@@ -74,7 +72,11 @@ def get_rnp_interactions(
 
 
 def __generate_out_file(pdb_path: str, out_path: str = "test.out") -> None:
-    """Generates an .out file from DSSR data."""
+    """Generates an .out file from DSSR data.
+
+    :param pdb_path: path to source PDB
+    :param out_path: path to .out file
+    """
     dssr_exe = settings.DSSR_EXE
     subprocess.run(f"{dssr_exe} snap -i={pdb_path} -o={out_path}", shell=True)
     files = [

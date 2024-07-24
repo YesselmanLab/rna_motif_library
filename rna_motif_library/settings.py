@@ -5,21 +5,17 @@ import platform
 def get_lib_path() -> str:
     """Gets the base directory path for the library.
 
-    Returns:
-        The base directory path of the library.
+    :return string: The base directory path of the library.
     """
     return os.getcwd()
-
 
 
 def get_os() -> str:
     """Determines the operating system type that is currently being used.
 
-    Returns:
-        A string representing the operating system type ('linux' or 'osx').
+    :return string: A string representing the operating system type ('linux' or 'osx').
 
-    Raises:
-        SystemError: If the operating system is neither Linux nor Darwin (macOS).
+    :raise SystemError: If the operating system is neither Linux nor Darwin (macOS).
     """
     system = platform.system()
     if system == "Darwin":
