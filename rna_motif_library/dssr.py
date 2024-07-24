@@ -1,17 +1,116 @@
 import os
 import re
 import math
+from json import JSONDecodeError
 from typing import List, Optional, Any, Tuple
 
 import pandas as pd
 import numpy as np
+from pydssr import dssr
 from pydssr.dssr import DSSROutput
 import dssr_hbonds
+from rna_motif_library import settings, snap
+from rna_motif_library.update_library import PandasMmcifOverride, __get_dssr_files
 
 
 def make_dir(directory: str) -> None:
     """Creates a directory if it does not already exist."""
     os.makedirs(directory, exist_ok=True)
+
+
+def process_pdbs(count: int, pdb_path: str, limit: int, pdb_name: str, motif_dir: str, f_inter: Any, f_residues: Any, f_twoways: Any, f_inter_overview: Any):
+    """
+    Function for extracting motifs from a PDB in the loop
+
+
+
+    :param count: # of PDBs processed (loaded from outside)
+    :param pdb_path: path to the source PDB
+    :param limit: # of PDB files to process (loaded from outside)
+    :param pdb_name: which specific PDB o process
+    :param motif_dir: directory where extracted motif .cifs are supposed to go
+    :param f_inter: open CSV file for detailed interactions (interactions_detailed.csv)
+    :param f_residues: open CSF file for list of residues in motif (motif_residues_list.csv)
+    :param f_twoways: open CSV file for list of twoway motif data (twoway_motif_list.csv)
+    :param f_inter_overview: open CSV file for overview of individual interactions (interactions.csv)
+
+    :return: Returns nothing; will exit early if appropriate conditions are met (limit, pdb_name)
+    """
+    name = os.path.basename(pdb_path)[:-4]
+    print(f"{count}, {pdb_path}, {name}")
+    # Keep processed files under the limit if specified
+    if limit is not None and count > limit:
+        return
+    # Limit processing to specified PDB
+    if (pdb_name != None) and (name != pdb_name):
+        return
+
+    json_path = os.path.join(
+        settings.LIB_PATH, "data/dssr_output", f"{name}.json"
+    )
+
+    rnp_out_path = os.path.join(
+        settings.LIB_PATH, "data/snap_output", f"{name}.out"
+    )
+    rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
+    rnp_data = [
+        (
+            interaction.nt_atom.split("@")[1],
+            interaction.aa_atom.split("@")[1],
+            interaction.nt_atom.split("@")[0],
+            interaction.aa_atom.split("@")[0],
+            str(interaction.dist),
+            interaction.type.split(":")[0],
+            interaction.type.split(":")[1],
+        )
+        for interaction in rnp_interactions
+    ]
+
+    pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
+    # In case of bugged JSON file
+    while True:
+        try:
+            (
+                motifs,
+                motif_hbonds,
+                motif_interactions,
+                hbonds_in_motif,
+            ) = get_motifs_from_structure(json_path)
+            break
+        except JSONDecodeError:
+            os.remove(json_path)
+            __get_dssr_files(1)
+            (
+                motifs,
+                motif_hbonds,
+                motif_interactions,
+                hbonds_in_motif,
+            ) = get_motifs_from_structure(json_path)
+
+    hbonds_in_motif.extend(rnp_data)
+    unique_inter_motifs = list(set(hbonds_in_motif))
+
+    for m in motifs:
+        if m.name.split(".")[0] not in [
+            "TWOWAY",
+            "NWAY",
+            "HAIRPIN",
+            "HELIX",
+            "SSTRAND",
+        ]:
+            continue
+        interactions = motif_interactions.get(m.name, None)
+        write_res_coords_to_pdb(
+            m.nts_long,
+            interactions,
+            pdb_model,
+            os.path.join(motif_dir, m.name),
+            unique_inter_motifs,
+            f_inter,
+            f_residues,
+            f_twoways,
+            f_inter_overview,
+        )
 
 
 def count_strands(
