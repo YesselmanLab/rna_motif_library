@@ -72,10 +72,6 @@ python rna_motif_library/cli.py find_tertiary_contacts
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will display which motifs' hydrogen bonding it's looking at
 
-# You don't need to take note of any of the feedback on the command prompt while it's running
-# Just sit back, relax, crack open a cold one, and watch it run (it's about as fun as watching paint dry)
-# It's there to let you know it's thinking properly
-
 ```
 
 When finished, you will see several new directories. <br>
