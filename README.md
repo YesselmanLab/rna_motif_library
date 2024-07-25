@@ -47,7 +47,7 @@ python rna_motif_library/cli.py download_cifs --threads 8
 # After downloading we need to process with DSSR
 python rna_motif_library/cli.py process_dssr --threads 8
 # Replace "8" with the number of CPU cores you want to use
-# Estimated time: 40 minutes for around 2000 .cifs
+# Estimated time: 90 minutes for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will consist of the path to the PDB/CIF files
 
@@ -68,7 +68,7 @@ python rna_motif_library/cli.py generate_motifs
 # After generating motifs we find tertiary contacts
 python rna_motif_library/cli.py find_tertiary_contacts
 # No threading for this one
-# Estimated time: 24-36 hours for around 2000 .cifs
+# Estimated time: 18 hours for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will display which motifs' hydrogen bonding it's looking at
 
@@ -103,9 +103,10 @@ Data for each respective figure is broken down in CSV files, which are in `heatm
 If you are interested in only a certain number of PDBs, you can run the following:
 
 ```bash
-# Make sure to delete the directories "motifs", "interactions", "tertiary_contacts", "heatmaps", and "heatmap_data" if you've run the full code already
+# Make sure to first delete the directories "data/motifs", "data/interactions", "data/tertiary_contacts", and "data/out_csvs" first so data doesn't overlap
 python cli.py generate_motifs --limit 8
 # Replace "8" with your desired number
+# This will always run certain files first; the order is not random, but fixed every time
 ```
 
 If you are interested in a specific PDB, you can run the following:
