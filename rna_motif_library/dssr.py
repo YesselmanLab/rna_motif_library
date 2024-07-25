@@ -13,7 +13,16 @@ from rna_motif_library.update_library import PandasMmcifOverride, __get_dssr_fil
 
 
 def make_dir(directory: str) -> None:
-    """Creates a directory if it does not already exist."""
+    """
+    Creates a directory.
+
+    Args:
+        directory (str): Name of directory to create.
+
+    Returns:
+        None
+
+    """
     os.makedirs(directory, exist_ok=True)
 
 
@@ -31,17 +40,20 @@ def process_pdbs(
     """
     Function for extracting motifs from a PDB in the loop
 
-    :param count: # of PDBs processed (loaded from outside)
-    :param pdb_path: path to the source PDB
-    :param limit: # of PDB files to process (loaded from outside)
-    :param pdb_name: which specific PDB o process
-    :param motif_dir: directory where extracted motif .cifs are supposed to go
-    :param f_inter: open CSV file for detailed interactions (interactions_detailed.csv)
-    :param f_residues: open CSF file for list of residues in motif (motif_residues_list.csv)
-    :param f_twoways: open CSV file for list of twoway motif data (twoway_motif_list.csv)
-    :param f_inter_overview: open CSV file for overview of individual interactions (interactions.csv)
+    Args:
+        count (int): # of PDBs processed (loaded from outside)
+        pdb_path (str): path to the source PDB
+        limit (int): # of PDB files to process (loaded from outside)
+        pdb_name (str): which specific PDB o process
+        motif_dir (str): directory where extracted motif .cifs are supposed to go
+        f_inter (CSV file): open CSV file for detailed interactions (interactions_detailed.csv)
+        f_residues (CSV file): open CSF file for list of residues in motif (motif_residues_list.csv)
+        f_twoways (CSV file): open CSV file for list of twoway motif data (twoway_motif_list.csv)
+        f_inter_overview (CSV file): open CSV file for overview of individual interactions (interactions.csv)
 
-    :return: Returns nothing; will exit early if appropriate conditions are met (limit, pdb_name)
+    Returns:
+        None
+
     """
     name = os.path.basename(pdb_path)[:-4]
     print(f"{count}, {pdb_path}, {name}")
@@ -119,8 +131,10 @@ def process_pdbs(
 def count_strands(
     master_res_df: pd.DataFrame, motif_name: str, twoway_jct_csv: Any
 ) -> Tuple[int, str]:
-    """Counts the number of strands in a motif and updates its name accordingly to better reflect structure.
+    """
+    Counts the number of strands in a motif and updates its name accordingly to better reflect structure.
 
+    Args:
     :param master_res_df: DataFrame containing motif data from PDB.
     :param motif_name: Name of the motif being processed.
     :param twoway_jct_csv: CSV file object to record data regarding two-way junctions.

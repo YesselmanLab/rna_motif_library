@@ -16,6 +16,16 @@ def cli():
 @cli.command(name="download_cifs")
 @click.option("--threads", default=1, help="Number of threads to use.")
 def download_cifs(threads):
+    """
+    Downloads CIFs specified in the CSV from the RCSB PDB database.
+
+    Args:
+        threads (int): Number of threads to run on.
+
+    Returns:
+        None
+
+    """
     warnings.filterwarnings("ignore")
     start_time = time.time()
     csv_directory = os.path.join(settings.LIB_PATH, "data/csvs/")
@@ -41,6 +51,15 @@ def download_cifs(threads):
 @cli.command(name="process_dssr")
 @click.option("--threads", default=1, help="Number of threads to use.")
 def process_dssr(threads):
+    """
+    Processes every downloaded PDB with DSSR, extracting the secondary structure into a JSON.
+
+    Args:
+        threads (int): Number of threads to run on.
+
+    Returns:
+        None
+    """
     warnings.filterwarnings("ignore")
     start_time = time.time()
     update_library.__get_dssr_files(threads)
@@ -63,6 +82,15 @@ def process_dssr(threads):
 @cli.command(name="process_snap")
 @click.option("--threads", default=1, help="Number of threads to use.")
 def process_snap(threads):
+    """
+    Processes every downloaded PDB with SNAP, extracting RNA-protein interaction data.
+
+    Args:
+        threads (int): Number of threads to run on.
+
+    Returns:
+        None
+    """
     warnings.filterwarnings("ignore")
     start_time = time.time()
     update_library.__get_snap_files(threads)
@@ -93,6 +121,17 @@ def process_snap(threads):
     help="Process a specific PDB within the set, without extensions",
 )
 def generate_motifs(limit, pdb):
+    """
+    Extracts motifs from source PDB using data from DSSR, and interactions using data from DSSR and SNAP.
+
+    Args:
+        limit (int): Number of PDBs to process (defaults to all).
+        pdb (str): Specific PDB ID to process (all by default).
+
+    Returns:
+        None
+    """
+
     warnings.filterwarnings("ignore")
     start_time = time.time()
 
@@ -117,6 +156,15 @@ def generate_motifs(limit, pdb):
 
 @cli.command(name="find_tertiary_contacts")  # Set command name
 def find_tertiary_contacts():
+    """
+    Finds tertiary contacts using hydrogen bonding data.
+
+    Args:
+        None
+
+    Returns:
+        None
+    """
     warnings.filterwarnings("ignore")
     start_time = time.time()
     update_library.__find_tertiary_contacts()
@@ -135,13 +183,6 @@ def find_tertiary_contacts():
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
     )
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
-
-
-# I'm probably going to junk this once I get the notebooks running
-"""@cli.command(name='make_figures')  # Set command name
-def make_figures():
-    warnings.filterwarnings("ignore")
-    update_library.__final_statistics()"""
 
 
 if __name__ == "__main__":
