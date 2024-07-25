@@ -12,9 +12,12 @@ def load_motif_residues(motif_residues_csv_path: str) -> dict:
     """
     Load motif residues from a CSV file into a dictionary.
 
-    :param motif_residues_csv_path: Path to the CSV file containing motif residues.
+    Args:
+        motif_residues_csv_path (str): Path to the CSV file containing motif residues.
 
-    :return motif_residues_dict: A dictionary where keys are motif names and values are lists of residues.
+    Returns:
+        motif_residues_dict (dict): A dictionary where keys are motif names and values are lists of residues.
+
     """
     with open(motif_residues_csv_path, newline="") as csvfile:
         csv_reader = csv.reader(csvfile)
@@ -36,9 +39,14 @@ def find_tertiary_contacts(
     """
     Find tertiary contacts from interaction data and write them to CSV files.
 
-    :param interactions_from_csv: Grouped DataFrame of interactions.
-    :param list_of_res_in_motifs: Dictionary of residues in each motif.
-    :param csv_dir: Directory of CSV results.
+    Args:
+        interactions_from_csv (pd.DataFrameGroupBy): Grouped DataFrame of interactions.
+        list_of_res_in_motifs (dict): Dictionary of residues in each motif.
+        csv_dir (str): Directory of CSV results.
+
+    Returns:
+        None
+
     """
     f_tert = open(os.path.join(csv_dir, "tertiary_contact_list.csv"), "w")
     f_tert.write(
@@ -222,11 +230,16 @@ def find_tertiary_contacts(
                         )
 
 
-def find_unique_tertiary_contacts(csv_dir: str):
+def find_unique_tertiary_contacts(csv_dir: str) -> None:
     """
     Finds unique tertiary contacts from the CSV file and writes them to another CSV file.
 
-    :param csv_dir: Directory of CSV results
+    Args:
+        csv_dir (str): Directory of CSV results
+
+    Returns:
+        None
+
     """
     # after the CSV for tertiary contacts are made we need to go through and extract all unique pairs in CSV
     tert_contact_csv_df = pd.read_csv(
@@ -316,9 +329,12 @@ def delete_duplicate_contacts(csv_dir: str) -> pd.DataFrame:
     """
     Deletes duplicate tertiary contacts where motif_1 and motif_2 are switched and processes the data to remove further duplicates.
 
-    :param csv_dir: Directory of CSV results
+    Args:
+        csv_dir (str): Directory of CSV results
 
-    :return pd.DataFrame: A DataFrame of unique tertiary contacts.
+    Returns:
+        unique_tert_contact_df (pd.DataFrame): A DataFrame of unique tertiary contacts.
+
     """
     # graph hydrogen bonds per overall tertiary contact
     unique_tert_contact_df_new = pd.read_csv(
@@ -384,13 +400,16 @@ def delete_duplicate_contacts(csv_dir: str) -> pd.DataFrame:
     return unique_tert_contact_df
 
 
-def remove_duplicate_res(group):
+def remove_duplicate_res(group: pd.DataFrame) -> pd.DataFrame:
     """
     Remove duplicate rows within each group based on sorted 'res_1' and 'res_2' values.
 
-    :param group: DataFrame group to process.
+    Args:
+        group: DataFrame group to process.
 
-    :return pd.DataFrame: DataFrame with duplicates removed.
+    Returns:
+        pd.DataFrame: DataFrame with duplicates removed.
+
     """
     # Sort 'res_1' and 'res_2' columns within each row
     group[["res_1", "res_2"]] = group[["res_1", "res_2"]].apply(sort_res, axis=1)
@@ -402,9 +421,12 @@ def sort_res(row: pd.Series) -> pd.Series:
     """
     Sort 'res_1' and 'res_2' columns within each row.
 
-    :param row: Series containing 'res_1' and 'res_2' values.
+    Args:
+        row (pd.Series): Series containing 'res_1' and 'res_2' values.
 
-    :return pd.Series: Series with sorted 'res_1' and 'res_2' values.
+    Returns:
+        pd.Series: Series with sorted 'res_1' and 'res_2' values.
+
     """
     return pd.Series(np.sort(row.values))
 
@@ -413,7 +435,12 @@ def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
     """
     Print tertiary contacts to CIF files.
 
-    :param unique_tert_contact_df: DataFrame containing unique tertiary contacts.
+    Args:
+        unique_tert_contact_df (pd.DataFrame): DataFrame containing unique tertiary contacts.
+
+    Returns:
+        None
+
     """
     # make directory for tert contacts
     __safe_mkdir("data/tertiary_contacts")
@@ -492,9 +519,15 @@ def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
 
 
 def __safe_mkdir(directory: str) -> None:
-    """Safely creates a directory if it does not already exist.
+    """
+    Safely creates a directory if it does not already exist.
 
-    :param directory: The path of the directory to create.
+    Args:
+        directory (str): The path of the directory to create.
+
+    Returns:
+        None
+
     """
     if not os.path.isdir(directory):
         os.makedirs(directory)
@@ -507,11 +540,15 @@ def merge_cif_files(
     """
     Merge the contents of two CIF files into one.
 
+    Args:
+        file1_path (str): Path to the first CIF file.
+        file2_path (str): Path to the second CIF file.
+        output_path (str): Path to the output CIF file.
+        lines_to_delete (str): Number of lines to delete from the start of the second CIF file.
 
-    :param file1_path: Path to the first CIF file.
-    :param file2_path: Path to the second CIF file.
-    :param output_path: Path to the output CIF file.
-    :param lines_to_delete: Number of lines to delete from the start of the second CIF file.
+    Returns:
+        None
+
     """
     # Read the contents of the first CIF file
     with open(file1_path, "r") as file1:
@@ -537,10 +574,13 @@ def find_cif_file(directory_path: str, file_name: str) -> Optional[str]:
     """
     Search for a CIF file in a directory and its subdirectories.
 
-    :param directory_path: The path of the directory to search.
-    :param file_name: The name of the CIF file to find.
+    Args:
+        directory_path (str): The path of the directory to search.
+        file_name (str): The name of the CIF file to find.
 
-    :return Optional[str]: The full path to the found CIF file, or None if not found.
+    Returns:
+        file_path (str): The full path to the found CIF file, or None if not found.
+
     """
     # Walk through the directory and its subdirectories
     for root, dirs, files in os.walk(directory_path):

@@ -1,6 +1,6 @@
 import math
 import os
-from typing import Tuple, List, Dict, IO
+from typing import Tuple, List, Dict, IO, Any
 
 import numpy as np
 import pandas as pd
@@ -29,20 +29,34 @@ canon_amino_acid_list = [
 ]
 
 
-# extracts individual interactions out (this includes H-bonds found from SNAP)
-# of the individual interactions, check if they are in the same motif for tertiary contact
-# tertiary contact = two motifs which have 2 or more h-bonds
-
-
 def extract_individual_interactions(
-    inter_from_PDB,
-    list_of_inters,
-    pdb_model_df,
-    motif_name,
-    csv_file,
-    interactions_overview_csv,
-    list_of_nts_in_motif,
-):
+    inter_from_PDB: List[str],
+    list_of_inters: List[str],
+    pdb_model_df: pd.DataFrame,
+    motif_name: str,
+    csv_file: Any,
+    interactions_overview_csv: Any,
+    list_of_nts_in_motif: List[str],
+) -> None:
+    """
+    Extracts individual interactions out (this includes H-bonds found from SNAP)
+    Of the individual interactions, check if they are in the same motif for tertiary contact
+    Tertiary contact - two motifs which have 2 or more h-bonds
+
+    Args:
+        inter_from_PDB (list): List of residues engaged in H-bond interactions.
+        list_of_inters (list): List of more detailed data on each H-bond interaction.
+        pdb_model_df (pd.DataFrame): Source PDB in DF form.
+        motif_name (str): Name of motif.
+        csv_file (CSV file): CSV file "interactions.csv".
+        interactions_overview_csv (CSV file): CSV file "interactions_detailed.csv".
+        list_of_nts_in_motif (list): List of nucleotides in the motif.
+
+    Returns:
+        None
+
+    """
+
     # for writing to interactions.csv
     start_interactions_dict = {
         "base:base": 0,
@@ -176,20 +190,25 @@ def print_interactions_to_csv(
     """
     Print interaction details to a CSV file and save the data to a CIF file.
 
-    :param alpha_sorted_types: Alphabetically sorted types of residues.
-    :param name_inter: Name of the interaction.
-    :param res_1_res_2_result_df: DataFrame containing the result of the interaction.
-    :param res_1_type: Type of the first residue.
-    :param res_2_type: Type of the second residue.
-    :param atom_1: Atom identifier for the first residue.
-    :param atom_2: Atom identifier for the second residue.
-    :param start_interactions_dict: Dictionary to track interaction counts.
-    :param csv_file: CSV file to write the interaction data.
-    :param motif_name: Name of the motif.
-    :param res_1: Identifier for the first residue.
-    :param res_2: Identifier for the second residue.
-    :param distance_ext: Distance between the residues.
-    :param bond_angle_degrees: Bond angle between the residues.
+    Args:
+        alpha_sorted_types (list): Alphabetically sorted types of residues.
+        name_inter (str): Name of the interaction.
+        res_1_res_2_result_df (pd.DataFrame): DataFrame containing the result of the interaction.
+        res_1_type (str): Type of the first residue.
+        res_2_type (str): Type of the second residue.
+        atom_1 (str): Atom identifier for the first residue.
+        atom_2 (str): Atom identifier for the second residue.
+        start_interactions_dict (dict): Dictionary to track interaction counts.
+        csv_file (CSV file): CSV file to write the interaction data.
+        motif_name (str): Name of the motif.
+        res_1 (str): Identifier for the first residue.
+        res_2 (str): Identifier for the second residue.
+        distance_ext (str): Distance between the residues.
+        bond_angle_degrees (str): Bond angle between the residues.
+
+    Returns:
+        None
+
     """
     # folder assignment
     folder_name = alpha_sorted_types[0] + "-" + alpha_sorted_types[1]
@@ -256,12 +275,15 @@ def process_N_N_interactions(
     """
     Process N-N interactions to find the corresponding first ('oxygen') and second atoms.
 
-    :param interaction: Interaction details containing atom IDs.
-    :param res_1_inter_res: DataFrame of the first residue's interactions.
-    :param res_2_inter_res: DataFrame of the second residue's interactions.
+    Args:
+        interaction (list): Interaction details containing atom IDs.
+        res_1_inter_res (pd.DataFrame): DataFrame of the first residue's interactions.
+        res_2_inter_res (pd.DataFrame): DataFrame of the second residue's interactions.
 
-    :return oxygen_atom: DataFrame of the first/oxygen atom
-    :return second_atom: DataFrame of the second atom
+    Returns:
+        oxygen_atom (pd.DataFrame): DataFrame of the first/oxygen atom
+        second_atom (pd.DataFrame): DataFrame of the second atom
+
     """
     # Assigning roles based on interactions
     oxygen_atom = find_atoms(res_1_inter_res, interaction[3])
@@ -281,12 +303,15 @@ def process_N_O_interactions(
     """
     Process N-O interactions to find the corresponding oxygen and second atoms.
 
-    :param interaction: Interaction details containing atom IDs.
-    :param res_1_inter_res: DataFrame of the first residue's interactions.
-    :param res_2_inter_res: DataFrame of the second residue's interactions.
+    Args:
+        interaction (list): Interaction details containing atom IDs.
+        res_1_inter_res (pd.DataFrame): DataFrame of the first residue's interactions.
+        res_2_inter_res (pd.DataFrame): DataFrame of the second residue's interactions.
 
-    :return oxygen_atom: DataFrame of the first/oxygen atom
-    :return second_atom: DataFrame of the second atom
+    Returns:
+        oxygen_atom (pd.DataFrame): DataFrame of the first/oxygen atom
+        second_atom (pd.DataFrame): DataFrame of the second atom
+
     """
     oxygen_atom = find_atoms(res_1_inter_res, interaction[3])
     second_atom = find_atoms(res_2_inter_res, interaction[2])
@@ -305,12 +330,15 @@ def process_O_O_interactions(
     """
     Simplified function to process O-O/O-N interactions.
 
-    :param interaction: Interaction details containing atom IDs.
-    :param res_1_inter_res: DataFrame of the first residue's interactions.
-    :param res_2_inter_res: DataFrame of the second residue's interactions.
+    Args:
+        interaction (list): Interaction details containing atom IDs.
+        res_1_inter_res (pd.DataFrame): DataFrame of the first residue's interactions.
+        res_2_inter_res (pd.DataFrame): DataFrame of the second residue's interactions.
 
-    :return oxygen_atom: DataFrame of the first/oxygen atom
-    :return second_atom: DataFrame of the second atom
+    Returns:
+        oxygen_atom (pd.DataFrame): DataFrame of the first/oxygen atom
+        second_atom (pd.DataFrame): DataFrame of the second atom
+
     """
     oxygen_atom = find_atoms(res_1_inter_res, interaction[2])
     second_atom = find_atoms(res_2_inter_res, interaction[3])
@@ -323,13 +351,17 @@ def process_O_O_interactions(
     return oxygen_atom, second_atom
 
 
-def find_atoms(residue: pd.DataFrame, atom_id: str):
+def find_atoms(residue: pd.DataFrame, atom_id: str) -> pd.DataFrame:
     """
     Finds atoms with alternate namings.
-    :param residue: residue to be processed
-    :param atom_id: ID of atom to be processed
 
-    :return atom: phosphate atom in residue
+    Args:
+        residue (pd.DataFrame): residue to be processed
+        atom_id (str): ID of atom to be processed
+
+    Returns:
+        atom (pd.DataFrame): phosphate atom in residue
+
     """
     atom = residue[residue["auth_atom_id"] == atom_id]
     if atom.empty:
@@ -351,10 +383,12 @@ def extract_residues_from_interaction_source(
     """
     Extract residues from interaction source.
 
-    :param interaction: Interaction details containing residue and atom information.
-    :param pdb_model_df: DataFrame containing PDB model data.
+    Args:
+        interaction (list): Interaction details containing residue and atom information.
+        pdb_model_df (pd.DataFrame): DataFrame containing PDB model data.
 
-    :return Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, str, str, str, str, str, str, str]:
+    Returns:
+        Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, str, str, str, str, str, str, str]:
             - Combined DataFrame of both residues' interactions.
             - DataFrame of the first residue's interactions.
             - DataFrame of the second residue's interactions.
@@ -365,6 +399,7 @@ def extract_residues_from_interaction_source(
             - Atom identifier of the first residue.
             - Atom identifier of the second residue.
             - Distance between the interacting residues.
+
     """
     res_1 = interaction[0]
     res_2 = interaction[1]
@@ -420,18 +455,29 @@ def extract_residues_from_interaction_source(
 
 
 def make_dir(directory: str) -> None:
-    """Creates a directory if it does not already exist.
-    :param directory: directory name
+    """
+    Creates a directory.
+
+    Args:
+        directory: directory name
+
+    Returns:
+        None
+
     """
     os.makedirs(directory, exist_ok=True)
 
 
 def extract_longest_numeric_sequence(input_string: str) -> str:
-    """Extracts the longest numeric sequence from a given string.
+    """
+    Extracts the longest numeric sequence from a given string.
 
-    :param input_string: The string to extract the numeric sequence from.
+    Args:
+        input_string (str): The string to extract the numeric sequence from.
 
-    :return longest_sequence: The longest numeric sequence found in the input string.
+    Returns:
+        longest_sequence (str): The longest numeric sequence found in the input string.
+
     """
     longest_sequence = ""
     current_sequence = ""
@@ -450,14 +496,18 @@ def extract_longest_numeric_sequence(input_string: str) -> str:
 def find_closest_atom(
     atom_A: pd.DataFrame, whole_interaction: pd.DataFrame
 ) -> pd.DataFrame:
-    """Finds the closest atom to a given atom within a set of interactions based on Euclidean distance.
+    """
+    Finds the closest atom to a given atom within a set of interactions based on Euclidean distance.
     This function iterates through each atom in `whole_interaction`, calculates the distance to `atom_A`,
     and keeps track of the atom with the minimum distance. Returns a DataFrame containing the closest atom.
 
-    :param atom_A: A DataFrame representing the atom to which distance is measured.
-    :param whole_interaction: A DataFrame containing multiple atoms with which the distance will be compared.
+    Args:
+        atom_A (pd.DataFrame): A DataFrame representing the atom to which distance is measured.
+        whole_interaction (pd.DataFrame): A DataFrame containing multiple atoms with which the distance will be compared.
 
-    :return min_distance_row_df: A DataFrame representing the atom closest to `atom_A` from `whole_interaction`.
+    Returns:
+        min_distance_row_df (pd.DataFrame): A DataFrame representing the atom closest to `atom_A` from `whole_interaction`.
+
     """
     min_distance_row = None
     min_distance = float("inf")
@@ -476,16 +526,20 @@ def find_closest_atom(
 
 
 def calc_distance(atom_df1: pd.DataFrame, atom_df2: pd.DataFrame) -> float:
-    """Calculates the Euclidean distance between two atoms using their Cartesian coordinates.
+    """
+    Calculates the Euclidean distance between two atoms using their Cartesian coordinates.
     The function tries to extract the 'Cartn_x', 'Cartn_y', and 'Cartn_z' coordinates from each DataFrame.
     If the coordinates are not accessible or an error occurs, it returns 0.
 
-    :param atom_df1: DataFrame containing the coordinates of the first atom.
-    :param atom_df2: DataFrame containing the coordinates of the second atom.
+    Args:
+        atom_df1 (pd.DataFrame): DataFrame containing the coordinates of the first atom.
+        atom_df2 (pd.DataFrame): DataFrame containing the coordinates of the second atom.
 
-    :return distance: The Euclidean distance between two points defined by the coordinates in atom_df1 and atom_df2.
+    Returns:
+        distance (float): The Euclidean distance between two points defined by the coordinates in atom_df1 and atom_df2.
 
-    :raise IndexError: Returns 0 if there is an error accessing coordinates.
+    Raises:
+        IndexError: Returns 0 if there is an error accessing coordinates.
 
     """
     try:
@@ -512,17 +566,21 @@ def calculate_bond_angle(
     Tuple[str, float, float, float],
     Tuple[str, float, float, float],
 ]:
-    """Calculates the bond angle and returns the angle with the atoms used in the calculation.
+    """
+    Calculates the bond angle and returns the angle with the atoms used in the calculation.
 
-    :param center_atom: DataFrame containing the Cartesian coordinates for the center atom.
-    :param second_atom: DataFrame containing the Cartesian coordinates for the second atom.
-    :param carbon_atom: DataFrame containing the Cartesian coordinates for the carbon atom.
-    :param fourth_atom: DataFrame containing the Cartesian coordinates for the fourth atom.
+    Args:
+        center_atom (pd.DataFrame): DataFrame containing the Cartesian coordinates for the center atom.
+        second_atom (pd.DataFrame): DataFrame containing the Cartesian coordinates for the second atom.
+        carbon_atom (pd.DataFrame): DataFrame containing the Cartesian coordinates for the carbon atom.
+        fourth_atom (pd.DataFrame): DataFrame containing the Cartesian coordinates for the fourth atom.
 
-    :return angle_deg: The calculated bond angle in degrees as a string.
-    :return center_atom_data: A tuple with the center atom type and its coordinates.
-    :return second_atom_data: A tuple with the second atom type and its coordinates.
-    :return carbon_atom_data: A tuple with the carbon atom type and its coordinates.
+    Returns:
+        angle_deg (str): The calculated bond angle in degrees as a string.
+        center_atom_data (tuple): A tuple with the center atom type and its coordinates.
+        second_atom_data (tuple): A tuple with the second atom type and its coordinates.
+        carbon_atom_data (tuple): A tuple with the carbon atom type and its coordinates.
+
     """
     # Extract coordinates
     x1, y1, z1 = (
@@ -574,12 +632,16 @@ def calculate_bond_angle(
 
 
 def assign_res_type(name: str, res_type: str) -> str:
-    """Assign base, phosphate, sugar, or amino acid in interactions_detailed.csv.
+    """
+    Assign base, phosphate, sugar, or amino acid in interactions_detailed.csv.
 
-    :param name: The name of the residue.
-    :param res_type: The type of the residue (e.g., "aa" for amino acid).
+    Args:
+        name (str): The name of the residue.
+        res_type (str): The type of the residue (e.g., "aa" for amino acid).
 
-    :return string: The assigned residue type as a string.
+    Returns:
+        string (str): The assigned residue type as a string.
+
     """
     if res_type == "aa":
         return "aa"
@@ -595,11 +657,17 @@ def assign_res_type(name: str, res_type: str) -> str:
 
 
 def dataframe_to_cif(df: pd.DataFrame, file_path: str, motif_name: str) -> None:
-    """Converts a DataFrame to CIF format and writes it to a file.
+    """
+    Converts a DataFrame to CIF format and writes it to a file.
 
-    :param df: The DataFrame containing the data.
-    :param file_path: The path to the output CIF file.
-    :param motif_name: The name of the motif.
+    Args:
+        df (pd.DataFrame): The DataFrame containing the data.
+        file_path (str): The path to the output CIF file.
+        motif_name (str): The name of the motif.
+
+    Returns:
+        None
+
     """
     with open(file_path, "w") as f:
         # Write the CIF header section; len(row) = 21

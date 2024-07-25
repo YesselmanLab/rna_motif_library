@@ -2,9 +2,13 @@ import settings
 import snap
 
 
-def test_snap():
+def test_snap() -> None:
     """
     Tests the retrieval of interactions from SNAP
+
+    Returns:
+        None
+
     """
     pdb_path = str(settings.UNITTEST_PATH) + "resources/4b3g.pdb"
     out_path = str(settings.UNITTEST_PATH) + "resources/4b3g.out"

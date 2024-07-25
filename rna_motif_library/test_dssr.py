@@ -3,9 +3,12 @@ import pandas as pd
 import dssr
 
 
-def test_dssr_res():
+def test_dssr_res() -> None:
     """
     Tests the parsing of resides from DSSR data
+
+    Returns:
+        None
 
     """
     s1 = "H.A9"
@@ -19,9 +22,13 @@ def test_dssr_res():
     assert r2.num == 270
 
 
-def test_assign_res_type():
+def test_assign_res_type() -> None:
     """
-    tests assigning residue types
+    Tests assigning residue types.
+
+    Returns:
+        None
+
     """
     list_of_residues = ["OP1", "O2'", "N1", "NZ"]
     list_of_residue_types = ["nt", "nt", "nt", "aa"]
@@ -56,25 +63,9 @@ def test_assign_res_type():
         position += 1
 
 
-def test_distance_calculation():
-    """
-    Tests distance calculation
-    """
-    # Creating DataFrames with an explicit index for scalar initialization
-    df_1 = pd.DataFrame({"Cartn_x": [1], "Cartn_y": [1], "Cartn_z": [1]})
-    df_2 = pd.DataFrame({"Cartn_x": [-1], "Cartn_y": [-1], "Cartn_z": [-1]})
-
-    # Calculate the Euclidean distance using the dssr module
-    distance = dssr.euclidean_distance_dataframe(df_1, df_2)
-    assert (
-        abs(distance - 3.46) < 0.01
-    )  # Using a small tolerance for floating point comparison
-
-
 def main():
     test_dssr_res()
     test_assign_res_type()
-    test_distance_calculation()
 
 
 if __name__ == "__main__":

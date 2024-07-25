@@ -8,11 +8,12 @@ class RNPInteraction:
     """
     Class to represent an RNA-Protein interaction.
 
-    nt_atom: atom of nucleotide in interaction
-    aa_atom: atom of amino acid in interaction
-    distance: distance between atoms in interaction (angstroms)
-    type: type of interaction (base:sidechain/base:aa/etc)
-    nt_res: residue of nucleotide
+    Args:
+        nt_atom (str): atom of nucleotide in interaction
+        aa_atom (str): atom of amino acid in interaction
+        dist (float): distance between atoms in interaction (angstroms)
+        interaction_type (str): type of interaction (base:sidechain/base:aa/etc)
+
     """
 
     def __init__(self, nt_atom: str, aa_atom: str, dist: float, interaction_type: str):
@@ -26,14 +27,19 @@ class RNPInteraction:
 def get_rnp_interactions(
     pdb_path: Optional[str] = None, out_file: Optional[str] = None
 ) -> List[RNPInteraction]:
-    """Retrieves RNA-Protein (RNP) interactions from an output file or a PDB file.
+    """
+    Retrieves RNA-Protein (RNP) interactions from an output file or a PDB file.
 
-    :param pdb_path: Optional; the file path to the PDB file if available.
-    :param out_file: Optional; the file path to the output file where interactions are recorded.
+    Args:
+        pdb_path (str): Optional; the file path to the PDB file if available.
+        out_file (str): Optional; the file path to the output file where interactions are recorded.
 
-    :return interactions: A list of RNPInteraction instances capturing the details of each interaction.
+    Returns:
+        interactions (list): A list of RNPInteraction instances capturing the details of each interaction.
 
-    :raise ValueError: If neither a pdb_path nor an out_file is provided.
+    Raises:
+        ValueError: If neither a pdb_path nor an out_file is provided.
+
     """
     if pdb_path is None and out_file is None:
         raise ValueError("Must supply either a pdb or out file")
@@ -72,10 +78,16 @@ def get_rnp_interactions(
 
 
 def __generate_out_file(pdb_path: str, out_path: str = "test.out") -> None:
-    """Generates an .out file from DSSR data.
+    """
+    Generates an .out file from DSSR data.
 
-    :param pdb_path: path to source PDB
-    :param out_path: path to .out file
+    Args:
+        pdb_path (str): path to source PDB
+        out_path (str): path to .out file
+
+    Returns:
+        None
+
     """
     dssr_exe = settings.DSSR_EXE
     subprocess.run(f"{dssr_exe} snap -i={pdb_path} -o={out_path}", shell=True)

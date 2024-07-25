@@ -24,7 +24,6 @@ from rna_motif_library import snap
 from rna_motif_library import dssr
 from rna_motif_library import figure_plotting
 
-# list of residue types to filter out
 canon_res_list = [
     "A",
     "ALA",
@@ -54,17 +53,22 @@ canon_res_list = [
 
 
 class PandasMmcifOverride(PandasMmcif):
-    """Class to override standard behavior for handling mmCIF files in Pandas,
-    particularly to address inconsistencies between ATOM and HETATM records."""
+    """
+    Class to override standard behavior for handling mmCIF files in Pandas,
+    particularly to address inconsistencies between ATOM and HETATM records.
+
+    """
 
     def _construct_df(self, text: str) -> pd.DataFrame:
-        """Constructs a DataFrame from mmCIF text.
+        """
+        Constructs a DataFrame from mmCIF text.
 
         Args:
-            text: The mmCIF file content as a string.
+            text (str): The mmCIF file content as a string.
 
         Returns:
-            A combined DataFrame of ATOM and HETATM records.
+            combined_df (pd.DataFrame): A combined DataFrame of ATOM and HETATM records.
+
         """
         data = load_cif_data(text)
         data = data[list(data.keys())[0]]
@@ -88,34 +92,31 @@ class PandasMmcifOverride(PandasMmcif):
 
 
 def __safe_mkdir(directory: str) -> None:
-    """Safely creates a directory if it does not already exist.
+    """
+    Safely creates a directory if it does not already exist.
 
-    :param directory: The path of the directory to create.
+    Args:
+        directory (str): The path of the directory to create.
+
+    Returns:
+        None
+
     """
     if not os.path.isdir(directory):
         os.makedirs(directory)
 
 
-def __file_exists_in_dir(filename, directory):
-    """
-    Function to check if file exists in directory or subdirectories
-
-    :param filename: name of file to search for
-    :param directory: directory to look inside (includes subfolders)
-
-    :return: returns Boolean (does the file exist or not?)
-    """
-    for root, dirs, files in os.walk(directory):
-        if filename in files:
-            return True
-    return False
-
-
 def __download_cif_files(csv_path: str, threads: int) -> None:
-    """Downloads CIF files based on a CSV that specifies the non-redundant set.
+    """
+    Downloads CIF files based on a CSV that specifies the non-redundant set.
 
-    :param csv_path: The path to the CSV file that contains data about which PDB files to download.
-    :param threads: number of threads to use
+    Args:
+        csv_path (str): The path to the CSV file that contains data about which PDB files to download.
+        threads (int): number of threads to use
+
+    Returns:
+        None
+
     """
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
 
@@ -156,9 +157,15 @@ def __download_cif_files(csv_path: str, threads: int) -> None:
 
 
 def __get_dssr_files(threads: int) -> None:
-    """Runs DSSR on PDB files to extract and store secondary structure information in JSON format.
+    """
+    Runs DSSR on PDB files to extract and store secondary structure information in JSON format.
 
-    :param threads: number of threads to run on
+    Args:
+        threads (int): number of threads to run on
+
+    Returns:
+        None
+
     """
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     dssr_path = settings.DSSR_EXE
@@ -194,9 +201,15 @@ def __get_dssr_files(threads: int) -> None:
 
 
 def __get_snap_files(threads: int) -> None:
-    """Runs snap to extract RNP interactions for each PDB file and stores the results in .out files.
+    """
+    Runs snap to extract RNP interactions for each PDB file and stores the results in .out files.
 
-    :param threads: number of threads to run on
+    Args:
+        threads (int): number of threads to run on
+
+    Returns:
+        None
+
     """
     pdb_dir = settings.LIB_PATH + "/data/pdbs/"
     out_path = settings.LIB_PATH + "/data/snap_output/"
@@ -230,10 +243,15 @@ def __get_snap_files(threads: int) -> None:
 
 
 def __generate_motif_files(limit=None, pdb_name=None) -> None:
-    """Processes PDB files to extract and analyze motif interactions, storing detailed outputs.
+    """
+    Processes PDB files to extract and analyze motif interactions, storing detailed outputs.
 
-    :param limit: number of PDBs to process
-    :param pdb_name: which specific PDB to process (both are entered via command line)
+    Args:
+        limit (int): number of PDBs to process
+        pdb_name (str): which specific PDB to process (both are entered via command line)
+
+    Returns:
+        None
 
     """
     pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
@@ -349,8 +367,14 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
     figure_plotting.save_present_hbonds(grouped_hbond_df=grouped_hbond_df)
 
 
-def __find_tertiary_contacts():
-    """Finds and processes tertiary contacts from the resultant motif/interaction data"""
+def __find_tertiary_contacts() -> None:
+    """
+    Finds and processes tertiary contacts from the resultant motif/interaction data
+
+    Returns:
+        None
+
+    """
     csv_dir = os.path.join(settings.LIB_PATH, "data", "out_csvs")
 
     interactions_from_csv = pd.read_csv(
@@ -371,12 +395,16 @@ def __find_tertiary_contacts():
     )
 
 
-def count_cif_files(directory):
-    """Recursively count .cif files in the given directory.
+def count_cif_files(directory: str) -> int:
+    """
+    Recursively count .cif files in the given directory.
 
-    :param directory: A string, the path to the directory to count .cif files in.
+    Args:
+        directory (str): A string, the path to the directory to count .cif files in.
 
-    :return cif_count: An integer count of .cif files.
+    Returns:
+        cif_count (int): An integer count of .cif files.
+
     """
     cif_count = 0
     for root, dirs, files in os.walk(directory):
@@ -384,11 +412,13 @@ def count_cif_files(directory):
     return cif_count
 
 
-def write_counts_to_csv(motif_directory, output_csv):
-    """Writes the counts of .cif files for each subdirectory to a CSV file.
+def write_counts_to_csv(motif_directory: str, output_csv: str) -> None:
+    """
+    Writes the counts of .cif files for each subdirectory to a CSV file.
 
-    :param motif_directory: A string, the directory containing motif subdirectories.
-    :param output_csv: A string, the path to the output CSV file.
+    Args:
+        motif_directory (str): A string, the directory containing motif subdirectories.
+        output_csv (str): A string, the path to the output CSV file.
     """
     # List subdirectories in the motif directory
     subdirectories = [
