@@ -1,7 +1,6 @@
 import time
 import warnings
 import os
-
 import click
 
 from rna_motif_library import settings
