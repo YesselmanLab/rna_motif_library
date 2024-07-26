@@ -91,6 +91,10 @@ class PandasMmcifOverride(PandasMmcif):
         return combined_df  # Return the combined DataFrame
 
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 0688e1cf930c43afebba124e85b3db1b70d3217a
 def download_cif_files(csv_path: str, threads: int) -> None:
     """
     Downloads CIF files based on a CSV that specifies the non-redundant set.
@@ -104,17 +108,27 @@ def download_cif_files(csv_path: str, threads: int) -> None:
 
     """
     pdb_dir = LIB_PATH + "/data/pdbs/"
-
     # Ensure the directory exists
-    if not os.path.exists(pdb_dir):
-        os.makedirs(pdb_dir)
-
+    os.makedirs(pdb_dir, exist_ok=True)
     # Read the CSV
     df = pd.read_csv(
         csv_path, header=None, names=["equivalence_class", "represent", "class_members"]
     )
 
     def download_pdbs(row):
+        """
+        Downloads a PDB file based on the given row.
+
+        Args:
+            row (pandas.Series): The row containing information about the PDB file.
+
+        Returns:
+            None: If the file is already downloaded, the function returns None.
+
+        Raises:
+            Exception: If there is an error while downloading the PDB file.
+
+        """
         pdb_name = row.represent.split("|")[0]
         out_path = os.path.join(pdb_dir, f"{pdb_name}.cif")
 
@@ -249,8 +263,13 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
     # Define directories for output
     motif_dir = os.path.join(LIB_PATH, "data", "motifs")
     csv_dir = os.path.join(LIB_PATH, "data", "out_csvs")
+<<<<<<< HEAD
     safe_mkdir(motif_dir)
     safe_mkdir(csv_dir)
+=======
+    os.makedirs(motif_dir, exist_ok=True)
+    os.makedirs(csv_dir, exist_ok=True)
+>>>>>>> 0688e1cf930c43afebba124e85b3db1b70d3217a
 
     # Interaction types
     hbond_vals = [
@@ -302,7 +321,11 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
 
     # When all is said and done need to count number of motifs and print to CSV
     motif_directory = os.path.join("data/motifs")
+<<<<<<< HEAD
     safe_mkdir(motif_directory)
+=======
+    os.makedirs(motif_directory, exist_ok=True)
+>>>>>>> 0688e1cf930c43afebba124e85b3db1b70d3217a
     output_csv = os.path.join("data/out_csvs/motif_cif_counts.csv")
     write_counts_to_csv(motif_directory, output_csv)
 

@@ -5,18 +5,18 @@ import os
 import click
 
 from rna_motif_library import settings
-#from rna_motif_library.logger import setup_logging, get_logger
+from rna_motif_library.logger import setup_logging, get_logger
 import update_library
+from update_library import download_cif_files
 
-
-#log = get_logger("cli")
+log = get_logger("cli")
 
 @click.group()
 def cli():
     pass
 
 
-@cli.command(name="download_cifs")
+@cli.command()
 @click.option("--threads", default=1, help="Number of threads to use.")
 def download_cifs(threads):
     """
@@ -29,29 +29,31 @@ def download_cifs(threads):
         None
 
     """
+    setup_logging()
     warnings.filterwarnings("ignore")
     start_time = time.time()
     csv_directory = os.path.join(settings.LIB_PATH, "data/csvs/")
     csv_files = [file for file in os.listdir(csv_directory) if file.endswith(".csv")]
     csv_path = os.path.join(csv_directory, csv_files[0])
     update_library.download_cif_files(csv_path, threads)
+    download_cif_files(csv_path, threads)
     end_time = time.time()
     total_seconds = int(end_time - start_time)
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
-    print(
-        "Download started at",
+    log.info(
+        "Download started at " + 
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
     )
-    print(
-        "Download finished at",
+    log.info(
+        "Download finished at " +
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
     )
-    print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
+    log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command(name="process_dssr")
+@cli.command()
 @click.option("--threads", default=1, help="Number of threads to use.")
 def process_dssr(threads):
     """
@@ -82,7 +84,7 @@ def process_dssr(threads):
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command(name="process_snap")
+@cli.command()
 @click.option("--threads", default=1, help="Number of threads to use.")
 def process_snap(threads):
     """
@@ -113,7 +115,7 @@ def process_snap(threads):
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command(name="generate_motifs")  # Set command name
+@cli.command()  # Set command name
 @click.option(
     "--limit", default=None, type=int, help="Limit the number of PDB files processed."
 )
@@ -157,7 +159,7 @@ def generate_motifs(limit, pdb):
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command(name="find_tertiary_contacts")  # Set command name
+@cli.command()  # Set command name
 def find_tertiary_contacts():
     """
     Finds tertiary contacts using hydrogen bonding data.
