@@ -4,8 +4,6 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 from rna_motif_library.figure_plotting import safe_mkdir
 

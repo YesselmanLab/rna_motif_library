@@ -77,7 +77,7 @@ def get_rnp_interactions(
     return interactions
 
 
-def __generate_out_file(pdb_path: str, out_path: str = "test.out") -> None:
+def generate_out_file(pdb_path: str, out_path: str = "test.out") -> None:
     """
     Generates an .out file from DSSR data.
 

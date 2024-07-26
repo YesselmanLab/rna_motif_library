@@ -2,14 +2,14 @@ import os
 import re
 from json import JSONDecodeError
 from typing import List, Any, Tuple, Dict
-
 import pandas as pd
 import numpy as np
-from pydssr.dssr import DSSROutput
-import dssr_hbonds
-from rna_motif_library import settings, snap
-from rna_motif_library.update_library import PandasMmcifOverride, get_dssr_files
 
+from pydssr.dssr import DSSROutput
+from rna_motif_library.update_library import PandasMmcifOverride, get_dssr_files
+from rna_motif_library.settings import LIB_PATH
+from rna_motif_library.snap import get_rnp_interactions
+from rna_motif_library.dssr_hbonds import extract_longest_numeric_sequence, dataframe_to_cif, extract_individual_interactions, canon_amino_acid_list
 
 def make_dir(directory: str) -> None:
     """
@@ -63,10 +63,10 @@ def process_pdbs(
     if (pdb_name != None) and (name != pdb_name):
         return
 
-    json_path = os.path.join(settings.LIB_PATH, "data/dssr_output", f"{name}.json")
+    json_path = os.path.join(LIB_PATH, "data/dssr_output", f"{name}.json")
 
-    rnp_out_path = os.path.join(settings.LIB_PATH, "data/snap_output", f"{name}.out")
-    rnp_interactions = snap.get_rnp_interactions(out_file=rnp_out_path)
+    rnp_out_path = os.path.join(LIB_PATH, "data/snap_output", f"{name}.out")
+    rnp_interactions = get_rnp_interactions(out_file=rnp_out_path)
     rnp_data = [
         (
             interaction.nt_atom.split("@")[1],
@@ -496,9 +496,9 @@ def write_res_coords_to_pdb(
         nt_spl = nt.split(".")
         chain_id = nt_spl[0]
         if "--" in nt_spl[1] and len(nt_spl) > 2:
-            residue_id = dssr_hbonds.extract_longest_numeric_sequence(nt_spl[2])
+            residue_id = extract_longest_numeric_sequence(nt_spl[2])
         else:
-            residue_id = dssr_hbonds.extract_longest_numeric_sequence(nt_spl[1])
+            residue_id = extract_longest_numeric_sequence(nt_spl[1])
         if "/" in nt_spl[1]:
             residue_id = nt_spl[1].split("/")[1]
         nt_list.append(chain_id + "." + residue_id)
@@ -537,7 +537,7 @@ def write_res_coords_to_pdb(
             )
             name_path = os.path.join(new_path, motif_name)
             make_dir(new_path)
-            dssr_hbonds.dataframe_to_cif(
+            dataframe_to_cif(
                 df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
             )
 
@@ -562,7 +562,7 @@ def write_res_coords_to_pdb(
         if hairpin_path:
             make_dir(hairpin_path)
             name_path = os.path.join(hairpin_path, motif_name)
-            dssr_hbonds.dataframe_to_cif(
+            dataframe_to_cif(
                 df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
             )
         else:
@@ -574,7 +574,7 @@ def write_res_coords_to_pdb(
         )
         make_dir(helix_path)
         name_path = os.path.join(helix_path, motif_name)
-        dssr_hbonds.dataframe_to_cif(
+        dataframe_to_cif(
             df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
         )
 
@@ -588,7 +588,7 @@ def write_res_coords_to_pdb(
             )
             make_dir(sstrand_path)
             name_path = os.path.join(sstrand_path, motif_name)
-            dssr_hbonds.dataframe_to_cif(
+            dataframe_to_cif(
                 df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
             )
         else:
@@ -600,7 +600,7 @@ def write_res_coords_to_pdb(
 
     if interactions is not None and sstrand_is_legit:
         interactions_filtered = remove_duplicate_residues_in_chain(interactions)
-        dssr_hbonds.extract_individual_interactions(
+        extract_individual_interactions(
             interactions_filtered,
             motif_bond_list,
             model_df,
@@ -785,7 +785,7 @@ class DSSRRes:
         for i, c in enumerate(spl[1]):
             if c.isdigit():
                 cur_num = spl[1][i:]
-                cur_num = dssr_hbonds.extract_longest_numeric_sequence(cur_num)
+                cur_num = extract_longest_numeric_sequence(cur_num)
                 i_num = i
                 break
         self.num = None
@@ -842,7 +842,7 @@ def assign_res_type(name: str, res_type: str) -> str:
     if res_type == "aa":
         return "aa"
     else:
-        if name in dssr_hbonds.canon_amino_acid_list:
+        if name in canon_amino_acid_list:
             return "aa"
         elif "P" in name:
             return "phos"

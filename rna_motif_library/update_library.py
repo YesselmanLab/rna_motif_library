@@ -18,7 +18,7 @@ from biopandas.mmcif.engines import mmcif_col_types
 from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
 
 from rna_motif_library import tert_contacts
-from rna_motif_library.snap import __generate_out_file
+from rna_motif_library.snap import generate_out_file
 from rna_motif_library import dssr
 from rna_motif_library import figure_plotting
 from rna_motif_library.settings import LIB_PATH, DSSR_EXE
@@ -219,7 +219,7 @@ def get_snap_files(threads: int) -> None:
             return f"{name}.out ALREADY EXISTS"
 
         print(f"Processing {pdb_path}")  # Debug: prints the PDB path being processed
-        __generate_out_file(pdb_path, out_file)  # Call to generate the .out file
+        generate_out_file(pdb_path, out_file)  # Call to generate the .out file
         return f"{name}.out GENERATED"
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:

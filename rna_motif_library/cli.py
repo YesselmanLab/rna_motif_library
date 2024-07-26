@@ -3,7 +3,7 @@ import warnings
 import os
 import click
 
-from rna_motif_library import settings
+from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.logger import setup_logging, get_logger
 from update_library import get_dssr_files, get_snap_files, download_cif_files, find_tertiary_contacts, generate_motif_files
 
@@ -30,7 +30,7 @@ def download_cifs(threads):
     setup_logging()
     warnings.filterwarnings("ignore")
     start_time = time.time()
-    csv_directory = os.path.join(settings.LIB_PATH, "data/csvs/")
+    csv_directory = os.path.join(LIB_PATH, "data/csvs/")
     csv_files = [file for file in os.listdir(csv_directory) if file.endswith(".csv")]
     csv_path = os.path.join(csv_directory, csv_files[0])
     download_cif_files(csv_path, threads)
