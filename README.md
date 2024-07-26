@@ -13,25 +13,26 @@ In the directory `data/csvs`, delete the default CSV file and replace with your 
 
 ## Installation
 
-```bash
-# Create and activate new conda environment
-conda create --name rna_motif_env python=3.8
-# Delete any existing environments by this name if you have any and start with a fresh installation
-conda activate rna_motif_env
+#TODO how to get DSSR and SNAP? add links to download pages
 
+```bash
 # Clone the repository and navigate to project directory
 git clone https://github.com/YesselmanLab/rna_motif_library.git
 cd rna_motif_library
 
+# Create and activate new conda environment
+conda create --name rna_motif_env python=3.8
+conda activate rna_motif_env
+
 # Install the package
 pip install .
-
-# Verify installation
-python -m pip list
 
 ```
 
 ## Creating the library
+
+
+### download CIF files
 
 ```bash
 # Make sure you put the CSV in the right place or you will get errors
@@ -39,7 +40,7 @@ python -m pip list
 # Note, despite the use of "PDB" in language, all files are actually ".cif", not ".pdb"
 
 # To create the library first we need to download the PDBs specified in the CSV
-python rna_motif_library/cli.py download_cifs --threads 8
+python rna_motif_library/cli.py download-cifs --threads 8
 # Replace "8" with the number of CPU cores you want to use
 # Estimated time: 15 minutes for around 2000 .cifs
 # Expect a progress bar when it's working
