@@ -5,11 +5,11 @@ import os
 import click
 
 from rna_motif_library import settings
-from rna_motif_library.logger import setup_logging, get_logger
+#from rna_motif_library.logger import setup_logging, get_logger
 import update_library
 
 
-log = get_logger("cli")
+#log = get_logger("cli")
 
 @click.group()
 def cli():
@@ -34,7 +34,7 @@ def download_cifs(threads):
     csv_directory = os.path.join(settings.LIB_PATH, "data/csvs/")
     csv_files = [file for file in os.listdir(csv_directory) if file.endswith(".csv")]
     csv_path = os.path.join(csv_directory, csv_files[0])
-    update_library.__download_cif_files(csv_path, threads)
+    update_library.download_cif_files(csv_path, threads)
     end_time = time.time()
     total_seconds = int(end_time - start_time)
     hours = total_seconds // 3600

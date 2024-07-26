@@ -1,8 +1,7 @@
 import os
 import re
-import math
 from json import JSONDecodeError
-from typing import List, Optional, Any, Tuple, Dict
+from typing import List, Any, Tuple, Dict
 
 import pandas as pd
 import numpy as np
@@ -243,6 +242,8 @@ def count_strands(
     # Step 9: print the contents of 2-way motifs into a CSV (nucleotide data, motif names)
     # also change the names to make them match TWOWAY motifs, this will cause problems if you don't!
     old_motif_type_for_sstrand_processing = motif_name.split(".")[0]
+    motif_name_new = motif_name
+
     if len_chains == 2 and old_motif_type_for_sstrand_processing != "SSTRAND":
         # Concatenate all inner lists and keep only unique values
         result_0 = []
@@ -267,7 +268,7 @@ def count_strands(
         if motif_type == "NWAY":
             new_motif_type = "TWOWAY"
             new_motif_class = str(class_0) + "-" + str(class_1)
-            new_motif_name = (
+            motif_name_new = (
                     new_motif_type
                     + "."
                     + motif_type_list[1]
@@ -278,27 +279,24 @@ def count_strands(
                     + "."
                     + motif_type_list[3]
             )
-            motif_name = new_motif_name
 
-        # there's only 1 of these in the entire library but I'll filter it to keep the graph normal
-        if (class_0 > 1) or (class_1 > 1):
-            # motif_name, motif_type (NWAY/TWOWAY), nucleotides_in_strand_1, nucleotides_in_strand_2
-            twoway_jct_csv.write(
-                motif_name
-                + ","
-                + motif_type
-                + ","
-                + str(class_0)
-                + ","
-                + str(class_1)
-                + "\n"
-            )  # + number of nucleotides, which can be found by length of each element in ultra refined chains
+        # motif_name, motif_type (NWAY/TWOWAY), nucleotides_in_strand_1, nucleotides_in_strand_2
+        twoway_jct_csv.write(
+            motif_name_new
+            + ","
+            + motif_type
+            + ","
+            + str(class_0)
+            + ","
+            + str(class_1)
+            + "\n"
+        )  # + number of nucleotides, which can be found by length of each element in ultra refined chains
 
     # Rewrite motif names so the structure is correct
     elif len_chains > 2 and old_motif_type_for_sstrand_processing != "SSTRAND":
         # Write new motif name
         old_motif_name_spl = motif_name.split(".")
-        motif_name = (
+        motif_name_new = (
                 "NWAY."
                 + old_motif_name_spl[1]
                 + "."
@@ -308,9 +306,9 @@ def count_strands(
                 + "."
                 + old_motif_name_spl[4]
         )
-    elif len_chains == 1 and old_motif_type_for_sstrand_processing == "SSTRAND":
+    elif old_motif_type_for_sstrand_processing == "SSTRAND":
         old_motif_name_spl = motif_name.split(".")
-        motif_name = (
+        motif_name_new = (
                 "SSTRAND."
                 + old_motif_name_spl[1]
                 + "."
@@ -321,7 +319,7 @@ def count_strands(
                 + old_motif_name_spl[4]
         )
 
-    return len_chains, motif_name
+    return len_chains, motif_name_new
 
 
 def find_continuous_chains(pair_list: List[List[str]]) -> List[List[str]]:
@@ -523,77 +521,84 @@ def write_res_coords_to_pdb(
         for line in r.to_string(index=False, header=False).split("\n")
     ]
 
-    if df_list:
-        result_df = pd.concat(df_list, axis=0, ignore_index=True)
-        if sub_dir_parts[0] in ["TWOWAY", "NWAY"]:
-            basepair_ends, motif_name = count_strands(
-                result_df, motif_name=motif_name, twoway_jct_csv=twoway_csv
+    sstrand_is_legit = True
+    result_df = pd.concat(df_list, axis=0, ignore_index=True)
+    if sub_dir_parts[0] in ["TWOWAY", "NWAY"]:
+        basepair_ends, motif_name = count_strands(
+            result_df, motif_name=motif_name, twoway_jct_csv=twoway_csv
+        )
+        if basepair_ends != 1:
+            new_path = os.path.join(
+                "data",
+                "motifs",
+                f"{basepair_ends}ways",
+                motif_name.split(".")[2],
+                sub_dir_parts[3],
             )
-            if basepair_ends != 1:
-                new_path = os.path.join(
-                    "data",
-                    "motifs",
-                    f"{basepair_ends}ways",
-                    motif_name.split(".")[2],
-                    sub_dir_parts[3],
-                )
-                name_path = os.path.join(new_path, motif_name)
-                make_dir(new_path)
-                cif_path = f"{name_path}.cif"
-
-            else:
-                sub_dir_parts[0] = "HAIRPIN"
-
-        if sub_dir_parts[0] == "HAIRPIN":
-            hairpin_bridge_length = len(nts) - 2
-            sub_dir_parts[2] = str(hairpin_bridge_length)
-            motif_name = ".".join(sub_dir_parts)
-            hairpin_path = (
-                os.path.join(
-                    "data",
-                    "motifs",
-                    "hairpins",
-                    str(hairpin_bridge_length),
-                    sub_dir_parts[3],
-                )
-                if hairpin_bridge_length >= 3
-                else None
+            name_path = os.path.join(new_path, motif_name)
+            make_dir(new_path)
+            dssr_hbonds.dataframe_to_cif(
+                df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
             )
-            if hairpin_path:
-                make_dir(hairpin_path)
-                name_path = os.path.join(hairpin_path, motif_name)
-                cif_path = f"{name_path}.cif"
-            else:
-                sub_dir_parts[0] = "SSTRAND"
 
-        if sub_dir_parts[0] == "HELIX":
-            helix_path = os.path.join(
-                "data", "motifs", "helices", sub_dir_parts[2], sub_dir_parts[3]
+        else:
+            sub_dir_parts[0] = "HAIRPIN"
+
+    if sub_dir_parts[0] == "HAIRPIN":
+        hairpin_bridge_length = len(nts) - 2
+        sub_dir_parts[2] = str(hairpin_bridge_length)
+        motif_name = ".".join(sub_dir_parts)
+        hairpin_path = (
+            os.path.join(
+                "data",
+                "motifs",
+                "hairpins",
+                str(hairpin_bridge_length),
+                sub_dir_parts[3],
             )
-            make_dir(helix_path)
-            name_path = os.path.join(helix_path, motif_name)
-            cif_path = f"{name_path}.cif"
+            if hairpin_bridge_length >= 3
+            else None
+        )
+        if hairpin_path:
+            make_dir(hairpin_path)
+            name_path = os.path.join(hairpin_path, motif_name)
+            dssr_hbonds.dataframe_to_cif(
+                df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
+            )
+        else:
+            sub_dir_parts[0] = "SSTRAND"
 
-        if sub_dir_parts[0] == "SSTRAND":
-            sstrand_length = len(nts)
+    if sub_dir_parts[0] == "HELIX":
+        helix_path = os.path.join(
+            "data", "motifs", "helices", sub_dir_parts[2], sub_dir_parts[3]
+        )
+        make_dir(helix_path)
+        name_path = os.path.join(helix_path, motif_name)
+        dssr_hbonds.dataframe_to_cif(
+            df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
+        )
+
+    if sub_dir_parts[0] == "SSTRAND":
+        sstrand_count, motif_name = count_strands(result_df, motif_name, twoway_csv)
+        if sstrand_count == 1:
+            sstrand_is_legit = True
+            sstrand_length = int(motif_name.split(".")[2]) + 2
             sstrand_path = os.path.join(
                 "data", "motifs", "sstrand", str(sstrand_length), sub_dir_parts[3]
             )
             make_dir(sstrand_path)
             name_path = os.path.join(sstrand_path, motif_name)
-            cif_path = f"{name_path}.cif"
-
-        if not os.path.exists(
-                cif_path
-        ):  # if motif already exists, don't bother overwriting
             dssr_hbonds.dataframe_to_cif(
                 df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
             )
+        else:
+            sstrand_is_legit = False
 
-    residue_csv_list.write(motif_name + "," + ",".join(nts) + "\n")
-    print(motif_name)
+    if sstrand_is_legit:
+        residue_csv_list.write(motif_name + "," + ",".join(nts) + "\n")
+        print(motif_name)
 
-    if interactions is not None:
+    if interactions is not None and sstrand_is_legit:
         interactions_filtered = remove_duplicate_residues_in_chain(interactions)
         dssr_hbonds.extract_individual_interactions(
             interactions_filtered,

@@ -1,6 +1,5 @@
 import csv
 from concurrent.futures import ThreadPoolExecutor
-from json import JSONDecodeError
 
 import wget
 import glob
@@ -19,10 +18,11 @@ from biopandas.mmcif.engines import mmcif_col_types
 from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
 
 from rna_motif_library import tert_contacts
-from rna_motif_library import snap
+from rna_motif_library.snap import __generate_out_file
 from rna_motif_library import dssr
 from rna_motif_library import figure_plotting
 from rna_motif_library.settings import LIB_PATH, DSSR_EXE
+from rna_motif_library.figure_plotting import safe_mkdir
 
 canon_res_list = [
     "A",
@@ -91,21 +91,6 @@ class PandasMmcifOverride(PandasMmcif):
         return combined_df  # Return the combined DataFrame
 
 
-def __safe_mkdir(directory: str) -> None:
-    """
-    Safely creates a directory if it does not already exist.
-
-    Args:
-        directory (str): The path of the directory to create.
-
-    Returns:
-        None
-
-    """
-    if not os.path.isdir(directory):
-        os.makedirs(directory)
-
-
 def download_cif_files(csv_path: str, threads: int) -> None:
     """
     Downloads CIF files based on a CSV that specifies the non-redundant set.
@@ -143,7 +128,6 @@ def download_cif_files(csv_path: str, threads: int) -> None:
             tqdm.write(f"Failed to download {pdb_name}: {e}")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-        # Make sure 'total=len(df)' is correctly set
         list(
             tqdm(executor.map(download_pdbs, df.itertuples(index=False)), total=len(df))
         )
@@ -152,8 +136,6 @@ def download_cif_files(csv_path: str, threads: int) -> None:
     files_with_parentheses = glob.glob(os.path.join(pdb_dir, "*(*.cif"))
     for file in files_with_parentheses:
         os.remove(file)
-        # Uncomment next line to show removed file message
-        # tqdm.write(f"Removed file: {file}")
 
 
 def __get_dssr_files(threads: int) -> None:
@@ -227,7 +209,7 @@ def __get_snap_files(threads: int) -> None:
             return f"{name}.out ALREADY EXISTS"
 
         print(f"Processing {pdb_path}")  # Debug: prints the PDB path being processed
-        snap.__generate_out_file(pdb_path, out_file)  # Call to generate the .out file
+        __generate_out_file(pdb_path, out_file)  # Call to generate the .out file
         return f"{name}.out GENERATED"
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
@@ -267,8 +249,8 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
     # Define directories for output
     motif_dir = os.path.join(LIB_PATH, "data", "motifs")
     csv_dir = os.path.join(LIB_PATH, "data", "out_csvs")
-    __safe_mkdir(motif_dir)
-    __safe_mkdir(csv_dir)
+    safe_mkdir(motif_dir)
+    safe_mkdir(csv_dir)
 
     # Interaction types
     hbond_vals = [
@@ -288,7 +270,7 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
 
     # Open files for output
     with open(os.path.join(csv_dir, "interactions.csv"), "w") as f_inter_overview, open(
-        os.path.join(csv_dir, "interactions_detailed.csv"), "w"
+            os.path.join(csv_dir, "interactions_detailed.csv"), "w"
     ) as f_inter, open(
         os.path.join(csv_dir, "motif_residues_list.csv"), "w"
     ) as f_residues, open(
@@ -320,48 +302,31 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
 
     # When all is said and done need to count number of motifs and print to CSV
     motif_directory = os.path.join("data/motifs")
-    __safe_mkdir(motif_directory)
+    safe_mkdir(motif_directory)
     output_csv = os.path.join("data/out_csvs/motif_cif_counts.csv")
     write_counts_to_csv(motif_directory, output_csv)
 
     # Need to print data for every H-bond group
     hbond_df_unfiltered = pd.read_csv("data/out_csvs/interactions_detailed.csv")
-    # also delete res_1_name and res_2_name where they are hairpins less than 3
-    # Create an empty DataFrame to store the filtered data
     filtered_data = []
     # Iterate through each row in the unfiltered DataFrame
     for index, row in hbond_df_unfiltered.iterrows():
-        # Split motif_1 and motif_2 by "."
         motif_1_split = row["name"].split(".")
-
         # Check conditions for deletion
         if motif_1_split[0] == "HAIRPIN" and 0 < float(motif_1_split[2]) < 3:
             continue
         else:
-            # Keep the row by appending it to the filtered_data list
             filtered_data.append(row)
-    # Create a new DataFrame with the filtered data
     hbond_df = pd.DataFrame(filtered_data)
-    # Reset the index of the new DataFrame
     hbond_df.reset_index(drop=True, inplace=True)
-    # now delete all non-canonical residues (if we need to keep DA/DC/DU/etc here is where to do it)
     filtered_hbond_df = hbond_df[
         hbond_df["res_1_name"].isin(canon_res_list)
         & hbond_df["res_2_name"].isin(canon_res_list)
-    ]
-
-    # reverse orders are sorted into the same group
+        ]
     filtered_hbond_df["res_atom_pair"] = filtered_hbond_df.apply(
-        lambda row: tuple(
-            sorted(
-                [(row["res_1_name"], row["atom_1"]), (row["res_2_name"], row["atom_2"])]
-            )
-        ),
+        lambda row: tuple(sorted([(row["res_1_name"], row["atom_1"]), (row["res_2_name"], row["atom_2"])])),
         axis=1,
     )
-
-    # next, group by (res_1_name, res_2_name) as well as by atoms involved in the interaction
-    # grouped_hbond_df = filtered_hbond_df.groupby(["res_1_name", "res_2_name", "atom_1", "atom_2"])
     grouped_hbond_df = filtered_hbond_df.groupby(["res_atom_pair"])
     figure_plotting.save_present_hbonds(grouped_hbond_df=grouped_hbond_df)
 
