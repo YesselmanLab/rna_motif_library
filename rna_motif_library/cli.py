@@ -5,8 +5,11 @@ import os
 import click
 
 from rna_motif_library import settings
+from rna_motif_library.logger import setup_logging, get_logger
 import update_library
 
+
+log = get_logger("cli")
 
 @click.group()
 def cli():
