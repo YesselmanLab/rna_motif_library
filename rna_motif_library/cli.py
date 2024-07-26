@@ -5,8 +5,7 @@ import click
 
 from rna_motif_library import settings
 from rna_motif_library.logger import setup_logging, get_logger
-import update_library
-from update_library import get_dssr_files, get_snap_files, download_cif_files, find_tertiary_contacts
+from update_library import get_dssr_files, get_snap_files, download_cif_files, find_tertiary_contacts, generate_motif_files
 
 log = get_logger("cli")
 
@@ -15,7 +14,7 @@ def cli():
     pass
 
 
-@cli.command()
+@cli.command("download_cifs")
 @click.option("--threads", default=1, help="Number of threads to use.")
 def download_cifs(threads):
     """
@@ -34,7 +33,7 @@ def download_cifs(threads):
     csv_directory = os.path.join(settings.LIB_PATH, "data/csvs/")
     csv_files = [file for file in os.listdir(csv_directory) if file.endswith(".csv")]
     csv_path = os.path.join(csv_directory, csv_files[0])
-    update_library.download_cif_files(csv_path, threads)
+    download_cif_files(csv_path, threads)
     download_cif_files(csv_path, threads)
     end_time = time.time()
     total_seconds = int(end_time - start_time)
@@ -52,7 +51,7 @@ def download_cifs(threads):
     log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command()
+@cli.command("process_dssr")
 @click.option("--threads", default=1, help="Number of threads to use.")
 def process_dssr(threads):
     """
@@ -83,7 +82,7 @@ def process_dssr(threads):
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command()
+@cli.command("process_snap")
 @click.option("--threads", default=1, help="Number of threads to use.")
 def process_snap(threads):
     """
@@ -114,7 +113,7 @@ def process_snap(threads):
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command()  # Set command name
+@cli.command("generate_motifs")  # Set command name
 @click.option(
     "--limit", default=None, type=int, help="Limit the number of PDB files processed."
 )
@@ -139,7 +138,7 @@ def generate_motifs(limit, pdb):
     warnings.filterwarnings("ignore")
     start_time = time.time()
 
-    update_library.generate_motif_files(limit, pdb)
+    generate_motif_files(limit, pdb)
 
     end_time = time.time()
     total_seconds = int(end_time - start_time)

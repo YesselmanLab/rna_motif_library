@@ -8,7 +8,7 @@ import numpy as np
 from pydssr.dssr import DSSROutput
 import dssr_hbonds
 from rna_motif_library import settings, snap
-from rna_motif_library.update_library import PandasMmcifOverride, __get_dssr_files
+from rna_motif_library.update_library import PandasMmcifOverride, get_dssr_files
 
 
 def make_dir(directory: str) -> None:
@@ -93,7 +93,7 @@ def process_pdbs(
             break
         except JSONDecodeError:
             os.remove(json_path)
-            __get_dssr_files(1)
+            get_dssr_files(1)
             (
                 motifs,
                 motif_hbonds,
