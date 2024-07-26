@@ -754,10 +754,13 @@ def calc_residue_distances(
     atom2 = residue2[residue2["auth_atom_id"].isin(["P"])]
 
     # Calculate the Euclidean distance between the two atoms
-    distance = np.linalg.norm(
-        atom2[["Cartn_x", "Cartn_y", "Cartn_z"]].values
-        - atom1[["Cartn_x", "Cartn_y", "Cartn_z"]].values
-    )
+    try:
+        distance = np.linalg.norm(
+            atom2[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+            - atom1[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+        )
+    except ValueError:
+        distance = 0
 
     return float(distance)
 
