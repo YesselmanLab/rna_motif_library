@@ -5,16 +5,18 @@ import click
 
 from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.logger import setup_logging, get_logger
-from update_library import get_dssr_files, get_snap_files, download_cif_files, find_tertiary_contacts, generate_motif_files
+from update_library import get_dssr_files, get_snap_files, download_cif_files, find_tertiary_contacts, \
+    generate_motif_files
 
 log = get_logger("cli")
+
 
 @click.group()
 def cli():
     pass
 
 
-@cli.command("download_cifs")
+@cli.command("download-cifs")
 @click.option("--threads", default=1, help="Number of threads to use.")
 def download_cifs(threads):
     """
@@ -41,7 +43,7 @@ def download_cifs(threads):
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
     log.info(
-        "Download started at " + 
+        "Download started at " +
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
     )
     log.info(
@@ -51,7 +53,7 @@ def download_cifs(threads):
     log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command("process_dssr")
+@cli.command("process-dssr")
 @click.option("--threads", default=1, help="Number of threads to use.")
 def process_dssr(threads):
     """
@@ -82,7 +84,7 @@ def process_dssr(threads):
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command("process_snap")
+@cli.command("process-snap")
 @click.option("--threads", default=1, help="Number of threads to use.")
 def process_snap(threads):
     """
@@ -113,7 +115,7 @@ def process_snap(threads):
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command("generate_motifs")  # Set command name
+@cli.command("generate-motifs")  # Set command name
 @click.option(
     "--limit", default=None, type=int, help="Limit the number of PDB files processed."
 )
@@ -157,7 +159,7 @@ def generate_motifs(limit, pdb):
     print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command()  # Set command name
+@cli.command("find-tertiary-contacts")  # Set command name
 def find_tertiary_contacts():
     """
     Finds tertiary contacts using hydrogen bonding data.

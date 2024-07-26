@@ -13,8 +13,6 @@ In the directory `data/csvs`, delete the default CSV file and replace with your 
 
 ## Installation
 
-#TODO how to get DSSR and SNAP? add links to download pages
-
 ```bash
 # Clone the repository and navigate to project directory
 git clone https://github.com/YesselmanLab/rna_motif_library.git
@@ -46,28 +44,28 @@ python rna_motif_library/cli.py download-cifs --threads 8
 # Expect a progress bar when it's working
 
 # After downloading we need to process with DSSR
-python rna_motif_library/cli.py process_dssr --threads 8
+python rna_motif_library/cli.py process-dssr --threads 8
 # Replace "8" with the number of CPU cores you want to use
 # Estimated time: 90 minutes for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will consist of the path to the PDB/CIF files
 
 # After processing with DSSR we need to process with SNAP
-python rna_motif_library/cli.py process_snap --threads 8
+python rna_motif_library/cli.py process-snap --threads 8
 # Replace "8" with the number of CPU cores you want to use
 # Estimated time: 9 hours for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will consist of the path + other information on nucleotides/etc
 
 # After processing with SNAP we need to generate motif files
-python rna_motif_library/cli.py generate_motifs
+python rna_motif_library/cli.py generate-motifs
 # No threading for this one
 # Estimated time: 72 hours for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will display the names of the motifs being processed
 
 # After generating motifs we find tertiary contacts
-python rna_motif_library/cli.py find_tertiary_contacts
+python rna_motif_library/cli.py find-tertiary-contacts
 # No threading for this one
 # Estimated time: 18 hours for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
@@ -101,7 +99,7 @@ If you are interested in only a certain number of PDBs, you can run the followin
 
 ```bash
 # Make sure to first delete the directories "data/motifs", "data/interactions", "data/tertiary_contacts", and "data/out_csvs" first so data doesn't overlap
-python cli.py generate_motifs --limit 8
+python cli.py generate-motifs --limit 8
 # Replace "8" with your desired number
 # This will always run certain files first; the order is not random, but fixed every time
 ```
@@ -112,7 +110,7 @@ If you are interested in a specific PDB, you can run the following:
 # Make sure to delete the directories "motifs", "interactions", "tertiary_contacts", "heatmaps", and "heatmap_data" if you've run the full code already
 # Make sure your file is within the nonredundant set
 # Look for "PDB_name.json" and "PDB_name.out" in /dssr_output and /snap_output
-python cli.py generate_motifs --pdb 3R9X
+python cli.py generate-motifs --pdb 3R9X
 # Replace "3R9X" with your desired PDB
 ```
 
@@ -127,7 +125,7 @@ I have added automated error handling for this, but if it doesn't work (ends up 
 ## CSV documentation
 
 When running is finished you may see a number of new CSVs with data inside the package directory.<br>
-Here I will describe the most important CSVs.
+Here we will describe the most important CSVs.
 
 interactions.csv - shows the size of each motif (in nucleotides) and number of each type (base:base/sugar/phos/aa/etc)
 of interaction within a motif
