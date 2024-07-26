@@ -19,10 +19,10 @@ from biopandas.mmcif.engines import mmcif_col_types
 from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
 
 from rna_motif_library import tert_contacts
-from rna_motif_library import settings
 from rna_motif_library import snap
 from rna_motif_library import dssr
 from rna_motif_library import figure_plotting
+from rna_motif_library.settings import LIB_PATH, DSSR_EXE
 
 canon_res_list = [
     "A",
@@ -106,7 +106,7 @@ def __safe_mkdir(directory: str) -> None:
         os.makedirs(directory)
 
 
-def __download_cif_files(csv_path: str, threads: int) -> None:
+def download_cif_files(csv_path: str, threads: int) -> None:
     """
     Downloads CIF files based on a CSV that specifies the non-redundant set.
 
@@ -118,7 +118,7 @@ def __download_cif_files(csv_path: str, threads: int) -> None:
         None
 
     """
-    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
+    pdb_dir = LIB_PATH + "/data/pdbs/"
 
     # Ensure the directory exists
     if not os.path.exists(pdb_dir):
@@ -167,9 +167,8 @@ def __get_dssr_files(threads: int) -> None:
         None
 
     """
-    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
-    dssr_path = settings.DSSR_EXE
-    out_path = settings.LIB_PATH + "/data/dssr_output/"
+    pdb_dir = LIB_PATH + "/data/pdbs/"
+    out_path = LIB_PATH + "/data/dssr_output/"
 
     # Ensure output directory exists
     if not os.path.exists(out_path):
@@ -188,7 +187,7 @@ def __get_dssr_files(threads: int) -> None:
             return 0  # File already processed, no need to increment count
 
         # Writes raw JSON data
-        write_dssr_json_output_to_file(dssr_path, pdb_path, json_out_path)
+        write_dssr_json_output_to_file(DSSR_EXE, pdb_path, json_out_path)
 
         with lock:
             count += 1
@@ -211,8 +210,8 @@ def __get_snap_files(threads: int) -> None:
         None
 
     """
-    pdb_dir = settings.LIB_PATH + "/data/pdbs/"
-    out_path = settings.LIB_PATH + "/data/snap_output/"
+    pdb_dir = LIB_PATH + "/data/pdbs/"
+    out_path = LIB_PATH + "/data/snap_output/"
 
     # Ensure the output directory exists
     if not os.path.isdir(out_path):
@@ -254,7 +253,7 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
         None
 
     """
-    pdb_dir = os.path.join(settings.LIB_PATH, "data/pdbs/")
+    pdb_dir = os.path.join(LIB_PATH, "data/pdbs/")
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
 
     if pdb_name is not None:
@@ -266,8 +265,8 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
             exit(1)
 
     # Define directories for output
-    motif_dir = os.path.join(settings.LIB_PATH, "data", "motifs")
-    csv_dir = os.path.join(settings.LIB_PATH, "data", "out_csvs")
+    motif_dir = os.path.join(LIB_PATH, "data", "motifs")
+    csv_dir = os.path.join(LIB_PATH, "data", "out_csvs")
     __safe_mkdir(motif_dir)
     __safe_mkdir(csv_dir)
 
@@ -375,7 +374,7 @@ def __find_tertiary_contacts() -> None:
         None
 
     """
-    csv_dir = os.path.join(settings.LIB_PATH, "data", "out_csvs")
+    csv_dir = os.path.join(LIB_PATH, "data", "out_csvs")
 
     interactions_from_csv = pd.read_csv(
         os.path.join(csv_dir, "interactions_detailed.csv")
