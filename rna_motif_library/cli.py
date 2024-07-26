@@ -6,7 +6,7 @@ import click
 from rna_motif_library import settings
 from rna_motif_library.logger import setup_logging, get_logger
 import update_library
-from update_library import download_cif_files
+from update_library import get_dssr_files, get_snap_files, download_cif_files, find_tertiary_contacts
 
 log = get_logger("cli")
 
@@ -66,7 +66,7 @@ def process_dssr(threads):
     """
     warnings.filterwarnings("ignore")
     start_time = time.time()
-    update_library.__get_dssr_files(threads)
+    get_dssr_files(threads)
     end_time = time.time()
     total_seconds = int(end_time - start_time)
     hours = total_seconds // 3600
@@ -97,7 +97,7 @@ def process_snap(threads):
     """
     warnings.filterwarnings("ignore")
     start_time = time.time()
-    update_library.__get_snap_files(threads)
+    get_snap_files(threads)
     end_time = time.time()
     total_seconds = int(end_time - start_time)
     hours = total_seconds // 3600
@@ -139,7 +139,7 @@ def generate_motifs(limit, pdb):
     warnings.filterwarnings("ignore")
     start_time = time.time()
 
-    update_library.__generate_motif_files(limit, pdb)
+    update_library.generate_motif_files(limit, pdb)
 
     end_time = time.time()
     total_seconds = int(end_time - start_time)
@@ -171,7 +171,7 @@ def find_tertiary_contacts():
     """
     warnings.filterwarnings("ignore")
     start_time = time.time()
-    update_library.__find_tertiary_contacts()
+    find_tertiary_contacts()
     end_time = time.time()
     total_seconds = int(end_time - start_time)
     hours = total_seconds // 3600

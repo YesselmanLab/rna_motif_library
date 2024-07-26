@@ -91,10 +91,6 @@ class PandasMmcifOverride(PandasMmcif):
         return combined_df  # Return the combined DataFrame
 
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 0688e1cf930c43afebba124e85b3db1b70d3217a
 def download_cif_files(csv_path: str, threads: int) -> None:
     """
     Downloads CIF files based on a CSV that specifies the non-redundant set.
@@ -152,7 +148,7 @@ def download_cif_files(csv_path: str, threads: int) -> None:
         os.remove(file)
 
 
-def __get_dssr_files(threads: int) -> None:
+def get_dssr_files(threads: int) -> None:
     """
     Runs DSSR on PDB files to extract and store secondary structure information in JSON format.
 
@@ -195,7 +191,7 @@ def __get_dssr_files(threads: int) -> None:
         executor.map(process_pdb, pdbs)
 
 
-def __get_snap_files(threads: int) -> None:
+def get_snap_files(threads: int) -> None:
     """
     Runs snap to extract RNP interactions for each PDB file and stores the results in .out files.
 
@@ -237,7 +233,7 @@ def __get_snap_files(threads: int) -> None:
     print(f"{generated_count} new .out files generated.")
 
 
-def __generate_motif_files(limit=None, pdb_name=None) -> None:
+def generate_motif_files(limit=None, pdb_name=None) -> None:
     """
     Processes PDB files to extract and analyze motif interactions, storing detailed outputs.
 
@@ -263,13 +259,10 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
     # Define directories for output
     motif_dir = os.path.join(LIB_PATH, "data", "motifs")
     csv_dir = os.path.join(LIB_PATH, "data", "out_csvs")
-<<<<<<< HEAD
     safe_mkdir(motif_dir)
     safe_mkdir(csv_dir)
-=======
     os.makedirs(motif_dir, exist_ok=True)
     os.makedirs(csv_dir, exist_ok=True)
->>>>>>> 0688e1cf930c43afebba124e85b3db1b70d3217a
 
     # Interaction types
     hbond_vals = [
@@ -321,11 +314,8 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
 
     # When all is said and done need to count number of motifs and print to CSV
     motif_directory = os.path.join("data/motifs")
-<<<<<<< HEAD
     safe_mkdir(motif_directory)
-=======
     os.makedirs(motif_directory, exist_ok=True)
->>>>>>> 0688e1cf930c43afebba124e85b3db1b70d3217a
     output_csv = os.path.join("data/out_csvs/motif_cif_counts.csv")
     write_counts_to_csv(motif_directory, output_csv)
 
@@ -354,7 +344,7 @@ def __generate_motif_files(limit=None, pdb_name=None) -> None:
     figure_plotting.save_present_hbonds(grouped_hbond_df=grouped_hbond_df)
 
 
-def __find_tertiary_contacts() -> None:
+def find_tertiary_contacts() -> None:
     """
     Finds and processes tertiary contacts from the resultant motif/interaction data
 
