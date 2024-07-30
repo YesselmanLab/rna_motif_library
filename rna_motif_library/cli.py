@@ -160,7 +160,7 @@ def generate_motifs(limit, pdb):
 
 
 @cli.command("find-tertiary-contacts")  # Set command name
-def find_tertiary_contacts():
+def load_tertiary_contacts():
     """
     Finds tertiary contacts using hydrogen bonding data.
 
