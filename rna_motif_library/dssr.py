@@ -4,12 +4,15 @@ from json import JSONDecodeError
 from typing import List, Any, Tuple, Dict
 import pandas as pd
 import numpy as np
+from pandas import DataFrame
 
 from pydssr.dssr import DSSROutput
 from rna_motif_library.update_library import PandasMmcifOverride, get_dssr_files
 from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.snap import get_rnp_interactions
-from rna_motif_library.dssr_hbonds import extract_longest_numeric_sequence, dataframe_to_cif, extract_individual_interactions, canon_amino_acid_list
+from rna_motif_library.dssr_hbonds import extract_longest_numeric_sequence, dataframe_to_cif, \
+    extract_individual_interactions, canon_amino_acid_list
+
 
 def make_dir(directory: str) -> None:
     """
@@ -128,22 +131,48 @@ def process_pdbs(
 
 
 def count_strands(
-        master_res_df: pd.DataFrame, motif_name: str, twoway_jct_csv: Any
-) -> Tuple[int, str]:
+        master_res_df: pd.DataFrame) -> int:
     """
     Counts the number of strands in a motif and updates its name accordingly to better reflect structure.
 
     Args:
         master_res_df (pd.DataFrame): DataFrame containing motif data from PDB.
-        motif_name (str): Name of the motif being processed.
-        twoway_jct_csv (CSV file): CSV file object to record data regarding two-way junctions.
 
     Returns:
         len_chains (int): The number of strands in the motif.
-        motif_name (str): Updated motif name.
+
+    TODO in order to test this function
+    we take a dataframe of residues
+    and save it, knowing the right answer
+    then write a bunch of edge cases for it
 
     """
     # step 1: make a list of all known residues
+    list_of_residues = extract_residue_list(master_res_df)
+
+    # step 2: find the roots of the residues
+    residue_roots, res_list_modified = find_residue_roots(list_of_residues)
+
+    # step 3: given the residue roots, build strands of RNA in a 5' to 3' direction
+    strands_of_rna = build_strands_5to3(residue_roots, res_list_modified)
+
+    # step 4: find the number of strands
+    number_of_strands = len(strands_of_rna)
+
+    return number_of_strands
+
+
+def extract_residue_list(master_res_df: pd.DataFrame) -> List:
+    """
+    Extracts PDB data per residue and puts it in a list
+
+    Args:
+        master_res_df (pd.DataFrame): dataframe of the PDB data in the motif
+
+    Returns:
+        res_list (list): list of residues with their appropriate data
+
+    """
     # there are several cases where the IDs don't represent the actual residues, so we have to account for each case
     # Extract unique values from pdbx_PDB_ins_code column
     unique_ins_code_values = master_res_df["pdbx_PDB_ins_code"]
@@ -162,7 +191,6 @@ def count_strands(
             ["auth_asym_id", "auth_seq_id", "pdbx_PDB_ins_code"]
         )
     elif len(model_num_set_list) > 1:
-        # here we might need to filter the DFs to keep only 1 pdbx_PDB_model_num
         filtered_master_df = master_res_df[master_res_df["pdbx_PDB_model_num"] == "1"]
         grouped_res_dfs = filtered_master_df.groupby(
             ["auth_asym_id", "auth_seq_id", "pdbx_PDB_model_num"]
@@ -177,256 +205,134 @@ def count_strands(
     for grouped_residue in grouped_res_dfs:
         res_list.append(grouped_residue)
 
-    # step 2: find all possible dataframe combinations
-    # this should include non-unique combinations
-    combinations_of_residues = []
-
-    # Nested loop to generate combinations
-    for i in range(len(res_list)):
-        for j in range(len(res_list)):
-            combo = (res_list[i], res_list[j])
-            combinations_of_residues.append(combo)
-    # combinations_of_residues = list(itertools.combinations(res_list, 2))
-
-    # step 3: calculate distances for each pair of dataframes and put them in a separate list
-    distances_btwn_residues = []
-    for pair_of_residues in combinations_of_residues:
-        distance_btwn_residues = calc_residue_distances(
-            pair_of_residues[0], pair_of_residues[1]
-        )
-        distances_btwn_residues.append(distance_btwn_residues)
-
-    # step 4: put the two lists together into a big dataframe
-    combined_combo_distance_df = pd.DataFrame(
-        {"Residues": combinations_of_residues, "Distances": distances_btwn_residues}
-    )
-
-    # step 5: keep residues which are connected (2.7 seems a good cutoff)
-    connected_residues_df = combined_combo_distance_df[
-        combined_combo_distance_df["Distances"] < 2.7
-        ]
-    connected_residues_df_final = connected_residues_df[
-        connected_residues_df["Distances"] != 0
-        ]
-
-    # step 6: extract the column with the combinations and put it back inside a list, take out the DFs
-    list_of_residue_combos = connected_residues_df_final["Residues"].tolist()
-    list_of_ids = []  # this is the list of connected residues to process
-
-    for combo in list_of_residue_combos:
-        res_1_data = combo[0]
-        res_2_data = combo[1]
-
-        res_1_id = res_1_data[0]
-        res_2_id = res_2_data[0]
-
-        small_list = [res_1_id, res_2_id]
-        list_of_ids.append(small_list)
-
-    # Step 7: take the list of pairs and extract chains from them
-    ultra_refined_chains = find_continuous_chains(list_of_ids)
-
-    # Step 8: count # of junctions and calculate structure
-    # counting # of junctions
-    len_chains = len(ultra_refined_chains)
-    # calculating structure
-    structure_list = []
-    for chain in ultra_refined_chains:
-        len_of_strand = len(chain)
-        structure_list.append(len_of_strand - 2)
-    # convert all data in structure_list to strings
-    structure_list = [str(length) for length in structure_list]
-    # join by delimiter "-"
-    structure_result = "-".join(structure_list)
-
-    # Step 9: print the contents of 2-way motifs into a CSV (nucleotide data, motif names)
-    # also change the names to make them match TWOWAY motifs, this will cause problems if you don't!
-    old_motif_type_for_sstrand_processing = motif_name.split(".")[0]
-    motif_name_new = motif_name
-
-    if len_chains == 2 and old_motif_type_for_sstrand_processing != "SSTRAND":
-        # Concatenate all inner lists and keep only unique values
-        result_0 = []
-        for inner_list in ultra_refined_chains[0]:
-            result_0.extend(inner_list)
-        result_1 = []
-        for inner_list in ultra_refined_chains[1]:
-            result_1.extend(inner_list)
-        # lists unique NTs inside each strand
-        unique_nucleotides_0 = list(set(result_0))
-        unique_nucleotides_1 = list(set(result_1))
-
-        len_0 = len(unique_nucleotides_0)
-        len_1 = len(unique_nucleotides_1)
-        class_0 = len_0 - 2
-        class_1 = len_1 - 2
-
-        # change all NWAY names to TWOWAY
-        motif_type_list = motif_name.split(".")
-        motif_type = motif_type_list[0]
-
-        if motif_type == "NWAY":
-            new_motif_type = "TWOWAY"
-            new_motif_class = str(class_0) + "-" + str(class_1)
-            motif_name_new = (
-                    new_motif_type
-                    + "."
-                    + motif_type_list[1]
-                    + "."
-                    + new_motif_class
-                    + "."
-                    + motif_type_list[2]
-                    + "."
-                    + motif_type_list[3]
-            )
-
-        # motif_name, motif_type (NWAY/TWOWAY), nucleotides_in_strand_1, nucleotides_in_strand_2
-        twoway_jct_csv.write(
-            motif_name_new
-            + ","
-            + motif_type
-            + ","
-            + str(class_0)
-            + ","
-            + str(class_1)
-            + "\n"
-        )  # + number of nucleotides, which can be found by length of each element in ultra refined chains
-
-    # Rewrite motif names so the structure is correct
-    elif len_chains > 2 and old_motif_type_for_sstrand_processing != "SSTRAND":
-        # Write new motif name
-        old_motif_name_spl = motif_name.split(".")
-        motif_name_new = (
-                "NWAY."
-                + old_motif_name_spl[1]
-                + "."
-                + structure_result
-                + "."
-                + old_motif_name_spl[3]
-                + "."
-                + old_motif_name_spl[4]
-        )
-    elif old_motif_type_for_sstrand_processing == "SSTRAND":
-        old_motif_name_spl = motif_name.split(".")
-        motif_name_new = (
-                "SSTRAND."
-                + old_motif_name_spl[1]
-                + "."
-                + structure_result
-                + "."
-                + old_motif_name_spl[3]
-                + "."
-                + old_motif_name_spl[4]
-        )
-
-    return len_chains, motif_name_new
+    return res_list
 
 
-def find_continuous_chains(pair_list: List[List[str]]) -> List[List[str]]:
+def find_residue_roots(res_list: List[Tuple[str, pd.DataFrame]]) -> tuple[
+    list[tuple[str, DataFrame]], list[tuple[str, DataFrame]]]:
     """
-    Finds and returns a list of lists of all the connected residues.
+    Finds the roots of chains of RNA by finding the bottom of the chain first.
+    Roots are residues that are only connected 5' to 3' to one other residue.
 
     Args:
-        pair_list (list): List of pairs of residues (strings).
+        res_list (list): List of tuples, each containing a residue name and its corresponding DataFrame.
 
     Returns:
-        merged (list): A list of lists of all the connected residues.
+        roots (list): List containing the root residues, which are only connected in the 5' to 3' direction.
 
     """
-    chains = []
-    chain_map = {}  # Dictionary to map the end points to their respective chains
-    for pair in pair_list:
-        start, end = pair
-        matched_chain_start = chain_map.get(start)
-        matched_chain_end = chain_map.get(end)
-        if matched_chain_start and matched_chain_end:
-            if matched_chain_start is not matched_chain_end:
-                matched_chain_start.extend(matched_chain_end)
-                for item in matched_chain_end:
-                    chain_map[item[0]] = matched_chain_start
-                    chain_map[item[1]] = matched_chain_start
-                chains.remove(matched_chain_end)
-            matched_chain_start.append(pair)
-        elif matched_chain_start:
-            matched_chain_start.append(pair)
-            chain_map[end] = matched_chain_start
-        elif matched_chain_end:
-            matched_chain_end.append(pair)
-            chain_map[start] = matched_chain_end
-        else:
-            new_chain = [pair]
-            chains.append(new_chain)
-            chain_map[start] = new_chain
-            chain_map[end] = new_chain
-    connected_chains = []
-    start_map = (
-        {}
-    )  # Maps starting points of chains to the chain index in connected_chains
-    end_map = {}  # Maps ending points of chains to the chain index in connected_chains
-    for chain in chains:
-        start, end = chain[0][0], chain[-1][1]
-        connected = False
-        if start in end_map:
-            index = end_map[start]
-            connected_chains[index].extend(chain)
-            end_map[connected_chains[index][-1][1]] = index
-            connected = True
-        elif end in start_map:
-            index = start_map[end]
-            connected_chains[index] = chain + connected_chains[index]
-            start_map[connected_chains[index][0][0]] = index
-            connected = True
-        else:
-            connected_chains.append(chain)
-            index = len(connected_chains) - 1
-            start_map[start] = index
-            end_map[end] = index
-            connected = True
-    parent = {}
-    rank = {}
+    roots = []
 
-    def find(x):
-        if parent[x] != x:
-            parent[x] = find(parent[x])
-        return parent[x]
+    for source_res in res_list:
+        is_root = True
 
-    def union(x, y):
-        rootX = find(x)
-        rootY = find(y)
-        if rootX != rootY:
-            if rank[rootX] > rank[rootY]:
-                parent[rootY] = rootX
-            elif rank[rootX] < rank[rootY]:
-                parent[rootX] = rootY
+        for res_in_question in res_list:
+            if source_res != res_in_question:
+                is_connected = connected_to(source_res, res_in_question)
+                if is_connected == 1:
+                    is_root = False
+                    break
+
+        if is_root:
+            roots.append(source_res)
+
+    # Create a modified list with the root residues removed
+    res_list_modified = [res for res in res_list if res not in roots]
+
+    return roots, res_list_modified
+
+
+def connected_to(source_residue: Tuple[str, pd.DataFrame], residue_in_question: Tuple[str, pd.DataFrame],
+                 cutoff: float = 2.71) -> int:
+    """
+    Determine if another residue is connected to this residue.
+    From 5' to 3'; if reverse, returns -1.
+
+    Args:
+        source_residue (tuple): Tuple containing the source residue name and its DataFrame.
+        residue_in_question (tuple): Tuple containing the residue in question name and its DataFrame.
+        cutoff (float): Distance cutoff to determine connectivity.
+
+    Returns:
+        connected (int): Whether the two residues are connected.
+        Returns 1 if connected 5' to 3'.
+        Returns -1 if connected 3' to 5'.
+        Returns 0 if no connection.
+    """
+
+    residue_1 = source_residue[1]
+    residue_2 = residue_in_question[1]
+
+    # Convert 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns to numeric
+    residue_1[["Cartn_x", "Cartn_y", "Cartn_z"]] = residue_1[["Cartn_x", "Cartn_y", "Cartn_z"]].apply(pd.to_numeric)
+    residue_2[["Cartn_x", "Cartn_y", "Cartn_z"]] = residue_2[["Cartn_x", "Cartn_y", "Cartn_z"]].apply(pd.to_numeric)
+
+    # Extract relevant atom data for both residues
+    o3_atom_1 = residue_1[residue_1["auth_atom_id"].str.contains("O3'", regex=True)]
+    o3_atom_1 = o3_atom_1[~o3_atom_1["auth_atom_id"].str.contains("H", regex=False)]
+
+    p_atom_2 = residue_2[residue_2["auth_atom_id"].isin(["P"])]
+
+    if not o3_atom_1.empty and not p_atom_2.empty:
+        # Calculate the Euclidean distance between the two atoms
+        distance = np.linalg.norm(
+            p_atom_2[["Cartn_x", "Cartn_y", "Cartn_z"]].values - o3_atom_1[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+        )
+        if distance < cutoff:
+            return 1  # 5' to 3' direction
+
+    # 3' to 5' direction
+    o3_atom_2 = residue_2[residue_2["auth_atom_id"].str.contains("O3'", regex=True)]
+    o3_atom_2 = o3_atom_2[~o3_atom_2["auth_atom_id"].str.contains("H", regex=False)]
+
+    p_atom_1 = residue_1[residue_1["auth_atom_id"].isin(["P"])]
+
+    if not o3_atom_2.empty and not p_atom_1.empty:
+        # Calculate the Euclidean distance between the two atoms
+        distance = np.linalg.norm(
+            o3_atom_2[["Cartn_x", "Cartn_y", "Cartn_z"]].values - p_atom_1[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+        )
+        if distance < cutoff:
+            return -1  # 3' to 5' direction
+
+    return 0  # No connection
+
+
+def build_strands_5to3(residue_roots: List[Tuple[str, pd.DataFrame]], res_list: List[Tuple[str, pd.DataFrame]]) -> list[
+    tuple[tuple[str, DataFrame], list[tuple[str, DataFrame]]]]:
+    """
+    Given residue roots of strands, builds strands of RNA from the list of given residues.
+
+    Args:
+        residue_roots (list): List of tuples, each containing a root residue name and its corresponding DataFrame.
+        res_list (list): List of tuples, each containing a residue name and its corresponding DataFrame.
+
+    Returns:
+        built_strands (list): List of tuples, each containing a root residue and its built chain of residues in the 5' to 3' direction.
+    """
+    built_strands = []
+
+    for root in residue_roots:
+        current_residue = root
+        chain = [current_residue]
+
+        while True:
+            next_residue = None
+            for res in res_list:
+                if connected_to(current_residue, res) == 1:
+                    next_residue = res
+                    break
+
+            if next_residue:
+                chain.append(next_residue)
+                current_residue = next_residue
+                res_list.remove(next_residue)  # Remove the residue from the list to prevent reusing it
             else:
-                parent[rootY] = rootX
-                rank[rootX] += 1
+                break
 
-    # Initialize the union-find structure
-    for sublist in connected_chains:
-        for item in sublist:
-            for element in item:
-                if element not in parent:
-                    parent[element] = element
-                    rank[element] = 0
-    # Union all connected items
-    for sublist in connected_chains:
-        first_item = sublist[0][0]
-        for item in sublist:
-            for element in item:
-                union(first_item, element)
-    # Group all items by their root
-    clusters = {}
-    for sublist in connected_chains:
-        for item in sublist:
-            for element in item:
-                root = find(element)
-                if root not in clusters:
-                    clusters[root] = set()
-                clusters[root].add(element)
-    # Convert sets back to lists
-    merged = [list(cluster) for cluster in clusters.values()]
-    return merged
+        built_strands.append((root, chain))
+
+    return built_strands
 
 
 def write_res_coords_to_pdb(
@@ -524,9 +430,11 @@ def write_res_coords_to_pdb(
     sstrand_is_legit = True
     result_df = pd.concat(df_list, axis=0, ignore_index=True)
     if sub_dir_parts[0] in ["TWOWAY", "NWAY"]:
-        basepair_ends, motif_name = count_strands(
-            result_df, motif_name=motif_name, twoway_jct_csv=twoway_csv
-        )
+        basepair_ends = count_strands(
+            result_df)
+
+        print(basepair_ends)
+
         if basepair_ends != 1:
             new_path = os.path.join(
                 "data",
@@ -579,7 +487,7 @@ def write_res_coords_to_pdb(
         )
 
     if sub_dir_parts[0] == "SSTRAND":
-        sstrand_count, motif_name = count_strands(result_df, motif_name, twoway_csv)
+        sstrand_count = count_strands(result_df)
         if sstrand_count == 1:
             sstrand_is_legit = True
             sstrand_length = int(motif_name.split(".")[2]) + 2
