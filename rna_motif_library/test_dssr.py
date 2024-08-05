@@ -1,5 +1,9 @@
 import dssr
 
+# test:
+# extract_longest_numeric_sequence
+#
+
 
 def test_dssr_res() -> None:
     """
