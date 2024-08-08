@@ -280,39 +280,12 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
         "phos:aa",
     ]
 
-    # Open files for output
-    with open(os.path.join(csv_dir, "interactions.csv"), "w") as f_inter_overview, open(
-            os.path.join(csv_dir, "interactions_detailed.csv"), "w"
-    ) as f_inter, open(
-        os.path.join(csv_dir, "motif_residues_list.csv"), "w"
-    ) as f_residues, open(
-        os.path.join(csv_dir, "twoway_motif_list.csv"), "w"
-    ) as f_twoways:
+    count = 0
+    for pdb_path in pdbs:
+        count += 1
+        dssr.process_motif_interaction_out_data(count, pdb_path, limit, pdb_name)
 
-        # Write headers
-        f_inter_overview.write("name,type,size," + ",".join(hbond_vals) + "\n")
-        f_inter.write(
-            "name,res_1,res_2,res_1_name,res_2_name,atom_1,atom_2,distance,angle,nt_1,nt_2,type_1,type_2\n"
-        )
-        f_residues.write("motif_name,residues\n")
-        f_twoways.write("motif_name,motif_type,bridging_nts_0,bridging_nts_1\n")
-
-        count = 0
-        for pdb_path in pdbs:
-            count += 1
-            dssr.process_pdbs(
-                count,
-                pdb_path,
-                limit,
-                pdb_name,
-                motif_dir,
-                f_inter,
-                f_residues,
-                f_twoways,
-                f_inter_overview,
-            )
-
-    # When all is said and done need to count number of motifs and print to CSV
+    """    # When all is said and done need to count number of motifs and print to CSV
     motif_directory = os.path.join("data/motifs")
     safe_mkdir(motif_directory)
     os.makedirs(motif_directory, exist_ok=True)
@@ -342,7 +315,7 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
     )
     grouped_hbond_df = filtered_hbond_df.groupby(["res_atom_pair"])
     figure_plotting.save_present_hbonds(grouped_hbond_df=grouped_hbond_df)
-
+    """
 
 def find_tertiary_contacts() -> None:
     """

@@ -7,38 +7,20 @@ import numpy as np
 from pandas import DataFrame
 
 from pydssr.dssr import DSSROutput
+from pydssr.dssr_classes import DSSR_HBOND
+
 from rna_motif_library.update_library import PandasMmcifOverride, get_dssr_files
 from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.snap import get_rnp_interactions
-from rna_motif_library.dssr_hbonds import extract_longest_numeric_sequence, dataframe_to_cif, \
-    extract_individual_interactions, canon_amino_acid_list
+from rna_motif_library.dssr_hbonds import extract_longest_numeric_sequence, dataframe_to_cif, canon_amino_acid_list, \
+    HBondInteraction, HBondInteractionFactory, find_atoms, find_closest_atom, calculate_bond_angle
 
 
-def make_dir(directory: str) -> None:
-    """
-    Creates a directory.
-
-    Args:
-        directory (str): Name of directory to create.
-
-    Returns:
-        None
-
-    """
-    os.makedirs(directory, exist_ok=True)
-
-
-def process_pdbs(
+def process_motif_interaction_out_data(
         count: int,
         pdb_path: str,
         limit: int,
-        pdb_name: str,
-        motif_dir: str,
-        f_inter: Any,
-        f_residues: Any,
-        f_twoways: Any,
-        f_inter_overview: Any,
-) -> None:
+        pdb_name: str) -> None:
     """
     Function for extracting motifs from a PDB in the loop
 
@@ -47,11 +29,6 @@ def process_pdbs(
         pdb_path (str): path to the source PDB
         limit (int): # of PDB files to process (loaded from outside)
         pdb_name (str): which specific PDB o process
-        motif_dir (str): directory where extracted motif .cifs are supposed to go
-        f_inter (CSV file): open CSV file for detailed interactions (interactions_detailed.csv)
-        f_residues (CSV file): open CSF file for list of residues in motif (motif_residues_list.csv)
-        f_twoways (CSV file): open CSV file for list of twoway motif data (twoway_motif_list.csv)
-        f_inter_overview (CSV file): open CSV file for overview of individual interactions (interactions.csv)
 
     Returns:
         None
@@ -66,10 +43,158 @@ def process_pdbs(
     if (pdb_name != None) and (name != pdb_name):
         return
 
+    # Get the master PDB data
+    pdb_model_df = get_pdb_model_df(pdb_path)
     json_path = os.path.join(LIB_PATH, "data/dssr_output", f"{name}.json")
-
+    # Get motifs, interactions, etc from DSSR
+    motifs, hbonds = get_data_from_dssr(json_path)
+    motif_out_path = os.path.join(LIB_PATH, "data/motifs")
+    os.makedirs(motif_out_path, exist_ok=True)
+    # Get RNP interactions from SNAP and merge with DSSR data
     rnp_out_path = os.path.join(LIB_PATH, "data/snap_output", f"{name}.out")
-    rnp_interactions = get_rnp_interactions(out_file=rnp_out_path)
+    unique_interaction_data = merge_hbond_interaction_data(get_rnp_interactions(out_file=rnp_out_path), hbonds)
+    # This is the final interaction data in the temp class to assemble into the big H-Bond class
+    pre_assembled_interaction_data = assemble_interaction_data(unique_interaction_data)
+    # Assembly into big HBondInteraction class
+    assembled_interaction_data = build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_df)
+    # Now for every interaction, print to PDB
+    save_interactions_to_disk(assembled_interaction_data)
+
+    discovered = []
+    motif_count = 0
+    for m in motifs:
+        built_motif = find_and_build_motif(m, name, pdb_model_df, discovered, motif_count)
+        print(built_motif.motif_name)
+        # Also take the time to determine which interactions are involved with which motifs and print accordingly
+        exit(0)
+
+
+### build functions down here
+
+def save_interactions_to_disk(assembled_interaction_data):
+
+    for interaction in assembled_interaction_data:
+        pdb = interaction.pdb
+        file_path = os.path.join(LIB_PATH, "data/interactions", f"{DSSRRes(interaction.res_1).res_id}-{DSSRRes(interaction.res_2).res_id}")
+
+
+        #dataframe_to_cif(pdb, file_path=, motif_name=)
+
+    #pass
+
+
+def build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_df):
+    built_interactions = []
+    for interaction in pre_assembled_interaction_data:
+        res_1 = DSSRRes(interaction.res_1)
+        res_2 = DSSRRes(interaction.res_2)
+        atom_1 = interaction.atom_1
+        atom_2 = interaction.atom_2
+        type_1 = interaction.residue_pair.split(":")[0]
+        type_2 = interaction.residue_pair.split(":")[1]
+        distance = interaction.distance
+        pdb = get_interaction_pdb(res_1, res_2, pdb_model_df)
+        first_atom, second_atom = extract_interacting_atoms(interaction, pdb)
+        third_atom, fourth_atom = find_closest_atom(first_atom, pdb), find_closest_atom(second_atom, pdb)
+        dihedral_angle = calculate_bond_angle(first_atom, second_atom, third_atom, fourth_atom)
+
+        built_interaction = HBondInteraction(interaction.res_1, interaction.res_2, atom_1, atom_2, type_1, type_2, distance, dihedral_angle, pdb, first_atom, second_atom, third_atom, fourth_atom)
+        built_interactions.append(built_interaction)
+
+    return built_interactions
+
+
+def extract_interacting_atoms(interaction, pdb):
+
+    atom_1 = interaction.atom_1
+    atom_2 = interaction.atom_2
+
+    res_1 = DSSRRes(interaction.res_1).res_id
+    res_2 = DSSRRes(interaction.res_2).res_id
+
+    chain_id_1 = DSSRRes(interaction.res_1).chain_id
+    chain_id_2 = DSSRRes(interaction.res_2).chain_id
+
+    res_id_1 = DSSRRes(interaction.res_1).num
+    res_id_2 = DSSRRes(interaction.res_2).num
+
+    first_atom = pdb[
+        (pdb["auth_atom_id"] == atom_1) & (pdb["auth_comp_id"] == res_1) & (pdb["auth_asym_id"] == chain_id_1) & (
+                pdb["auth_seq_id"] == res_id_1)]
+    second_atom = pdb[
+        (pdb["auth_atom_id"] == atom_2) & (pdb["auth_comp_id"] == res_2) & (pdb["auth_asym_id"] == chain_id_2) & (
+                pdb["auth_seq_id"] == res_id_2)]
+
+    if first_atom.empty:
+        # Check for common prefixes or alternate namings
+        prefixes = ["O1P", "O2P", "O3P", "OP1", "OP2", "OP3", "O2"]
+        for prefix in prefixes:
+            if prefix in atom_1:
+                first_atom = pdb[
+                    (pdb["auth_atom_id"].str.contains(prefix.replace("P", "")) & (pdb["auth_comp_id"] == res_1) & (
+                                pdb["auth_asym_id"] == chain_id_1) & (
+                             pdb["auth_seq_id"] == res_id_1))
+                ]
+                if not first_atom.empty:
+                    break
+
+    if second_atom.empty:
+        # Check for common prefixes or alternate namings
+        prefixes = ["O1P", "O2P", "O3P", "OP1", "OP2", "OP3", "O2"]
+        for prefix in prefixes:
+            if prefix in atom_2:
+                second_atom = pdb[
+                    (pdb["auth_atom_id"].str.contains(prefix.replace("P", "")) & (pdb["auth_comp_id"] == res_2) & (
+                                pdb["auth_asym_id"] == chain_id_2) & (
+                             pdb["auth_seq_id"] == res_id_2))
+                ]
+                if not first_atom.empty:
+                    break
+
+    return first_atom, second_atom
+
+
+def get_interaction_pdb(res_1, res_2, pdb_model_df):
+    res_1_chain_id, res_1_atom_type, res_1_res_id = res_1.chain_id, res_1.res_id, res_1.num
+    res_2_chain_id, res_2_atom_type, res_2_res_id = res_2.chain_id, res_2.res_id, res_2.num
+    res_1_inter_chain = pdb_model_df[pdb_model_df["auth_asym_id"].astype(str) == str(res_1_chain_id)]
+    res_2_inter_chain = pdb_model_df[pdb_model_df["auth_asym_id"].astype(str) == str(res_2_chain_id)]
+    res_1_inter_res = res_1_inter_chain[
+        res_1_inter_chain["auth_seq_id"].astype(str) == str(res_1_res_id)
+        ]
+    res_2_inter_res = res_2_inter_chain[
+        res_2_inter_chain["auth_seq_id"].astype(str) == str(res_2_res_id)
+        ]
+    res_1_res_2_result_df = pd.concat(
+        [res_1_inter_res, res_2_inter_res], axis=0, ignore_index=True
+    )
+
+    return res_1_res_2_result_df
+
+
+def assemble_interaction_data(unique_interaction_data):
+    assembled_data = []
+    # Load all data into HBondInteractionFactory class to prepare for processing
+    for interaction in unique_interaction_data:
+        # Filter out bad H-bonds and aa:aa
+        if interaction[6] not in ["questionable", "unknown"] or interaction[5] not in ["aa:aa"]:
+
+            new_interaction_atom_1 = interaction[2]
+            new_interaction_atom_2 = interaction[3]
+
+            # Also process the weird ones with . in their name
+            if "." in new_interaction_atom_1:
+                new_interaction_atom_1 = interaction[2].split(".")[0]
+            elif "." in new_interaction_atom_2:
+                new_interaction_atom_2 = interaction[3].split(".")[0]
+            hbond_interaction_assembly = HBondInteractionFactory(interaction[0], interaction[1], new_interaction_atom_1,
+                                                                 new_interaction_atom_2, float(interaction[4]), interaction[5],
+                                                                 interaction[6])
+            assembled_data.append(hbond_interaction_assembly)
+    return assembled_data
+
+
+def merge_hbond_interaction_data(rnp_interactions, hbonds):
     rnp_data = [
         (
             interaction.nt_atom.split("@")[1],
@@ -77,61 +202,233 @@ def process_pdbs(
             interaction.nt_atom.split("@")[0],
             interaction.aa_atom.split("@")[0],
             str(interaction.dist),
-            interaction.type.split(":")[0],
-            interaction.type.split(":")[1],
+            interaction.type,
+            "standard"
         )
         for interaction in rnp_interactions
     ]
-
-    pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
-    # In case of bugged JSON file
-    while True:
-        try:
-            (
-                motifs,
-                motif_hbonds,
-                motif_interactions,
-                hbonds_in_motif,
-            ) = get_motifs_from_structure(json_path)
-            break
-        except JSONDecodeError:
-            os.remove(json_path)
-            get_dssr_files(1)
-            (
-                motifs,
-                motif_hbonds,
-                motif_interactions,
-                hbonds_in_motif,
-            ) = get_motifs_from_structure(json_path)
-
-    hbonds_in_motif.extend(rnp_data)
-    unique_inter_motifs = list(set(hbonds_in_motif))
-
-    for m in motifs:
-        if m.name.split(".")[0] not in [
-            "TWOWAY",
-            "NWAY",
-            "HAIRPIN",
-            "HELIX",
-            "SSTRAND",
-        ]:
-            continue
-        interactions = motif_interactions.get(m.name, None)
-        write_res_coords_to_pdb(
-            m.nts_long,
-            interactions,
-            pdb_model,
-            os.path.join(motif_dir, m.name),
-            unique_inter_motifs,
-            f_inter,
-            f_residues,
-            f_twoways,
-            f_inter_overview,
+    interaction_data = [
+        (
+            hbond.atom1_id.split("@")[1],
+            hbond.atom2_id.split("@")[1],
+            hbond.atom1_id.split("@")[0],
+            hbond.atom2_id.split("@")[0],
+            str(hbond.distance),
+            hbond.residue_pair,
+            hbond.donAcc_type
         )
+        for hbond in hbonds
+    ]
+    interaction_data.extend(rnp_data)
+    unique_interaction_data = list(set(interaction_data))
+
+    return unique_interaction_data
 
 
-def count_strands(
-        master_res_df: pd.DataFrame) -> int:
+def assign_residue_type(hbond: DSSR_HBOND):
+    """
+    Assign base, phosphate, sugar, or amino acid in interactions_detailed.csv.
+    """
+    residue_pair = hbond.residue_pair
+    rt_1, rt_2 = residue_pair.split(":")
+    atom_1 = str(hbond.atom1_id.split("@")[0])
+    atom_2 = str(hbond.atom2_id.split("@")[0])
+
+    # process each residue type to correct DSSR's mistakes
+    hbond.residue_pair = determine_interaction_type_from_atoms(rt_1, rt_2, atom_1, atom_2)
+    return hbond.residue_pair.split(":")
+
+
+def determine_interaction_type_from_atoms(rt_1, rt_2, atom_1, atom_2):
+    # type 1
+    if rt_1 == "aa":
+        res_type_1 = "aa"
+    else:
+        if atom_1 in canon_amino_acid_list:
+            res_type_1 = "aa"
+        elif "P" in atom_1:
+            res_type_1 = "phos"
+        elif atom_1.endswith("'"):
+            res_type_1 = "sugar"
+        else:
+            res_type_1 = "base"
+
+    # type 2
+    if rt_2 == "aa":
+        res_type_2 = "aa"
+    else:
+        if atom_2 in canon_amino_acid_list:
+            res_type_2 = "aa"
+        elif "P" in atom_1:
+            res_type_2 = "phos"
+        elif atom_1.endswith("'"):
+            res_type_2 = "sugar"
+        else:
+            res_type_2 = "base"
+
+    return f"{res_type_1}:{res_type_2}"
+
+
+def find_and_build_motif(m, pdb_name, pdb_model_df, discovered, motif_count):
+    # We need to determine the data for the motif and build a class
+    # First get the type
+    motif_type = determine_motif_type(m)
+    if motif_type == "UNKNOWN":
+        return "UNKNOWN"
+    # list of long nucleotides (m.nts_long)
+    # Extract motif from source PDB
+    motif_pdb = extract_motif_from_pdb(m.nts_long, pdb_model_df)
+    # Now find the list of strands and sequence
+    list_of_strands, sequence = find_strands(motif_pdb)
+    # Get the size of the motif (as string)
+    size = size_up_motif(list_of_strands, motif_type)
+    if size == "UNKNOWN":
+        print("motif was bullshit")
+        # print only for debugging purposes
+        return "UNKNOWN"
+    # Pre-set motif name
+    pre_motif_name = motif_type + "." + pdb_name + "." + str(size) + "." + sequence
+    # Check if discovered; if so, then increment count
+    if pre_motif_name in discovered:
+        motif_count += 1
+    else:
+        discovered.append(pre_motif_name)
+    # Set motif name
+    motif_name = pre_motif_name + "." + str(motif_count)
+    # Finally, set our motif
+    our_motif = Motif(motif_name, motif_type, pdb_name, size, sequence, m.nts_long, list_of_strands, motif_pdb)
+    # And print the motif to the system
+    motif_cif_path = os.path.join(LIB_PATH, "data/motifs", motif_type, size, sequence, f"{motif_name}.cif")
+    dataframe_to_cif(motif_pdb, motif_cif_path, motif_name)
+
+    return our_motif
+
+
+def size_up_motif(strands, motif_type):
+    if motif_type == "JCT":
+        lens = []
+        for strand in strands:
+            len_strand = str(len(strand))
+            lens.append(len_strand)
+        size = "-".join(lens)
+        return size
+    elif motif_type == "HELIX":
+        if len(strands) != 2:
+            return "UNKNOWN"
+        if len(strands[0]) != len(strands[1]):
+            return "UNKNOWN"
+        size = str(len(strands[0]))
+        return size
+    elif motif_type == "HAIRPIN":
+        if len(strands) != 1:
+            return "UNKNOWN"
+        size = len(strands[0]) - 2
+        if size < 3:
+            return "UNKNOWN"
+        else:
+            return str(size)
+    elif motif_type == "SSTRAND":
+        if len(strands) != 1:
+            return "UNKNOWN"
+        size = len(strands[0])
+        return str(size)
+
+
+def extract_motif_from_pdb(nts, model_df):
+    nt_list = []
+    res = []
+
+    # Extract identification data from nucleotide list
+    for nt in nts:
+        nt_spl = nt.split(".")
+        chain_id = nt_spl[0]
+        if "--" in nt_spl[1] and len(nt_spl) > 2:
+            residue_id = extract_longest_numeric_sequence(nt_spl[2])
+        else:
+            residue_id = extract_longest_numeric_sequence(nt_spl[1])
+        if "/" in nt_spl[1]:
+            residue_id = nt_spl[1].split("/")[1]
+        nt_list.append(chain_id + "." + residue_id)
+
+    nucleotide_list_sorted, chain_list_sorted = group_residues_by_chain(nt_list)
+    list_of_chains = []
+
+    for chain_number, residue_list in zip(chain_list_sorted, nucleotide_list_sorted):
+        for residue in residue_list:
+            chain_res = model_df[
+                model_df["auth_asym_id"].astype(str) == str(chain_number)
+                ]
+            res_subset = chain_res[chain_res["auth_seq_id"].astype(str) == str(residue)]
+            res.append(res_subset)
+        list_of_chains.append(res)
+
+    df_list = [
+        pd.DataFrame([line.split()], columns=model_df.columns)
+        for r in remove_empty_dataframes(res)
+        for line in r.to_string(index=False, header=False).split("\n")
+    ]
+
+    result_df = pd.concat(df_list, axis=0, ignore_index=True)
+
+    return result_df
+
+
+def get_pdb_model_df(pdb_path: str) -> pd.DataFrame:
+    """
+    Loads PDB model into a dataframe
+
+    Args:
+        pdb_path (str): path to PDB
+    Returns:
+        model_df (pd.DataFrame): PDB file as DataFrame
+    """
+    pdb_model = PandasMmcifOverride().read_mmcif(path=pdb_path)
+    model_df = pdb_model.df[
+        [
+            "group_PDB",
+            "id",
+            "type_symbol",
+            "label_atom_id",
+            "label_alt_id",
+            "label_comp_id",
+            "label_asym_id",
+            "label_entity_id",
+            "label_seq_id",
+            "pdbx_PDB_ins_code",
+            "Cartn_x",
+            "Cartn_y",
+            "Cartn_z",
+            "occupancy",
+            "B_iso_or_equiv",
+            "pdbx_formal_charge",
+            "auth_seq_id",
+            "auth_comp_id",
+            "auth_asym_id",
+            "auth_atom_id",
+            "pdbx_PDB_model_num",
+        ]
+    ]
+
+    return model_df
+
+
+def determine_motif_type(motif):
+    # motif name
+    motif_type_beta = motif.mtype
+    if motif_type_beta in ["JUNCTION", "BULGE", "ILOOP"]:
+        return "JCT"
+    elif motif_type_beta in ["STEM"]:
+        return "HELIX"
+    elif motif_type_beta in ["SINGLE_STRAND"]:
+        return "SSTRAND"
+    elif motif_type_beta in ["HAIRPIN"]:
+        return "HAIRPIN"
+    else:
+        return "UNKNOWN"
+
+
+def find_strands(
+        master_res_df: pd.DataFrame) -> tuple[list[tuple[tuple[str, DataFrame], list[tuple[str, DataFrame]]]], str]:
     """
     Counts the number of strands in a motif and updates its name accordingly to better reflect structure.
 
@@ -156,10 +453,29 @@ def count_strands(
     # step 3: given the residue roots, build strands of RNA in a 5' to 3' direction
     strands_of_rna = build_strands_5to3(residue_roots, res_list_modified)
 
-    # step 4: find the number of strands
-    number_of_strands = len(strands_of_rna)
+    # step 4: find the sequence of the strands
+    sequence = find_sequence(strands_of_rna)
 
-    return number_of_strands
+    return strands_of_rna, sequence
+
+
+def find_sequence(strands_of_rna):
+    res_strands = []
+    for strand in strands_of_rna:
+        res_strand = []
+        for residue in strand:
+
+            print(residue[0])
+
+            residue_df = residue[1]
+            auth_comp_id_list = residue_df["auth_comp_id"].tolist()
+
+            res = str(auth_comp_id_list[0])
+            res_strand.append(res)
+        strand_sequence = "".join(res_strand)
+        res_strands.append(strand_sequence)
+    sequence = "-".join(res_strands)
+    return sequence
 
 
 def extract_residue_list(master_res_df: pd.DataFrame) -> List:
@@ -335,190 +651,6 @@ def build_strands_5to3(residue_roots: List[Tuple[str, pd.DataFrame]], res_list: 
     return built_strands
 
 
-def write_res_coords_to_pdb(
-        nts: List[str],
-        interactions: List[str],
-        pdb_model: Any,
-        pdb_path: str,
-        motif_bond_list: List[str],
-        csv_file: Any,
-        residue_csv_list: Any,
-        twoway_csv: Any,
-        interactions_overview_csv: Any,
-) -> None:
-    """
-    Writes motifs and interactions to PDB files, based on provided nucleotide and interaction data.
-
-    Args:
-        nts (list): List of nucleotides.
-        interactions (list): list of interactions.
-        pdb_model (PandasMmcifOverride): PDB model data, typically loaded from an external library.
-        pdb_path (str): Path to the PDB file.
-        motif_bond_list (list): List of motif bonds.
-        csv_file (CSV file): CSV file containing info on interactions overview.
-        residue_csv_list (CSV file): CSV file containing info on which residues are in which motifs.
-        twoway_csv (CSV file): CSV file specific to two-way junctions.
-        interactions_overview_csv (CSV file): CSV file for interactions overview.
-
-    Returns:
-        None
-
-    """
-    # directory setup for later
-    dir_parts = pdb_path.split("/")
-    sub_dir_parts = dir_parts[-1].split(".")
-    motif_name = dir_parts[-1]
-
-    nt_list = []
-    res = []
-    model_df = pdb_model.df[
-        [
-            "group_PDB",
-            "id",
-            "type_symbol",
-            "label_atom_id",
-            "label_alt_id",
-            "label_comp_id",
-            "label_asym_id",
-            "label_entity_id",
-            "label_seq_id",
-            "pdbx_PDB_ins_code",
-            "Cartn_x",
-            "Cartn_y",
-            "Cartn_z",
-            "occupancy",
-            "B_iso_or_equiv",
-            "pdbx_formal_charge",
-            "auth_seq_id",
-            "auth_comp_id",
-            "auth_asym_id",
-            "auth_atom_id",
-            "pdbx_PDB_model_num",
-        ]
-    ]
-
-    # Extract identification data from nucleotide list
-    for nt in nts:
-        nt_spl = nt.split(".")
-        chain_id = nt_spl[0]
-        if "--" in nt_spl[1] and len(nt_spl) > 2:
-            residue_id = extract_longest_numeric_sequence(nt_spl[2])
-        else:
-            residue_id = extract_longest_numeric_sequence(nt_spl[1])
-        if "/" in nt_spl[1]:
-            residue_id = nt_spl[1].split("/")[1]
-        nt_list.append(chain_id + "." + residue_id)
-
-    nucleotide_list_sorted, chain_list_sorted = group_residues_by_chain(nt_list)
-    list_of_chains = []
-
-    for chain_number, residue_list in zip(chain_list_sorted, nucleotide_list_sorted):
-        for residue in residue_list:
-            chain_res = model_df[
-                model_df["auth_asym_id"].astype(str) == str(chain_number)
-                ]
-            res_subset = chain_res[chain_res["auth_seq_id"].astype(str) == str(residue)]
-            res.append(res_subset)
-        list_of_chains.append(res)
-
-    df_list = [
-        pd.DataFrame([line.split()], columns=model_df.columns)
-        for r in remove_empty_dataframes(res)
-        for line in r.to_string(index=False, header=False).split("\n")
-    ]
-
-    sstrand_is_legit = True
-    result_df = pd.concat(df_list, axis=0, ignore_index=True)
-    if sub_dir_parts[0] in ["TWOWAY", "NWAY"]:
-        basepair_ends = count_strands(
-            result_df)
-
-        print(basepair_ends)
-
-        if basepair_ends != 1:
-            new_path = os.path.join(
-                "data",
-                "motifs",
-                f"{basepair_ends}ways",
-                motif_name.split(".")[2],
-                sub_dir_parts[3],
-            )
-            name_path = os.path.join(new_path, motif_name)
-            make_dir(new_path)
-            dataframe_to_cif(
-                df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
-            )
-
-        else:
-            sub_dir_parts[0] = "HAIRPIN"
-
-    if sub_dir_parts[0] == "HAIRPIN":
-        hairpin_bridge_length = len(nts) - 2
-        sub_dir_parts[2] = str(hairpin_bridge_length)
-        motif_name = ".".join(sub_dir_parts)
-        hairpin_path = (
-            os.path.join(
-                "data",
-                "motifs",
-                "hairpins",
-                str(hairpin_bridge_length),
-                sub_dir_parts[3],
-            )
-            if hairpin_bridge_length >= 3
-            else None
-        )
-        if hairpin_path:
-            make_dir(hairpin_path)
-            name_path = os.path.join(hairpin_path, motif_name)
-            dataframe_to_cif(
-                df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
-            )
-        else:
-            sub_dir_parts[0] = "SSTRAND"
-
-    if sub_dir_parts[0] == "HELIX":
-        helix_path = os.path.join(
-            "data", "motifs", "helices", sub_dir_parts[2], sub_dir_parts[3]
-        )
-        make_dir(helix_path)
-        name_path = os.path.join(helix_path, motif_name)
-        dataframe_to_cif(
-            df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
-        )
-
-    if sub_dir_parts[0] == "SSTRAND":
-        sstrand_count = count_strands(result_df)
-        if sstrand_count == 1:
-            sstrand_is_legit = True
-            sstrand_length = int(motif_name.split(".")[2]) + 2
-            sstrand_path = os.path.join(
-                "data", "motifs", "sstrand", str(sstrand_length), sub_dir_parts[3]
-            )
-            make_dir(sstrand_path)
-            name_path = os.path.join(sstrand_path, motif_name)
-            dataframe_to_cif(
-                df=result_df, file_path=f"{name_path}.cif", motif_name=motif_name
-            )
-        else:
-            sstrand_is_legit = False
-
-    if sstrand_is_legit:
-        residue_csv_list.write(motif_name + "," + ",".join(nts) + "\n")
-        print(motif_name)
-
-    if interactions is not None and sstrand_is_legit:
-        interactions_filtered = remove_duplicate_residues_in_chain(interactions)
-        extract_individual_interactions(
-            interactions_filtered,
-            motif_bond_list,
-            model_df,
-            motif_name,
-            csv_file,
-            interactions_overview_csv,
-            nts,
-        )
-
-
 def remove_empty_dataframes(dataframes_list: List[pd.DataFrame]) -> List[pd.DataFrame]:
     """
     Removes empty DataFrames from a list.
@@ -629,48 +761,38 @@ def group_residues_by_chain(input_list: List[str]) -> Tuple[List[List[int]], Lis
     return sorted_chain_residues, sorted_chain_ids
 
 
-def calc_residue_distances(
-        res_1: Tuple[str, pd.DataFrame], res_2: Tuple[str, pd.DataFrame]
-) -> float:
+class Motif:
     """
-    Calculate the Euclidean distance between two residues.
-
-    Args:
-        res_1 (tuple): A tuple containing the residue ID and a DataFrame for the first residue.
-        res_2 (tuple): A tuple containing the residue ID and a DataFrame for the second residue.
-
-    Returns:
-        distance (float): The Euclidean distance between the two residues.
-
+    Class to hold motif data. This data is final and should not be changed once built.
     """
-    residue1 = res_1[1]
-    residue2 = res_2[1]
 
-    # Convert 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns to numeric
-    residue1[["Cartn_x", "Cartn_y", "Cartn_z"]] = residue1[
-        ["Cartn_x", "Cartn_y", "Cartn_z"]
-    ].apply(pd.to_numeric)
-    residue2[["Cartn_x", "Cartn_y", "Cartn_z"]] = residue2[
-        ["Cartn_x", "Cartn_y", "Cartn_z"]
-    ].apply(pd.to_numeric)
+    def __init__(self, motif_name: str, motif_type: str, pdb: str, size: str,
+                 sequence: str = None,
+                 res_list: List[str] = None, strands: Any = None, motif_pdb: pd.DataFrame = None) -> None:
+        """
+        Initialize a Motif object
 
-    # Extract relevant atom data for both residues
-    atom1 = residue1[residue1["auth_atom_id"].str.contains("O3'", regex=True)]
-    # Remove hydrogen atoms from the selection if there are any
-    atom1 = atom1[~atom1["auth_atom_id"].str.contains("H", regex=False)]
+        Args:
+            motif_name (str): Name of the motif
+            motif_type (str): Motif type
+            pdb (str): PDB where motif is found
+            size (str): Size of motif; reflects the structure and means different things depending on the type of motif
+            sequence (str): Sequence in motif
+            res_list (list): List of residues in the motif
+            strands (list): List of strands in motif
+            motif_pdb (pd.DataFrame): PDB data of the motif
 
-    atom2 = residue2[residue2["auth_atom_id"].isin(["P"])]
-
-    # Calculate the Euclidean distance between the two atoms
-    try:
-        distance = np.linalg.norm(
-            atom2[["Cartn_x", "Cartn_y", "Cartn_z"]].values
-            - atom1[["Cartn_x", "Cartn_y", "Cartn_z"]].values
-        )
-    except ValueError:
-        distance = 0
-
-    return float(distance)
+        Returns:
+            None
+        """
+        self.motif_name = motif_name
+        self.motif_type = motif_type
+        self.pdb = pdb
+        self.size = size
+        self.sequence = sequence
+        self.res_list = res_list if res_list is not None else []
+        self.strands = strands if strands is not None else []
+        self.motif_pdb = motif_pdb if motif_pdb is not None else pd.DataFrame()
 
 
 class DSSRRes:
@@ -683,7 +805,7 @@ class DSSRRes:
         Initialize a DSSRRes object.
 
         Args:
-            s (str): A string representing the residue data.
+            s (str): Given residue (something like "C.G1515")
 
         Returns:
             None
@@ -709,9 +831,9 @@ class DSSRRes:
         self.res_id = spl[1][0:i_num]
 
 
-def get_motifs_from_structure(json_path: str) -> Tuple[List, Dict, Dict, List]:
+def get_data_from_dssr(json_path: str) -> Tuple[List, List]:
     """
-    Obtains motifs from DSSR.
+    Obtains motifs and hbonds from DSSR.
 
     Args:
         json_path (str): The path to the JSON file containing DSSR output.
@@ -723,206 +845,14 @@ def get_motifs_from_structure(json_path: str) -> Tuple[List, Dict, Dict, List]:
         hbonds_in_motifs (list): List of hydrogen bonds in motifs.
 
     """
-    name = os.path.splitext(os.path.basename(json_path))[0]
     d_out = DSSROutput(json_path=json_path)
     motifs = d_out.get_motifs()
-    motifs = __merge_singlet_seperated(motifs)
-    __name_motifs(motifs, name)
-    shared = __find_motifs_that_share_basepair(motifs)
     hbonds = d_out.get_hbonds()
-    motif_hbonds, motif_interactions, hbonds_in_motif = __assign_hbonds_to_motifs(
-        motifs, hbonds, shared
-    )
+    motifs = __merge_singlet_seperated(motifs)
     motifs = __remove_duplicate_motifs(motifs)
     motifs = __remove_large_motifs(motifs)
-    return motifs, motif_hbonds, motif_interactions, hbonds_in_motif
 
-
-def assign_res_type(name: str, res_type: str) -> str:
-    """
-    Assign base, phosphate, sugar, or amino acid in interactions_detailed.csv.
-
-    Args:
-        name (str): The name of the residue.
-        res_type (str): The type of the residue (e.g., "aa" for amino acid).
-
-    Returns:
-        res_name (str): The assigned residue type as a string.
-
-    """
-    if res_type == "aa":
-        return "aa"
-    else:
-        if name in canon_amino_acid_list:
-            return "aa"
-        elif "P" in name:
-            return "phos"
-        elif name.endswith("'"):
-            return "sugar"
-        else:
-            return "base"
-
-
-def __assign_atom_group(name: str) -> str:
-    """
-    Assigns atom groups (base, sugar, phosphate) for making interactions.csv.
-
-    Args:
-        name (str): The name of the atom.
-
-    Returns:
-        res_name (str): The assigned atom group as a string.
-
-    """
-    if "P" in name:
-        return "phos"
-    elif name.endswith("'"):
-        return "sugar"
-    else:
-        return "base"
-
-
-def __assign_hbond_class(atom1: str, atom2: str, rt1: str, rt2: str) -> list:
-    """
-    Assigns the hydrogen bond class for given atoms and residue types.
-
-    Args:
-        atom1 (str): The name of the first atom.
-        atom2 (str): The name of the second atom.
-        rt1 (str): The residue type of the first atom (e.g., "nt" for nucleotide).
-        rt2 (str): The residue type of the second atom (e.g., "nt" for nucleotide).
-
-    Returns:
-        classes (list): A list containing the assigned classes for the two atoms.
-
-    """
-    classes = []
-    for atom, residue_type in zip([atom1, atom2], [rt1, rt2]):
-        if residue_type == "nt":
-            classes.append(__assign_atom_group(atom))
-        else:
-            classes.append("aa")
-    return classes
-
-
-def __assign_hbonds_to_motifs(motifs: list, hbonds: list, shared: dict) -> tuple:
-    """
-    Assigns hydrogen bonds to motifs and counts interactions.
-
-    Args:
-        motifs (list): A list of motifs from DSSR.
-        hbonds (list): A list of hydrogen bonds.
-        shared (dict): A dictionary of shared motifs.
-
-    Returns:
-        motif_hbonds (dict): dictionary of motif h-bonds
-        motif_interactions (dict): dictionary of residue interactions in each motif
-        hbonds_in_motif (dict): list of tuples containing usable H-bond data
-
-    """
-    # All the data about the hbonds in this
-    hbonds_in_motif = []
-
-    motif_hbonds = {}
-    motif_interactions = {}
-    start_dict = {
-        "base:base": 0,
-        "base:sugar": 0,
-        "base:phos": 0,
-        "sugar:base": 0,
-        "sugar:sugar": 0,
-        "sugar:phos": 0,
-        "phos:base": 0,
-        "phos:sugar": 0,
-        "phos:phos": 0,
-        "base:aa": 0,
-        "sugar:aa": 0,
-        "phos:aa": 0,
-    }
-
-    hbond_quality_list = []
-
-    for hbond in hbonds:
-        # Delete unknown/questionable from consideration
-        hbond_quality_list.append(hbond.donAcc_type)
-        # If questionable then skip this entire loop
-        if hbond.donAcc_type in {"questionable", "unknown"}:
-            continue
-
-        # This retrieves the data from the JSON extracted by DSSR
-        # res1/res2 are the data we need, they define the actual residues/proteins in the interaction
-        atom1, res1 = hbond.atom1_id.split("@")
-        atom2, res2 = hbond.atom2_id.split("@")
-
-        distance_bonds = str(hbond.distance)
-
-        # Specifies what kind of biomolecules they are
-        rt1, rt2 = hbond.residue_pair.split(":")
-        # Not really needed ^ (for the process I was building at the time)
-
-        m1, m2 = None, None
-
-        # m1 and m2 are the actual motifs where:
-        for m in motifs:
-            # If one of the hbond residues interact with a residue in the motif then copy the hbond residue in
-            if res1 in m.nts_long:
-                m1 = m
-
-            if res2 in m.nts_long:
-                m2 = m
-
-        if m1 == m2:
-            continue
-
-        # This creates a name for the interaction (I think); check if the motifs are not empty
-        if m1 is not None and m2 is not None:
-            names = sorted([m1.name, m2.name])
-            key = names[0] + "-" + names[1]
-            if key in shared:
-                continue
-
-        # This will specify the class of interaction (base/sugar/phos:aa, etc)
-        hbond_classes = __assign_hbond_class(atom1, atom2, rt1, rt2)
-
-        # Write residue pairs for export
-        hbond_res_pair = (
-            res1,
-            res2,
-            atom1,
-            atom2,
-            distance_bonds,
-            str(hbond_classes[0]),
-            str(hbond_classes[1]),
-        )
-        hbonds_in_motif.append(hbond_res_pair)
-
-        # This counts the # of hydrogen bonds in each category
-        if m1 is not None:
-            if m1.name not in motif_hbonds:
-                motif_hbonds[m1.name] = dict(start_dict)
-                motif_interactions[m1.name] = []
-
-            # Sets hydrogen bond class
-            hbond_class = hbond_classes[0] + ":" + hbond_classes[1]
-
-            # Increments the start_dict
-            motif_hbonds[m1.name][hbond_class] += 1
-            motif_interactions[m1.name].append(res2)
-
-        if m2 is not None:
-            if m2.name not in motif_hbonds:
-                motif_hbonds[m2.name] = dict(start_dict)
-                motif_interactions[m2.name] = []
-
-            # Sets hydrogen bond class
-            hbond_class = hbond_classes[1] + ":" + hbond_classes[0]
-            # Increments the start dict
-            if hbond_classes[1] == "aa":
-                hbond_class = hbond_classes[0] + ":" + hbond_classes[1]
-            motif_hbonds[m2.name][hbond_class] += 1
-            motif_interactions[m2.name].append(res1)
-
-    return motif_hbonds, motif_interactions, hbonds_in_motif
+    return motifs, hbonds
 
 
 def __remove_duplicate_motifs(motifs: list) -> list:
@@ -1027,164 +957,6 @@ def __merge_singlet_seperated(motifs: list) -> list:
     new_motifs = others + [m for m in junctions if m not in merged]
 
     return new_motifs
-
-
-def __find_motifs_that_share_basepair(motifs: list) -> dict:
-    """
-    Finds motifs that share base pairs.
-
-    Args:
-        motifs (list): A list of motifs to check for shared base pairs.
-
-    Returns:
-        pairs (dict): A dictionary where the keys are motif pairs (sorted by name)
-        that share base pairs, and the values are 1 indicating shared base pairs.
-
-    """
-    pairs = {}
-
-    for m1 in motifs:
-        m1_nts = m1.nts_long
-
-        for m2 in motifs:
-            if m1 == m2:
-                continue
-
-            included = sum(1 for r in m2.nts_long if r in m1_nts)
-
-            if included < 2:
-                continue
-
-            names = sorted([m1.name, m2.name])
-            key = names[0] + "-" + names[1]
-            pairs[key] = 1
-
-    return pairs
-
-
-def __get_strands(motif) -> list:
-    """
-    Gets strands from a motif using the DSSR output.
-    Strand here may not be a "strand", a more advanced algorithm was written to reprocess this downstream.
-    This is used to set the initial name, among other things. Downstream are more advanced algorithms that do it properly.
-
-    Args:
-        motif (DSSR): A motif object containing nucleotide sequences.
-
-    Returns:
-        strands (list): A list of strands, where each strand is a list of DSSRRes objects.
-
-    """
-    nts = motif.nts_long
-    strands = []
-    strand = []
-
-    for nt in nts:
-        r = DSSRRes(nt)
-        if not strand:
-            strand.append(r)
-            continue
-
-        if r.num is None:
-            r.num = 0
-        if strand[-1].num is None:
-            strand[-1].num = 0
-
-        diff = strand[-1].num - r.num
-        if diff == -1:
-            strand.append(r)
-        else:
-            strands.append(strand)
-            strand = [r]
-
-    strands.append(strand)
-    return strands
-
-
-def __name_junction(motif, pdb_name: str) -> str:
-    """
-    Assigns an initial name to junction motifs.
-    This name is later overwritten if need be.
-
-    Args:
-        motif (DSSR): The motif object containing nucleotide sequences.
-        pdb_name (str): The name of the PDB file.
-
-    Returns:
-        name (str): The initial name assigned to the junction motif.
-
-    """
-
-    nts = motif.nts_long
-    strands = __get_strands(motif)
-    strs = []
-    lens = []
-
-    for strand in strands:
-        s = "".join([x.res_id for x in strand])
-        strs.append(s)
-        lens.append(len(s) - 2)
-
-    if len(strs) == 2:
-        name = "TWOWAY."
-    else:
-        name = "NWAY."
-
-    name += pdb_name + "."
-    name += "-".join([str(l) for l in lens]) + "."
-    name += "-".join(strs)
-
-    return name
-
-
-def __name_motifs(motifs, name: str) -> None:
-    """
-    Assigns names to motifs (helix, strand, junction, etc).
-
-    Args:
-        motifs (DSSR): A list of motif objects to be named.
-        name (str): The base name used in naming the motifs.
-
-    Returns:
-        None
-
-    """
-    for m in motifs:
-        m.nts_long = sorted(m.nts_long, key=__sorted_res_int)
-    motifs = sorted(motifs, key=__sort_res)
-    count = {}
-
-    for m in motifs:
-        if m.mtype in {"JUNCTION", "BULGE", "ILOOP"}:
-            m_name = __name_junction(m, name)
-        else:
-            mtype = m.mtype
-            if mtype == "STEM":
-                mtype = "HELIX"
-            elif mtype == "SINGLE_STRAND":
-                mtype = "SSTRAND"
-            m_name = f"{mtype}.{name}."
-            strands = __get_strands(m)
-            strs = ["".join([x.res_id for x in strand]) for strand in strands]
-
-            if mtype == "HELIX":
-                if len(strs) != 2:
-                    m.name = "UNKNOWN"
-                    continue
-                m_name += f"{len(strands[0])}."
-                m_name += f"{strs[0]}-{strs[1]}"
-            elif mtype == "HAIRPIN":
-                m_name += f"{len(strs[0]) - 2}."
-                m_name += strs[0]
-            else:
-                m_name += f"{len(strs[0])}."
-                m_name += strs[0]
-
-        if m_name not in count:
-            count[m_name] = 0
-        else:
-            count[m_name] += 1
-        m.name = f"{m_name}.{count[m_name]}"
 
 
 def __sorted_res_int(item: str) -> Tuple[str, str]:

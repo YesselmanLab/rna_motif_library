@@ -29,34 +29,70 @@ canon_amino_acid_list = [
 ]
 
 
-def extract_individual_interactions(
-    inter_from_PDB: List[str],
-    list_of_inters: List[str],
-    pdb_model_df: pd.DataFrame,
-    motif_name: str,
-    csv_file: Any,
-    interactions_overview_csv: Any,
-    list_of_nts_in_motif: List[str],
-) -> None:
+class HBondInteraction:
+    def __init__(self, res_1, res_2, atom_1, atom_2, type_1, type_2, distance, angle, pdb, first_atom_df,
+                 second_atom_df, third_atom_df, fourth_atom_df):
+        """
+        Holds data for H-bond interaction
+
+        Args:
+            res_1 (str): residue 1 in the interaction
+            res_2 (str): residue 2 in the interaction
+            atom_1 (str): atom 1 in the interaction
+            atom_2 (str): atom 2 in the interaction
+            type_1 (str): residue type 1 in the interaction
+            type_2 (str): residue type 2 in the interaction
+            distance (float): distance between atoms in interaction
+            angle (float): dihedral angle between two residues
+            pdb (pd.DataFrame): interaction PDB
+
+            first_atom_df (pd.DataFrame): PDB of the first atom in the interaction
+            second_atom_df (pd.DataFrame): PDB of the second atom in the interaction
+            third_atom_df (pd.DataFrame): PDB of the third atom connected to the first atom
+            fourth_atom_df (pd.DataFrame): PDB of the fourth atom connected to the second atom
+
+        """
+        self.res_1 = res_1
+        self.res_2 = res_2
+        self.atom_1 = atom_1
+        self.atom_2 = atom_2
+        self.type_1 = type_1
+        self.type_2 = type_2
+        self.distance = distance
+        self.angle = angle
+        self.pdb = pdb
+        self.first_atom_df = first_atom_df
+        self.second_atom_df = second_atom_df
+        self.third_atom_df = third_atom_df
+        self.fourth_atom_df = fourth_atom_df
+
+
+class HBondInteractionFactory:
     """
-    Extracts individual interactions out (this includes H-bonds found from SNAP)
-    Of the individual interactions, check if they are in the same motif for tertiary contact
-    Tertiary contact - two motifs which have 2 or more h-bonds
+    Intermediate class to assist in building complete HBondInteraction data
 
     Args:
-        inter_from_PDB (list): List of residues engaged in H-bond interactions.
-        list_of_inters (list): List of more detailed data on each H-bond interaction.
-        pdb_model_df (pd.DataFrame): Source PDB in DF form.
-        motif_name (str): Name of motif.
-        csv_file (CSV file): CSV file "interactions.csv".
-        interactions_overview_csv (CSV file): CSV file "interactions_detailed.csv".
-        list_of_nts_in_motif (list): List of nucleotides in the motif.
-
-    Returns:
-        None
+        res_1 (str): residue 1 ID
+        res_2 (str): residue 2 ID
+        atom_1 (str): atom 1 ID
+        atom_2 (str): atom 2 ID
+        distance (float): distance between interacting atoms (in angstroms)
+        residue_pair (str): pair comparing the types as returned by DSSR
+        quality (str): quality of h-bond
 
     """
 
+    def __init__(self, res_1, res_2, atom_1, atom_2, distance, residue_pair, quality):
+        self.res_1 = res_1
+        self.res_2 = res_2
+        self.atom_1 = atom_1
+        self.atom_2 = atom_2
+        self.distance = distance
+        self.residue_pair = residue_pair
+        self.quality = quality
+
+
+def extract_hbonds_from_dssr():
     # for writing to interactions.csv
     start_interactions_dict = {
         "base:base": 0,
@@ -72,120 +108,39 @@ def extract_individual_interactions(
         "sugar:aa": 0,
         "phos:aa": 0,
     }
-    # csv_file is f_inter
-    list_of_matching_interactions = []
-    # find everything the interacting residues are interacting with
-    for target_value in inter_from_PDB:
-        for hbond_inter in list_of_inters:
-            if target_value in hbond_inter:
-                list_of_matching_interactions.append(hbond_inter)
-    # make directories just in case
-    make_dir("data/interactions")
-    # print all individual interactons to CIF and write to CSV
-    for interaction in list_of_matching_interactions:
-        # 'interaction' format: ('A.ASP126', 'A.GNP402', 'OD2', 'N2', '2.824', 'base', 'aa')
-        (
-            res_1_res_2_result_df,
-            res_1_inter_res,
-            res_2_inter_res,
-            res_1,
-            res_2,
-            res_1_type,
-            res_2_type,
-            atom_1,
-            atom_2,
-            distance_ext,
-        ) = extract_residues_from_interaction_source(interaction, pdb_model_df)
-        if "O" in interaction[2]:
-            oxygen_atom, second_atom = process_O_O_interactions(
-                interaction, res_1_inter_res, res_2_inter_res
-            )
-        elif "O" in interaction[3]:
-            oxygen_atom, second_atom = process_N_O_interactions(
-                interaction, res_2_inter_res, res_1_inter_res
-            )
-        else:
-            oxygen_atom, second_atom = process_N_N_interactions(
-                interaction, res_2_inter_res, res_1_inter_res
-            )
-        carbon_atom = find_closest_atom(oxygen_atom, res_1_res_2_result_df)
-        fourth_atom = find_closest_atom(second_atom, res_1_res_2_result_df)
-        (
-            bond_angle_degrees,
-            o_atom_data,
-            n_atom_data,
-            c_atom_data,
-        ) = calculate_bond_angle(oxygen_atom, second_atom, carbon_atom, fourth_atom)
-        # setting the name
-        name_inter = (
-            motif_name + "." + res_1 + "." + res_2 + "." + res_1_type + "." + res_2_type
-        )
-        # sort to avoid commutative directories
-        alpha_sorted_types = sorted([res_1_type, res_2_type])
-        if not (
-            (alpha_sorted_types[0] == "A" and alpha_sorted_types[1] == "U")
-            or (alpha_sorted_types[0] == "C" and alpha_sorted_types[1] == "G")
-            or (len(alpha_sorted_types[0]) > 1 and len(alpha_sorted_types[1]) > 1)
-        ):
-            print_interactions_to_csv(
-                alpha_sorted_types,
-                name_inter,
-                res_1_res_2_result_df,
-                res_1_type,
-                res_2_type,
-                atom_1,
-                atom_2,
-                start_interactions_dict,
-                csv_file,
-                motif_name,
-                res_1,
-                res_2,
-                distance_ext,
-                bond_angle_degrees,
-            )
-    hbond_vals = [
-        "base:base",
-        "base:sugar",
-        "base:phos",
-        "sugar:base",
-        "sugar:sugar",
-        "sugar:phos",
-        "phos:base",
-        "phos:sugar",
-        "phos:phos",
-        "base:aa",
-        "sugar:aa",
-        "phos:aa",
-    ]
-    motif_name_spl = motif_name.split(".")
-    vals = [str(start_interactions_dict[x]) for x in hbond_vals]
-    interactions_overview_csv.write(
-        motif_name
-        + ","
-        + motif_name_spl[0]
-        + ","
-        + str(len(list_of_nts_in_motif))
-        + ","
-        + ",".join(vals)
-        + "\n"
-    )
+
+
+def load_interactions_as_classes(unique_inters):
+    unique_inters_loaded_as_classes = []
+    for inter in unique_inters:
+        res_1 = inter[0]
+        res_2 = inter[1]
+        atom_1 = inter[2]
+        atom_2 = inter[3]
+        distance = inter[4]
+        res_part_1 = inter[5]
+        res_part_2 = inter[6]
+        unique_hbond_interaction = HBondInteraction(res_1, res_2, atom_1, atom_2, distance, res_part_1, res_part_2)
+        unique_inters_loaded_as_classes.append(unique_hbond_interaction)
+
+    return unique_inters_loaded_as_classes
 
 
 def print_interactions_to_csv(
-    alpha_sorted_types: List[str],
-    name_inter: str,
-    res_1_res_2_result_df: pd.DataFrame,
-    res_1_type: str,
-    res_2_type: str,
-    atom_1: str,
-    atom_2: str,
-    start_interactions_dict: Dict[str, int],
-    csv_file: IO[str],
-    motif_name: str,
-    res_1: str,
-    res_2: str,
-    distance_ext: str,
-    bond_angle_degrees: str,
+        alpha_sorted_types: List[str],
+        name_inter: str,
+        res_1_res_2_result_df: pd.DataFrame,
+        res_1_type: str,
+        res_2_type: str,
+        atom_1: str,
+        atom_2: str,
+        start_interactions_dict: Dict[str, int],
+        csv_file: IO[str],
+        motif_name: str,
+        res_1: str,
+        res_2: str,
+        distance_ext: str,
+        bond_angle_degrees: str,
 ) -> None:
     """
     Print interaction details to a CSV file and save the data to a CIF file.
@@ -213,7 +168,7 @@ def print_interactions_to_csv(
     # folder assignment
     folder_name = alpha_sorted_types[0] + "-" + alpha_sorted_types[1]
     ind_folder_path = "data/interactions/" + folder_name + "/"
-    make_dir(ind_folder_path)
+    os.makedirs(ind_folder_path, exist_ok=True)
     name_inter_2 = name_inter.replace("/", "-")
     ind_inter_path = ind_folder_path + name_inter_2
     res_1_res_2_result_df.fillna(0, inplace=True)
@@ -269,87 +224,6 @@ def print_interactions_to_csv(
     )
 
 
-def process_N_N_interactions(
-    interaction: List[str], res_1_inter_res: pd.DataFrame, res_2_inter_res: pd.DataFrame
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Process N-N interactions to find the corresponding first ('oxygen') and second atoms.
-
-    Args:
-        interaction (list): Interaction details containing atom IDs.
-        res_1_inter_res (pd.DataFrame): DataFrame of the first residue's interactions.
-        res_2_inter_res (pd.DataFrame): DataFrame of the second residue's interactions.
-
-    Returns:
-        oxygen_atom (pd.DataFrame): DataFrame of the first/oxygen atom
-        second_atom (pd.DataFrame): DataFrame of the second atom
-
-    """
-    # Assigning roles based on interactions
-    oxygen_atom = find_atoms(res_1_inter_res, interaction[3])
-    second_atom = find_atoms(res_2_inter_res, interaction[2])
-    if "." in str(interaction[3]):
-        split_interaction = interaction[3].split(".")
-        oxygen_atom = find_atoms(res_1_inter_res, split_interaction[0])
-    if "." in str(interaction[2]):
-        split_interaction = interaction[2].split(".")
-        second_atom = find_atoms(res_2_inter_res, split_interaction[0])
-    return oxygen_atom, second_atom
-
-
-def process_N_O_interactions(
-    interaction: List[str], res_1_inter_res: pd.DataFrame, res_2_inter_res: pd.DataFrame
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Process N-O interactions to find the corresponding oxygen and second atoms.
-
-    Args:
-        interaction (list): Interaction details containing atom IDs.
-        res_1_inter_res (pd.DataFrame): DataFrame of the first residue's interactions.
-        res_2_inter_res (pd.DataFrame): DataFrame of the second residue's interactions.
-
-    Returns:
-        oxygen_atom (pd.DataFrame): DataFrame of the first/oxygen atom
-        second_atom (pd.DataFrame): DataFrame of the second atom
-
-    """
-    oxygen_atom = find_atoms(res_1_inter_res, interaction[3])
-    second_atom = find_atoms(res_2_inter_res, interaction[2])
-    if "." in str(interaction[3]):
-        split_interaction = interaction[3].split(".")
-        oxygen_atom = find_atoms(res_1_inter_res, split_interaction[0])
-    if "." in str(interaction[2]):
-        split_interaction = interaction[2].split(".")
-        second_atom = find_atoms(res_2_inter_res, split_interaction[0])
-    return oxygen_atom, second_atom
-
-
-def process_O_O_interactions(
-    interaction: List[str], res_1_inter_res: pd.DataFrame, res_2_inter_res: pd.DataFrame
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Simplified function to process O-O/O-N interactions.
-
-    Args:
-        interaction (list): Interaction details containing atom IDs.
-        res_1_inter_res (pd.DataFrame): DataFrame of the first residue's interactions.
-        res_2_inter_res (pd.DataFrame): DataFrame of the second residue's interactions.
-
-    Returns:
-        oxygen_atom (pd.DataFrame): DataFrame of the first/oxygen atom
-        second_atom (pd.DataFrame): DataFrame of the second atom
-
-    """
-    oxygen_atom = find_atoms(res_1_inter_res, interaction[2])
-    second_atom = find_atoms(res_2_inter_res, interaction[3])
-    if "." in str(interaction[2]):
-        split_interaction = interaction[2].split(".")
-        oxygen_atom = find_atoms(res_1_inter_res, split_interaction[0])
-    if "." in str(interaction[3]):
-        split_interaction = interaction[3].split(".")
-        second_atom = find_atoms(res_2_inter_res, split_interaction[0])
-    return oxygen_atom, second_atom
-
 
 def find_atoms(residue: pd.DataFrame, atom_id: str) -> pd.DataFrame:
     """
@@ -364,6 +238,7 @@ def find_atoms(residue: pd.DataFrame, atom_id: str) -> pd.DataFrame:
 
     """
     atom = residue[residue["auth_atom_id"] == atom_id]
+
     if atom.empty:
         # Check for common prefixes or alternate namings
         prefixes = ["O1P", "O2P", "O3P", "OP1", "OP2", "OP3", "O2"]
@@ -378,7 +253,7 @@ def find_atoms(residue: pd.DataFrame, atom_id: str) -> pd.DataFrame:
 
 
 def extract_residues_from_interaction_source(
-    interaction: List[str], pdb_model_df: pd.DataFrame
+        interaction: List[str], pdb_model_df: pd.DataFrame
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, str, str, str, str, str, str, str]:
     """
     Extract residues from interaction source.
@@ -419,16 +294,16 @@ def extract_residues_from_interaction_source(
     res_2_res_id = extract_longest_numeric_sequence(res_2_res_data)
     res_1_inter_chain = pdb_model_df[
         pdb_model_df["auth_asym_id"].astype(str) == str(res_1_chain_id)
-    ]
+        ]
     res_2_inter_chain = pdb_model_df[
         pdb_model_df["auth_asym_id"].astype(str) == str(res_2_chain_id)
-    ]
+        ]
     res_1_inter_res = res_1_inter_chain[
         res_1_inter_chain["auth_seq_id"].astype(str) == str(res_1_res_id)
-    ]
+        ]
     res_2_inter_res = res_2_inter_chain[
         res_2_inter_chain["auth_seq_id"].astype(str) == str(res_2_res_id)
-    ]
+        ]
     res_1_res_2_result_df = pd.concat(
         [res_1_inter_res, res_2_inter_res], axis=0, ignore_index=True
     )
@@ -454,20 +329,6 @@ def extract_residues_from_interaction_source(
     )
 
 
-def make_dir(directory: str) -> None:
-    """
-    Creates a directory.
-
-    Args:
-        directory: directory name
-
-    Returns:
-        None
-
-    """
-    os.makedirs(directory, exist_ok=True)
-
-
 def extract_longest_numeric_sequence(input_string: str) -> str:
     """
     Extracts the longest numeric sequence from a given string.
@@ -483,7 +344,7 @@ def extract_longest_numeric_sequence(input_string: str) -> str:
     current_sequence = ""
     for c in input_string:
         if c.isdigit() or (
-            c == "-" and (not current_sequence or current_sequence[0] == "-")
+                c == "-" and (not current_sequence or current_sequence[0] == "-")
         ):
             current_sequence += c
             if len(current_sequence) >= len(longest_sequence):
@@ -494,7 +355,7 @@ def extract_longest_numeric_sequence(input_string: str) -> str:
 
 
 def find_closest_atom(
-    atom_A: pd.DataFrame, whole_interaction: pd.DataFrame
+        atom_A: pd.DataFrame, whole_interaction: pd.DataFrame
 ) -> pd.DataFrame:
     """
     Finds the closest atom to a given atom within a set of interactions based on Euclidean distance.
@@ -556,16 +417,11 @@ def calc_distance(atom_df1: pd.DataFrame, atom_df2: pd.DataFrame) -> float:
 
 
 def calculate_bond_angle(
-    center_atom: pd.DataFrame,
-    second_atom: pd.DataFrame,
-    carbon_atom: pd.DataFrame,
-    fourth_atom: pd.DataFrame,
-) -> Tuple[
-    str,
-    Tuple[str, float, float, float],
-    Tuple[str, float, float, float],
-    Tuple[str, float, float, float],
-]:
+        center_atom: pd.DataFrame,
+        second_atom: pd.DataFrame,
+        carbon_atom: pd.DataFrame,
+        fourth_atom: pd.DataFrame,
+) -> str:
     """
     Calculates the bond angle and returns the angle with the atoms used in the calculation.
 
@@ -628,7 +484,7 @@ def calculate_bond_angle(
     center_atom_data = (center_atom_type, x1, y1, z1)
     second_atom_data = (second_atom_type, x2, y2, z2)
     carbon_atom_data = (carbon_atom_type, x3, y3, z3)
-    return angle_deg, center_atom_data, second_atom_data, carbon_atom_data
+    return angle_deg
 
 
 def assign_res_type(name: str, res_type: str) -> str:
