@@ -464,17 +464,16 @@ def find_sequence(strands_of_rna):
     for strand in strands_of_rna:
         res_strand = []
         for residue in strand:
-
-            print(residue[0])
-
-            residue_df = residue[1]
-            auth_comp_id_list = residue_df["auth_comp_id"].tolist()
-
-            res = str(auth_comp_id_list[0])
+            if isinstance(residue, tuple):
+                res = str(residue[0][3])
+            else:
+                res_tup_element = residue[0]
+                res = str(res_tup_element[0][3])
             res_strand.append(res)
         strand_sequence = "".join(res_strand)
         res_strands.append(strand_sequence)
     sequence = "-".join(res_strands)
+    print(sequence)
     return sequence
 
 
@@ -501,19 +500,19 @@ def extract_residue_list(master_res_df: pd.DataFrame) -> List:
     ins_code_set_list = sorted(set(unique_ins_code_values_list))
     model_num_set_list = sorted(set(unique_model_num_values_list))
 
-    # lay out each case
+    # lay out each case; also group by res comp to get sequence later?
     if len(ins_code_set_list) > 1:
         grouped_res_dfs = master_res_df.groupby(
-            ["auth_asym_id", "auth_seq_id", "pdbx_PDB_ins_code"]
+            ["auth_asym_id", "auth_seq_id", "pdbx_PDB_ins_code", "auth_comp_id"]
         )
     elif len(model_num_set_list) > 1:
         filtered_master_df = master_res_df[master_res_df["pdbx_PDB_model_num"] == "1"]
         grouped_res_dfs = filtered_master_df.groupby(
-            ["auth_asym_id", "auth_seq_id", "pdbx_PDB_model_num"]
+            ["auth_asym_id", "auth_seq_id", "pdbx_PDB_model_num", "auth_comp_id"]
         )
     else:
         grouped_res_dfs = master_res_df.groupby(
-            ["auth_asym_id", "auth_seq_id", "pdbx_PDB_ins_code"]
+            ["auth_asym_id", "auth_seq_id", "pdbx_PDB_ins_code", "auth_comp_id"]
         )
 
     # puts the grouped residues in a list
