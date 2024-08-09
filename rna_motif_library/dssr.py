@@ -64,9 +64,11 @@ def process_motif_interaction_out_data(
     motif_count = 0
     for m in motifs:
         built_motif = find_and_build_motif(m, name, pdb_model_df, discovered, motif_count)
+        if built_motif == "UNKNOWN":
+            continue
         print(built_motif.motif_name)
         # Also take the time to determine which interactions are involved with which motifs and print accordingly
-        exit(0)
+        #
 
 
 ### build functions down here
@@ -96,6 +98,10 @@ def build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_d
         pdb = get_interaction_pdb(res_1, res_2, pdb_model_df)
         first_atom, second_atom = extract_interacting_atoms(interaction, pdb)
         third_atom, fourth_atom = find_closest_atom(first_atom, pdb), find_closest_atom(second_atom, pdb)
+        if first_atom.empty or second_atom.empty:
+            # print("EMPTY ATOM")
+            # TODO come back to this, this is a placeholder; there aren't that many of these relative to the rest of interactions but need to look at
+            continue
         dihedral_angle = calculate_bond_angle(first_atom, second_atom, third_atom, fourth_atom)
 
         built_interaction = HBondInteraction(interaction.res_1, interaction.res_2, atom_1, atom_2, type_1, type_2, distance, dihedral_angle, pdb, first_atom, second_atom, third_atom, fourth_atom)
@@ -283,7 +289,6 @@ def find_and_build_motif(m, pdb_name, pdb_model_df, discovered, motif_count):
     # Get the size of the motif (as string)
     size = size_up_motif(list_of_strands, motif_type)
     if size == "UNKNOWN":
-        print("motif was bullshit")
         # print only for debugging purposes
         return "UNKNOWN"
     # Pre-set motif name
@@ -298,9 +303,10 @@ def find_and_build_motif(m, pdb_name, pdb_model_df, discovered, motif_count):
     # Finally, set our motif
     our_motif = Motif(motif_name, motif_type, pdb_name, size, sequence, m.nts_long, list_of_strands, motif_pdb)
     # And print the motif to the system
-    motif_cif_path = os.path.join(LIB_PATH, "data/motifs", motif_type, size, sequence, f"{motif_name}.cif")
+    motif_dir_path = os.path.join(LIB_PATH, "data/motifs", motif_type, size, sequence)
+    os.makedirs(motif_dir_path, exist_ok=True)
+    motif_cif_path = os.path.join(motif_dir_path, f"{motif_name}.cif")
     dataframe_to_cif(motif_pdb, motif_cif_path, motif_name)
-
     return our_motif
 
 
@@ -473,7 +479,6 @@ def find_sequence(strands_of_rna):
         strand_sequence = "".join(res_strand)
         res_strands.append(strand_sequence)
     sequence = "-".join(res_strands)
-    print(sequence)
     return sequence
 
 

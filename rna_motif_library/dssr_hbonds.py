@@ -438,6 +438,8 @@ def calculate_bond_angle(
         carbon_atom_data (tuple): A tuple with the carbon atom type and its coordinates.
 
     """
+
+
     # Extract coordinates
     x1, y1, z1 = (
         center_atom["Cartn_x"].to_list()[0],
@@ -477,13 +479,6 @@ def calculate_bond_angle(
     cos_theta = dot_product / (magnitude_n1 * magnitude_n2)
     angle_rad = np.arccos(np.clip(cos_theta, -1.0, 1.0))
     angle_deg = str(np.degrees(angle_rad))
-    # Label and return the atoms used in calculation
-    center_atom_type = center_atom["auth_atom_id"].to_list()[0]
-    carbon_atom_type = carbon_atom["auth_atom_id"].to_list()[0]
-    second_atom_type = second_atom["auth_atom_id"].to_list()[0]
-    center_atom_data = (center_atom_type, x1, y1, z1)
-    second_atom_data = (second_atom_type, x2, y2, z2)
-    carbon_atom_data = (carbon_atom_type, x3, y3, z3)
     return angle_deg
 
 
