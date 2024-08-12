@@ -16,6 +16,28 @@ from rna_motif_library.dssr_hbonds import extract_longest_numeric_sequence, data
     HBondInteraction, HBondInteractionFactory, find_atoms, find_closest_atom, calculate_bond_angle
 
 
+class Residue:
+
+    """
+    Class to hold data on individual residues, used for building strands and sequences in find_strands
+
+    Args:
+        chain_id (str): chain ID
+        res_id (str): residue ID
+        ins_code (str): ID code, sometimes used instead of residue ID, often is None
+        mol_name (str): molecule name
+        pdb (pd.DataFrame): DataFrame to hold the actual contents of the residue obtained from the .cif file
+    """
+    def __init__(self, chain_id, res_id, ins_code, mol_name, pdb):
+
+        self.chain_id = chain_id
+        self.res_id = res_id
+        self.ins_code = ins_code
+        self.mol_name = mol_name
+        self.pdb = pdb
+
+
+
 def process_motif_interaction_out_data(
         count: int,
         pdb_path: str,
@@ -58,31 +80,34 @@ def process_motif_interaction_out_data(
     # Assembly into big HBondInteraction class
     assembled_interaction_data = build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_df)
     # Now for every interaction, print to PDB
-    save_interactions_to_disk(assembled_interaction_data)
+    save_interactions_to_disk(assembled_interaction_data, name)
 
     discovered = []
     motif_count = 0
     for m in motifs:
         built_motif = find_and_build_motif(m, name, pdb_model_df, discovered, motif_count)
         if built_motif == "UNKNOWN":
+            print("UNKNOWN")
             continue
         print(built_motif.motif_name)
         # Also take the time to determine which interactions are involved with which motifs and print accordingly
-        #
+        residues_in_motif = built_motif.res_list
+
 
 
 ### build functions down here
 
-def save_interactions_to_disk(assembled_interaction_data):
+def save_interactions_to_disk(assembled_interaction_data, pdb):
 
     for interaction in assembled_interaction_data:
-        pdb = interaction.pdb
-        file_path = os.path.join(LIB_PATH, "data/interactions", f"{DSSRRes(interaction.res_1).res_id}-{DSSRRes(interaction.res_2).res_id}")
+        interaction_name = str(pdb) + "." + interaction.res_1 + "." + interaction.atom_1 + "." + interaction.res_2 + "." + interaction.atom_2
+        folder_path = os.path.join(LIB_PATH, "data/interactions", f"{DSSRRes(interaction.res_1).res_id}-{DSSRRes(interaction.res_2).res_id}")
+        os.makedirs(folder_path, exist_ok=True)
+        file_path = os.path.join(folder_path, f"{interaction_name}.cif")
 
-
-        #dataframe_to_cif(pdb, file_path=, motif_name=)
-
-    #pass
+        #print(file_path)
+        #print(interaction.pdb)
+        #dataframe_to_cif(interaction.pdb, file_path=file_path, motif_name=interaction_name)
 
 
 def build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_df):
@@ -101,6 +126,9 @@ def build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_d
         if first_atom.empty or second_atom.empty:
             # print("EMPTY ATOM")
             # TODO come back to this, this is a placeholder; there aren't that many of these relative to the rest of interactions but need to look at
+            continue
+        # filter out protein-protein interactions
+        if type_1 == "aa" and type_2 == "aa":
             continue
         dihedral_angle = calculate_bond_angle(first_atom, second_atom, third_atom, fourth_atom)
 
@@ -311,6 +339,7 @@ def find_and_build_motif(m, pdb_name, pdb_model_df, discovered, motif_count):
 
 
 def size_up_motif(strands, motif_type):
+    print(strands)
     if motif_type == "JCT":
         lens = []
         for strand in strands:
@@ -434,7 +463,7 @@ def determine_motif_type(motif):
 
 
 def find_strands(
-        master_res_df: pd.DataFrame) -> tuple[list[tuple[tuple[str, DataFrame], list[tuple[str, DataFrame]]]], str]:
+        master_res_df):
     """
     Counts the number of strands in a motif and updates its name accordingly to better reflect structure.
 
@@ -456,7 +485,7 @@ def find_strands(
     # step 2: find the roots of the residues
     residue_roots, res_list_modified = find_residue_roots(list_of_residues)
 
-    # step 3: given the residue roots, build strands of RNA in a 5' to 3' direction
+    # step 3: given the residue roots, build strands of RNA
     strands_of_rna = build_strands_5to3(residue_roots, res_list_modified)
 
     # step 4: find the sequence of the strands
@@ -470,12 +499,8 @@ def find_sequence(strands_of_rna):
     for strand in strands_of_rna:
         res_strand = []
         for residue in strand:
-            if isinstance(residue, tuple):
-                res = str(residue[0][3])
-            else:
-                res_tup_element = residue[0]
-                res = str(res_tup_element[0][3])
-            res_strand.append(res)
+            mol_name = residue.mol_name
+            res_strand.append(mol_name)
         strand_sequence = "".join(res_strand)
         res_strands.append(strand_sequence)
     sequence = "-".join(res_strands)
@@ -519,17 +544,21 @@ def extract_residue_list(master_res_df: pd.DataFrame) -> List:
         grouped_res_dfs = master_res_df.groupby(
             ["auth_asym_id", "auth_seq_id", "pdbx_PDB_ins_code", "auth_comp_id"]
         )
-
-    # puts the grouped residues in a list
     res_list = []
-    for grouped_residue in grouped_res_dfs:
-        res_list.append(grouped_residue)
+    for group in grouped_res_dfs:
+        key = group[0]
+        pdb = group[1]
+        chain_id = key[0]
+        res_id = key[1]
+        ins_code = key[2]
+        mol_name = key[3]
+        residue = Residue(chain_id, res_id, ins_code, mol_name, pdb)
+        res_list.append(residue)
 
     return res_list
 
 
-def find_residue_roots(res_list: List[Tuple[str, pd.DataFrame]]) -> tuple[
-    list[tuple[str, DataFrame]], list[tuple[str, DataFrame]]]:
+def find_residue_roots(res_list):
     """
     Finds the roots of chains of RNA by finding the bottom of the chain first.
     Roots are residues that are only connected 5' to 3' to one other residue.
@@ -544,16 +573,23 @@ def find_residue_roots(res_list: List[Tuple[str, pd.DataFrame]]) -> tuple[
     roots = []
 
     for source_res in res_list:
-        is_root = True
+        has_5to3_connection = False
+        has_3to5_connection = False
 
         for res_in_question in res_list:
             if source_res != res_in_question:
                 is_connected = connected_to(source_res, res_in_question)
                 if is_connected == 1:
-                    is_root = False
-                    break
+                    has_5to3_connection = True
+                elif is_connected == -1:
+                    has_3to5_connection = True
 
-        if is_root:
+            # If it's connected in the 3' to 5' direction, it cannot be a root
+            if has_3to5_connection:
+                break
+
+        # A root is defined as having a 5' to 3' connection and no 3' to 5' connection
+        if has_5to3_connection and not has_3to5_connection:
             roots.append(source_res)
 
     # Create a modified list with the root residues removed
@@ -562,15 +598,15 @@ def find_residue_roots(res_list: List[Tuple[str, pd.DataFrame]]) -> tuple[
     return roots, res_list_modified
 
 
-def connected_to(source_residue: Tuple[str, pd.DataFrame], residue_in_question: Tuple[str, pd.DataFrame],
-                 cutoff: float = 2.71) -> int:
+def connected_to(source_residue, residue_in_question,
+                 cutoff: float = 2.75):
     """
     Determine if another residue is connected to this residue.
     From 5' to 3'; if reverse, returns -1.
 
     Args:
-        source_residue (tuple): Tuple containing the source residue name and its DataFrame.
-        residue_in_question (tuple): Tuple containing the residue in question name and its DataFrame.
+        source_residue (Residue): Tuple containing the source residue name and its DataFrame.
+        residue_in_question (Residue): Tuple containing the residue in question name and its DataFrame.
         cutoff (float): Distance cutoff to determine connectivity.
 
     Returns:
@@ -580,8 +616,8 @@ def connected_to(source_residue: Tuple[str, pd.DataFrame], residue_in_question: 
         Returns 0 if no connection.
     """
 
-    residue_1 = source_residue[1]
-    residue_2 = residue_in_question[1]
+    residue_1 = source_residue.pdb
+    residue_2 = residue_in_question.pdb
 
     # Convert 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns to numeric
     residue_1[["Cartn_x", "Cartn_y", "Cartn_z"]] = residue_1[["Cartn_x", "Cartn_y", "Cartn_z"]].apply(pd.to_numeric)
@@ -618,14 +654,13 @@ def connected_to(source_residue: Tuple[str, pd.DataFrame], residue_in_question: 
     return 0  # No connection
 
 
-def build_strands_5to3(residue_roots: List[Tuple[str, pd.DataFrame]], res_list: List[Tuple[str, pd.DataFrame]]) -> list[
-    tuple[tuple[str, DataFrame], list[tuple[str, DataFrame]]]]:
+def build_strands_5to3(residue_roots, res_list):
     """
     Given residue roots of strands, builds strands of RNA from the list of given residues.
 
     Args:
-        residue_roots (list): List of tuples, each containing a root residue name and its corresponding DataFrame.
-        res_list (list): List of tuples, each containing a residue name and its corresponding DataFrame.
+        residue_roots (list): List of Residue objs, each containing a root residue name and its corresponding DataFrame.
+        res_list (list): List of Residue objs, each containing a residue name and its corresponding DataFrame.
 
     Returns:
         built_strands (list): List of tuples, each containing a root residue and its built chain of residues in the 5' to 3' direction.
@@ -650,7 +685,7 @@ def build_strands_5to3(residue_roots: List[Tuple[str, pd.DataFrame]], res_list: 
             else:
                 break
 
-        built_strands.append((root, chain))
+        built_strands.append(chain)
 
     return built_strands
 
