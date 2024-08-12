@@ -65,6 +65,7 @@ def process_dssr(threads):
     Returns:
         None
     """
+    setup_logging()
     warnings.filterwarnings("ignore")
     start_time = time.time()
     get_dssr_files(threads)
@@ -73,15 +74,15 @@ def process_dssr(threads):
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
-    print(
+    log.info(
         "DSSR processing started at",
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
     )
-    print(
+    log.info(
         "DSSR processing finished at",
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
     )
-    print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
+    log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
 @cli.command("process-snap")
@@ -96,6 +97,7 @@ def process_snap(threads):
     Returns:
         None
     """
+    setup_logging()
     warnings.filterwarnings("ignore")
     start_time = time.time()
     get_snap_files(threads)
@@ -104,15 +106,15 @@ def process_snap(threads):
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
-    print(
+    log.info(
         "SNAP processing started at",
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
     )
-    print(
+    log.info(
         "SNAP processing finished at",
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
     )
-    print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
+    log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
 @cli.command("generate-motifs")  # Set command name
@@ -136,7 +138,7 @@ def generate_motifs(limit, pdb):
     Returns:
         None
     """
-
+    setup_logging()
     warnings.filterwarnings("ignore")
     start_time = time.time()
 
@@ -148,15 +150,15 @@ def generate_motifs(limit, pdb):
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
 
-    print(
+    log.info(
         "Motif generation started at",
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
     )
-    print(
+    log.info(
         "Motif generation finished at",
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
     )
-    print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
+    log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
 @cli.command("find-tertiary-contacts")  # Set command name
@@ -170,6 +172,7 @@ def load_tertiary_contacts():
     Returns:
         None
     """
+    setup_logging()
     warnings.filterwarnings("ignore")
     start_time = time.time()
     find_tertiary_contacts()
@@ -179,15 +182,15 @@ def load_tertiary_contacts():
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
 
-    print(
+    log.info(
         "Tertiary contact discovery started at",
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
     )
-    print(
+    log.info(
         "Tertiary contact discovery finished at",
         time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
     )
-    print(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
+    log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
 if __name__ == "__main__":

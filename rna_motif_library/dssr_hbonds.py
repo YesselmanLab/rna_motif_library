@@ -514,7 +514,7 @@ def dataframe_to_cif(df: pd.DataFrame, file_path: str, motif_name: str) -> None:
     Args:
         df (pd.DataFrame): The DataFrame containing the data.
         file_path (str): The path to the output CIF file.
-        motif_name (str): The name of the motif.
+        motif_name (str): The name of the PDB to be not printed.
 
     Returns:
         None
@@ -551,26 +551,26 @@ def dataframe_to_cif(df: pd.DataFrame, file_path: str, motif_name: str) -> None:
             f.write(
                 "{:<8}{:<7}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<12}{:<12}{:<12}{:<10}{:<10}"
                 "{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}\n".format(
-                    row[0],
-                    row[1],
-                    row[2],
-                    row[3],
-                    row[4],
-                    row[5],
-                    row[6],
-                    row[7],
-                    row[8],
-                    row[9],
-                    row[10],
-                    row[11],
-                    row[12],
-                    row[13],
-                    row[14],
-                    row[15],
-                    row[16],
-                    row[17],
-                    row[18],
-                    row[19],
-                    row[20],
+                    str(row[0]),
+                    str(row[1]),
+                    str(row[2]),
+                    str(row[3]),
+                    str(row[4]),
+                    str(row[5]),
+                    str(row[6]),
+                    str(row[7]),
+                    str(row[8]),
+                    str(row[9]),
+                    str(row[10]),
+                    str(row[11]),
+                    str(row[12]),
+                    str(row[13]),
+                    str(row[14]),
+                    str(row[15]),
+                    str(row[16]),
+                    str(row[17]),
+                    str(row[18]),
+                    str(row[19]),
+                    str(row[20]),
                 )
             )

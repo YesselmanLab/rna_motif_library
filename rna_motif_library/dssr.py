@@ -90,7 +90,7 @@ def process_motif_interaction_out_data(
             print("UNKNOWN")
             continue
         print(built_motif.motif_name)
-        # Also take the time to determine which interactions are involved with which motifs and print accordingly
+        # Also determine which interactions are involved with which motifs and print accordingly
         residues_in_motif = built_motif.res_list
 
 
@@ -98,16 +98,12 @@ def process_motif_interaction_out_data(
 ### build functions down here
 
 def save_interactions_to_disk(assembled_interaction_data, pdb):
-
     for interaction in assembled_interaction_data:
         interaction_name = str(pdb) + "." + interaction.res_1 + "." + interaction.atom_1 + "." + interaction.res_2 + "." + interaction.atom_2
         folder_path = os.path.join(LIB_PATH, "data/interactions", f"{DSSRRes(interaction.res_1).res_id}-{DSSRRes(interaction.res_2).res_id}")
         os.makedirs(folder_path, exist_ok=True)
         file_path = os.path.join(folder_path, f"{interaction_name}.cif")
-
-        #print(file_path)
-        #print(interaction.pdb)
-        #dataframe_to_cif(interaction.pdb, file_path=file_path, motif_name=interaction_name)
+        dataframe_to_cif(interaction.pdb, file_path=file_path, motif_name=interaction_name)
 
 
 def build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_df):
@@ -319,6 +315,13 @@ def find_and_build_motif(m, pdb_name, pdb_model_df, discovered, motif_count):
     if size == "UNKNOWN":
         # print only for debugging purposes
         return "UNKNOWN"
+    # Real quick, set NWAY/TWOWAY junction based on return of size
+    spl = size.split("-")
+    if motif_type == "JCT":
+        if len(spl) == 2:
+            motif_type = "TWOWAY"
+        else:
+            motif_type = "NWAY"
     # Pre-set motif name
     pre_motif_name = motif_type + "." + pdb_name + "." + str(size) + "." + sequence
     # Check if discovered; if so, then increment count
@@ -339,7 +342,6 @@ def find_and_build_motif(m, pdb_name, pdb_model_df, discovered, motif_count):
 
 
 def size_up_motif(strands, motif_type):
-    print(strands)
     if motif_type == "JCT":
         lens = []
         for strand in strands:
