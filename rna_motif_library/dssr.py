@@ -13,11 +13,82 @@ from rna_motif_library.update_library import PandasMmcifOverride, get_dssr_files
 from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.snap import get_rnp_interactions
 from rna_motif_library.dssr_hbonds import extract_longest_numeric_sequence, dataframe_to_cif, canon_amino_acid_list, \
-    HBondInteraction, HBondInteractionFactory, find_atoms, find_closest_atom, calculate_bond_angle
+    HBondInteraction, HBondInteractionFactory, find_atoms, find_closest_atom, calculate_bond_angle, \
+    SingleMotifInteraction, PotentialTertiaryContact
+
+
+class Motif:
+    """
+    Class to hold motif data. This data is final and should not be changed once built.
+    """
+
+    def __init__(self, motif_name: str, motif_type: str, pdb: str, size: str,
+                 sequence: str = None,
+                 res_list: List[str] = None, strands: Any = None, motif_pdb: pd.DataFrame = None) -> None:
+        """
+        Initialize a Motif object
+
+        Args:
+            motif_name (str): Name of the motif
+            motif_type (str): Motif type
+            pdb (str): PDB where motif is found
+            size (str): Size of motif; reflects the structure and means different things depending on the type of motif
+            sequence (str): Sequence in motif
+            res_list (list): List of residues in the motif
+            strands (list): List of strands in motif
+            motif_pdb (pd.DataFrame): PDB data of the motif
+
+        Returns:
+            None
+        """
+        self.motif_name = motif_name
+        self.motif_type = motif_type
+        self.pdb = pdb
+        self.size = size
+        self.sequence = sequence
+        self.res_list = res_list if res_list is not None else []
+        self.strands = strands if strands is not None else []
+        self.motif_pdb = motif_pdb if motif_pdb is not None else pd.DataFrame()
+
+
+class DSSRRes:
+    """
+    Class that takes DSSR residue notation.
+    Stores and dissects information from DSSR residue notation.
+    """
+
+    def __init__(self, s: str) -> None:
+        """
+        Initialize a DSSRRes object.
+
+        Args:
+            s (str): Given residue (something like "C.G1515")
+
+        Returns:
+            None
+
+        """
+        s = s.split("^")[0]
+        spl = s.split(".")
+        cur_num = None
+        i_num = 0
+        for i, c in enumerate(spl[1]):
+            if c.isdigit():
+                cur_num = spl[1][i:]
+                cur_num = extract_longest_numeric_sequence(cur_num)
+                i_num = i
+                break
+        self.num = None
+        try:
+            if cur_num is not None:
+                self.num = int(cur_num)
+        except ValueError:
+            pass
+        self.chain_id = spl[0]
+        self.res_id = spl[1][0:i_num]
 
 
 class Residue:
-
     """
     Class to hold data on individual residues, used for building strands and sequences in find_strands
 
@@ -28,8 +99,8 @@ class Residue:
         mol_name (str): molecule name
         pdb (pd.DataFrame): DataFrame to hold the actual contents of the residue obtained from the .cif file
     """
-    def __init__(self, chain_id, res_id, ins_code, mol_name, pdb):
 
+    def __init__(self, chain_id, res_id, ins_code, mol_name, pdb):
         self.chain_id = chain_id
         self.res_id = res_id
         self.ins_code = ins_code
@@ -37,12 +108,9 @@ class Residue:
         self.pdb = pdb
 
 
-
 def process_motif_interaction_out_data(
         count: int,
-        pdb_path: str,
-        limit: int,
-        pdb_name: str) -> None:
+        pdb_path: str):
     """
     Function for extracting motifs from a PDB in the loop
 
@@ -58,12 +126,6 @@ def process_motif_interaction_out_data(
     """
     name = os.path.basename(pdb_path)[:-4]
     print(f"{count}, {pdb_path}, {name}")
-    # Keep processed files under the limit if specified
-    if limit is not None and count > limit:
-        return
-    # Limit processing to specified PDB
-    if (pdb_name != None) and (name != pdb_name):
-        return
 
     # Get the master PDB data
     pdb_model_df = get_pdb_model_df(pdb_path)
@@ -77,36 +139,108 @@ def process_motif_interaction_out_data(
     unique_interaction_data = merge_hbond_interaction_data(get_rnp_interactions(out_file=rnp_out_path), hbonds)
     # This is the final interaction data in the temp class to assemble into the big H-Bond class
     pre_assembled_interaction_data = assemble_interaction_data(unique_interaction_data)
-    # Assembly into big HBondInteraction class
-    assembled_interaction_data = build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_df)
+    # Assembly into big HBondInteraction class; this returns a big list of them
+    assembled_interaction_data = build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_df, name)
     # Now for every interaction, print to PDB
     save_interactions_to_disk(assembled_interaction_data, name)
 
     discovered = []
     motif_count = 0
+    motif_list = []
+    single_motif_interactions = []
+    potential_tert_contacts = []
     for m in motifs:
         built_motif = find_and_build_motif(m, name, pdb_model_df, discovered, motif_count)
         if built_motif == "UNKNOWN":
             print("UNKNOWN")
             continue
-        print(built_motif.motif_name)
-        # Also determine which interactions are involved with which motifs and print accordingly
+        else:
+            motif_list.append(built_motif)
+            print(built_motif.motif_name)
+        # Also determine which interactions are involved with which motifs
         residues_in_motif = built_motif.res_list
+        interactions_in_motif = []
+        potential_tert_contact_motif_1 = []
+        potential_tert_contact_motif_2 = []
+        for interaction in assembled_interaction_data:
+            if interaction.res_1 in residues_in_motif and interaction.res_2 in residues_in_motif:
+                # H-bonds fully inside motif
+                interactions_in_motif.append(interaction)
+            elif interaction.res_1 in residues_in_motif:
+                # H-bonds with 1 residue in motif and 1 outside
+                potential_tert_contact_motif_1.append(interaction)
+            elif interaction.res_2 in residues_in_motif:
+                # H-bonds with 1 residue in motif and 1 outside
+                potential_tert_contact_motif_2.append(interaction)
+            else:
+                # H-bonds uninvolved with the motif
+                pass
 
+        # For every single motif interaction in this motif, load up the class again and load the source motif into a new interaction class
+        for interaction in interactions_in_motif:
+            motif_name = built_motif.motif_name
+            res_1 = interaction.res_1
+            res_2 = interaction.res_2
+            atom_1 = interaction.atom_1
+            atom_2 = interaction.atom_2
+            type_1 = interaction.type_1
+            type_2 = interaction.type_2
+            distance = float(interaction.distance)
+            angle = float(interaction.angle)
+            single_motif_interaction = SingleMotifInteraction(motif_name, res_1, res_2, atom_1, atom_2, type_1, type_2,
+                                                              distance, angle)
+            single_motif_interactions.append(single_motif_interaction)
+
+        # For potential tert contacts where source is motif_1
+        for interaction in potential_tert_contact_motif_1:
+            motif_1 = built_motif.motif_name
+            motif_2 = "unknown"
+            res_1 = interaction.res_1
+            res_2 = interaction.res_2
+            atom_1 = interaction.atom_1
+            atom_2 = interaction.atom_2
+            type_1 = interaction.type_1
+            type_2 = interaction.type_2
+            distance = float(interaction.distance)
+            angle = float(interaction.angle)
+            potential_tert_contact_m1 = PotentialTertiaryContact(motif_1, motif_2, res_1, res_2, atom_1, atom_2, type_1,
+                                                                 type_2, distance, angle)
+            potential_tert_contacts.append(potential_tert_contact_m1)
+
+        # For potential tert contacts where source is motif_2
+        for interaction in potential_tert_contact_motif_2:
+            motif_1 = "unknown"
+            motif_2 = built_motif.motif_name
+            res_1 = interaction.res_1
+            res_2 = interaction.res_2
+            atom_1 = interaction.atom_1
+            atom_2 = interaction.atom_2
+            type_1 = interaction.type_1
+            type_2 = interaction.type_2
+            distance = float(interaction.distance)
+            angle = float(interaction.angle)
+            potential_tert_contact_m2 = PotentialTertiaryContact(motif_1, motif_2, res_1, res_2, atom_1, atom_2, type_1,
+                                                                 type_2, distance, angle)
+            potential_tert_contacts.append(potential_tert_contact_m2)
+
+    return motif_list, single_motif_interactions, potential_tert_contacts, assembled_interaction_data
 
 
 ### build functions down here
 
+
 def save_interactions_to_disk(assembled_interaction_data, pdb):
     for interaction in assembled_interaction_data:
-        interaction_name = str(pdb) + "." + interaction.res_1 + "." + interaction.atom_1 + "." + interaction.res_2 + "." + interaction.atom_2
-        folder_path = os.path.join(LIB_PATH, "data/interactions", f"{DSSRRes(interaction.res_1).res_id}-{DSSRRes(interaction.res_2).res_id}")
+        interaction_name = str(
+            pdb) + "." + interaction.res_1 + "." + interaction.atom_1 + "." + interaction.res_2 + "." + interaction.atom_2
+        folder_path = os.path.join(LIB_PATH, "data/interactions",
+                                   f"{DSSRRes(interaction.res_1).res_id}-{DSSRRes(interaction.res_2).res_id}")
         os.makedirs(folder_path, exist_ok=True)
         file_path = os.path.join(folder_path, f"{interaction_name}.cif")
         dataframe_to_cif(interaction.pdb, file_path=file_path, motif_name=interaction_name)
 
 
-def build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_df):
+def build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_df, pdb_name):
     built_interactions = []
     for interaction in pre_assembled_interaction_data:
         res_1 = DSSRRes(interaction.res_1)
@@ -128,14 +262,15 @@ def build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_d
             continue
         dihedral_angle = calculate_bond_angle(first_atom, second_atom, third_atom, fourth_atom)
 
-        built_interaction = HBondInteraction(interaction.res_1, interaction.res_2, atom_1, atom_2, type_1, type_2, distance, dihedral_angle, pdb, first_atom, second_atom, third_atom, fourth_atom)
+        built_interaction = HBondInteraction(interaction.res_1, interaction.res_2, atom_1, atom_2, type_1, type_2,
+                                             distance, dihedral_angle, pdb, first_atom, second_atom, third_atom,
+                                             fourth_atom, pdb_name)
         built_interactions.append(built_interaction)
 
     return built_interactions
 
 
 def extract_interacting_atoms(interaction, pdb):
-
     atom_1 = interaction.atom_1
     atom_2 = interaction.atom_2
 
@@ -162,7 +297,7 @@ def extract_interacting_atoms(interaction, pdb):
             if prefix in atom_1:
                 first_atom = pdb[
                     (pdb["auth_atom_id"].str.contains(prefix.replace("P", "")) & (pdb["auth_comp_id"] == res_1) & (
-                                pdb["auth_asym_id"] == chain_id_1) & (
+                            pdb["auth_asym_id"] == chain_id_1) & (
                              pdb["auth_seq_id"] == res_id_1))
                 ]
                 if not first_atom.empty:
@@ -175,7 +310,7 @@ def extract_interacting_atoms(interaction, pdb):
             if prefix in atom_2:
                 second_atom = pdb[
                     (pdb["auth_atom_id"].str.contains(prefix.replace("P", "")) & (pdb["auth_comp_id"] == res_2) & (
-                                pdb["auth_asym_id"] == chain_id_2) & (
+                            pdb["auth_asym_id"] == chain_id_2) & (
                              pdb["auth_seq_id"] == res_id_2))
                 ]
                 if not first_atom.empty:
@@ -218,7 +353,8 @@ def assemble_interaction_data(unique_interaction_data):
             elif "." in new_interaction_atom_2:
                 new_interaction_atom_2 = interaction[3].split(".")[0]
             hbond_interaction_assembly = HBondInteractionFactory(interaction[0], interaction[1], new_interaction_atom_1,
-                                                                 new_interaction_atom_2, float(interaction[4]), interaction[5],
+                                                                 new_interaction_atom_2, float(interaction[4]),
+                                                                 interaction[5],
                                                                  interaction[6])
             assembled_data.append(hbond_interaction_assembly)
     return assembled_data
@@ -800,76 +936,6 @@ def group_residues_by_chain(input_list: List[str]) -> Tuple[List[List[int]], Lis
         sorted_chain_ids.append(chain_id)
 
     return sorted_chain_residues, sorted_chain_ids
-
-
-class Motif:
-    """
-    Class to hold motif data. This data is final and should not be changed once built.
-    """
-
-    def __init__(self, motif_name: str, motif_type: str, pdb: str, size: str,
-                 sequence: str = None,
-                 res_list: List[str] = None, strands: Any = None, motif_pdb: pd.DataFrame = None) -> None:
-        """
-        Initialize a Motif object
-
-        Args:
-            motif_name (str): Name of the motif
-            motif_type (str): Motif type
-            pdb (str): PDB where motif is found
-            size (str): Size of motif; reflects the structure and means different things depending on the type of motif
-            sequence (str): Sequence in motif
-            res_list (list): List of residues in the motif
-            strands (list): List of strands in motif
-            motif_pdb (pd.DataFrame): PDB data of the motif
-
-        Returns:
-            None
-        """
-        self.motif_name = motif_name
-        self.motif_type = motif_type
-        self.pdb = pdb
-        self.size = size
-        self.sequence = sequence
-        self.res_list = res_list if res_list is not None else []
-        self.strands = strands if strands is not None else []
-        self.motif_pdb = motif_pdb if motif_pdb is not None else pd.DataFrame()
-
-
-class DSSRRes:
-    """
-    Class to hold residue data from DSSR notation.
-    """
-
-    def __init__(self, s: str) -> None:
-        """
-        Initialize a DSSRRes object.
-
-        Args:
-            s (str): Given residue (something like "C.G1515")
-
-        Returns:
-            None
-
-        """
-        s = s.split("^")[0]
-        spl = s.split(".")
-        cur_num = None
-        i_num = 0
-        for i, c in enumerate(spl[1]):
-            if c.isdigit():
-                cur_num = spl[1][i:]
-                cur_num = extract_longest_numeric_sequence(cur_num)
-                i_num = i
-                break
-        self.num = None
-        try:
-            if cur_num is not None:
-                self.num = int(cur_num)
-        except ValueError:
-            pass
-        self.chain_id = spl[0]
-        self.res_id = spl[1][0:i_num]
 
 
 def get_data_from_dssr(json_path: str) -> Tuple[List, List]:

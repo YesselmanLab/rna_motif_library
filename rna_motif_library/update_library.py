@@ -264,7 +264,7 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
     os.makedirs(motif_dir, exist_ok=True)
     os.makedirs(csv_dir, exist_ok=True)
 
-    # Interaction types
+    # Interaction types, load into CSV as header
     hbond_vals = [
         "base:base",
         "base:sugar",
@@ -281,11 +281,118 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
     ]
 
     count = 0
+    motifs_per_pdb = []
+    all_single_motif_interactions = []
+    all_potential_tert_contacts = []
+    all_interactions = []
     for pdb_path in pdbs:
         count += 1
-        dssr.process_motif_interaction_out_data(count, pdb_path, limit, pdb_name)
+        # Keep processed files under the limit if specified
+        if limit is not None and count > limit:
+            break
+        # Limit processing to specified PDB
+        name = os.path.basename(pdb_path)[:-4]
+        if (pdb_name != None) and (name != pdb_name):
+            break
+        built_motifs, interactions_in_motif, potential_tert_contacts, found_interactions = dssr.process_motif_interaction_out_data(
+            count, pdb_path)
+        motifs_per_pdb.append(built_motifs)
+        all_single_motif_interactions.append(interactions_in_motif)
+        all_potential_tert_contacts.append(potential_tert_contacts)
+        all_interactions.append(found_interactions)
 
-    """    # When all is said and done need to count number of motifs and print to CSV
+    # After you have motifs, print some data to a CSV
+    # First thing to print would be a list of all motifs and the residues inside them
+    # We can use this list when identifying tertiary contacts
+    # residues_in_motif.csv
+    residue_data = []
+    for motifs in motifs_per_pdb:
+        for motif in motifs:
+            motif_name = motif.motif_name
+            motif_residues = ",".join(motif.res_list)
+            # Append the data as a dictionary to the list
+            residue_data.append({"motif_name": motif_name, "residues": motif_residues})
+
+    residues_in_motif_df = pd.DataFrame(residue_data)
+    residues_in_motif_df.to_csv(os.path.join(csv_dir, "residues_in_motif.csv"), index=False)
+
+    # print all potential tertiary contacts to CSV
+    potential_tert_contact_data = []
+    for potential_contacts in all_potential_tert_contacts:
+        for potential_contact in potential_contacts:
+            motif_1 = potential_contact.motif_1
+            motif_2 = potential_contact.motif_2
+            res_1 = potential_contact.res_1
+            res_2 = potential_contact.res_2
+            atom_1 = potential_contact.atom_1
+            atom_2 = potential_contact.atom_2
+            type_1 = potential_contact.type_1
+            type_2 = potential_contact.type_2
+            # Interactions with amino acids are absolutely not tertiary contacts
+            if type_1 == "aa" or type_2 == "aa" or type_1 == "ligand" or type_2 == "ligand":
+                continue
+
+            # Append the filtered data to the list as a dictionary
+            potential_tert_contact_data.append({
+                "motif_1": motif_1,
+                "motif_2": motif_2,
+                "res_1": res_1,
+                "res_2": res_2,
+                "atom_1": atom_1,
+                "atom_2": atom_2,
+                "type_1": type_1,
+                "type_2": type_2
+            })
+    # Create a DataFrame from the list of dictionaries and spit to CSV
+    potential_tert_contact_df = pd.DataFrame(potential_tert_contact_data)
+    potential_tert_contact_df.to_csv(os.path.join(csv_dir, "potential_tertiary_contacts.csv"), index=False)
+
+    # Next we print a detailed list of every interaction we've found
+    # interactions_detailed.csv
+    interaction_data = []
+    for interaction_set in all_interactions:
+        for interaction in interaction_set:
+            res_1 = interaction.res_1
+            res_2 = interaction.res_2
+            atom_1 = interaction.atom_1
+            atom_2 = interaction.atom_2
+            type_1 = interaction.type_1
+            type_2 = interaction.type_2
+            distance = interaction.distance
+            angle = interaction.angle
+            pdb_name = interaction.pdb_name
+            mol_1 = dssr.DSSRRes(res_1).res_id
+            mol_2 = dssr.DSSRRes(res_2).res_id
+            # filter out ligands
+            if type_1 == "ligand" or type_2 == "ligand":
+                continue
+            # Append the data to the list as a dictionary
+            interaction_data.append({
+                "pdb_name": pdb_name,
+                "res_1": res_1,
+                "res_2": res_2,
+                "mol_1": mol_1,
+                "mol_2": mol_2,
+                "atom_1": atom_1,
+                "atom_2": atom_2,
+                "type_1": type_1,
+                "type_2": type_2,
+                "distance": distance,
+                "angle": angle
+            })
+    # Create a DataFrame from the list of dictionaries
+    interactions_detailed_df = pd.DataFrame(interaction_data)
+    interactions_detailed_df.to_csv(os.path.join(csv_dir, "interactions_detailed.csv"), index=False)
+
+    exit(0)
+
+    # Finally, using data from single motif interactions, we print a list of interactions in each motif by the type of interaction
+    # interactions.csv
+    # name,type,size,hbond_vals
+
+    # don't delete this code yet, need to fix this other stuff up here first
+    """    
+    # When all is said and done need to count number of motifs and print to CSV
     motif_directory = os.path.join("data/motifs")
     safe_mkdir(motif_directory)
     os.makedirs(motif_directory, exist_ok=True)
@@ -316,6 +423,7 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
     grouped_hbond_df = filtered_hbond_df.groupby(["res_atom_pair"])
     figure_plotting.save_present_hbonds(grouped_hbond_df=grouped_hbond_df)
     """
+
 
 def find_tertiary_contacts() -> None:
     """

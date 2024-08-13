@@ -29,11 +29,66 @@ canon_amino_acid_list = [
 ]
 
 
+class PotentialTertiaryContact:
+    def __init__(self, motif_1, motif_2, res_1, res_2, atom_1, atom_2, type_1, type_2, distance, angle):
+        """
+        Holds data about potential tertiary contacts.
+        Purpose is to get data ready for export to CSV and tertiary contacts.
+        Some data will be left out.
+
+        Args:
+
+
+        """
+        self.motif_1 = motif_1
+        self.motif_2 = motif_2
+        self.res_1 = res_1
+        self.res_2 = res_2
+        self.atom_1 = atom_1
+        self.atom_2 = atom_2
+        self.type_1 = type_1
+        self.type_2 = type_2
+        self.distance = distance
+        self.angle = angle
+
+
+class SingleMotifInteraction:
+
+    def __init__(self, motif_name, res_1, res_2, atom_1, atom_2, type_1, type_2, distance, angle):
+        """
+        Holds data for H-bond interactions within a single motif.
+        Purpose is to get data ready for export to CSV.
+        Therefore, some data from the HBondInteraction class will be left out.
+
+        Args:
+            motif_name (str): name of motif the interaction comes from
+            res_1 (str): residue 1 in the interaction
+            res_2 (str): residue 2 in the interaction
+            atom_1 (str): atom 1 in the interaction
+            atom_2 (str): atom 2 in the interaction
+            type_1 (str): component of residue 1 in interaction (base/sugar/phos/aa)
+            type_2 (str): component of residue 2 in interaction (base/sugar/phos/aa)
+            distance (float): distance of interaction, in angstroms
+            angle (float): dihedral angle of interaction, in degrees
+
+        """
+        self.motif_name = motif_name
+        self.res_1 = res_1
+        self.res_2 = res_2
+        self.atom_1 = atom_1
+        self.atom_2 = atom_2
+        self.type_1 = type_1
+        self.type_2 = type_2
+        self.distance = distance
+        self.angle = angle
+
+
 class HBondInteraction:
     def __init__(self, res_1, res_2, atom_1, atom_2, type_1, type_2, distance, angle, pdb, first_atom_df,
-                 second_atom_df, third_atom_df, fourth_atom_df):
+                 second_atom_df, third_atom_df, fourth_atom_df, pdb_name):
         """
-        Holds data for H-bond interaction
+        Holds data for H-bond interaction.
+        Used to store all the data about interactions.
 
         Args:
             res_1 (str): residue 1 in the interaction
@@ -45,11 +100,11 @@ class HBondInteraction:
             distance (float): distance between atoms in interaction
             angle (float): dihedral angle between two residues
             pdb (pd.DataFrame): interaction PDB
-
             first_atom_df (pd.DataFrame): PDB of the first atom in the interaction
             second_atom_df (pd.DataFrame): PDB of the second atom in the interaction
             third_atom_df (pd.DataFrame): PDB of the third atom connected to the first atom
             fourth_atom_df (pd.DataFrame): PDB of the fourth atom connected to the second atom
+            pdb_name (str): name of PDB interaction comes from
 
         """
         self.res_1 = res_1
@@ -65,11 +120,12 @@ class HBondInteraction:
         self.second_atom_df = second_atom_df
         self.third_atom_df = third_atom_df
         self.fourth_atom_df = fourth_atom_df
+        self.pdb_name = pdb_name
 
 
 class HBondInteractionFactory:
     """
-    Intermediate class to assist in building complete HBondInteraction data
+    Intermediate class to assist in building complete HBondInteraction data.
 
     Args:
         res_1 (str): residue 1 ID
@@ -222,7 +278,6 @@ def print_interactions_to_csv(
         + type_2
         + "\n"
     )
-
 
 
 def find_atoms(residue: pd.DataFrame, atom_id: str) -> pd.DataFrame:
@@ -438,7 +493,6 @@ def calculate_bond_angle(
         carbon_atom_data (tuple): A tuple with the carbon atom type and its coordinates.
 
     """
-
 
     # Extract coordinates
     x1, y1, z1 = (
