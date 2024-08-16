@@ -1,111 +1,18 @@
 import os
 import re
-from json import JSONDecodeError
 from typing import List, Any, Tuple, Dict
 import pandas as pd
 import numpy as np
-from pandas import DataFrame
 
 from pydssr.dssr import DSSROutput
 from pydssr.dssr_classes import DSSR_HBOND
 
-from rna_motif_library.update_library import PandasMmcifOverride, get_dssr_files
+from rna_motif_library.classes import SingleMotifInteraction, PotentialTertiaryContact, DSSRRes, \
+    HBondInteractionFactory, canon_amino_acid_list, Motif, extract_longest_numeric_sequence, PandasMmcifOverride, \
+    Residue, HBondInteraction
+from rna_motif_library.dssr_hbonds import dataframe_to_cif, find_closest_atom, calculate_bond_angle
 from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.snap import get_rnp_interactions
-from rna_motif_library.dssr_hbonds import extract_longest_numeric_sequence, dataframe_to_cif, canon_amino_acid_list, \
-    HBondInteraction, HBondInteractionFactory, find_atoms, find_closest_atom, calculate_bond_angle, \
-    SingleMotifInteraction, PotentialTertiaryContact
-
-
-class Motif:
-    """
-    Class to hold motif data. This data is final and should not be changed once built.
-    """
-
-    def __init__(self, motif_name: str, motif_type: str, pdb: str, size: str,
-                 sequence: str = None,
-                 res_list: List[str] = None, strands: Any = None, motif_pdb: pd.DataFrame = None) -> None:
-        """
-        Initialize a Motif object
-
-        Args:
-            motif_name (str): Name of the motif
-            motif_type (str): Motif type
-            pdb (str): PDB where motif is found
-            size (str): Size of motif; reflects the structure and means different things depending on the type of motif
-            sequence (str): Sequence in motif
-            res_list (list): List of residues in the motif
-            strands (list): List of strands in motif
-            motif_pdb (pd.DataFrame): PDB data of the motif
-
-        Returns:
-            None
-        """
-        self.motif_name = motif_name
-        self.motif_type = motif_type
-        self.pdb = pdb
-        self.size = size
-        self.sequence = sequence
-        self.res_list = res_list if res_list is not None else []
-        self.strands = strands if strands is not None else []
-        self.motif_pdb = motif_pdb if motif_pdb is not None else pd.DataFrame()
-
-
-class DSSRRes:
-    """
-    Class that takes DSSR residue notation.
-    Stores and dissects information from DSSR residue notation.
-    """
-
-    def __init__(self, s: str) -> None:
-        """
-        Initialize a DSSRRes object.
-
-        Args:
-            s (str): Given residue (something like "C.G1515")
-
-        Returns:
-            None
-
-        """
-        s = s.split("^")[0]
-        spl = s.split(".")
-        cur_num = None
-        i_num = 0
-        for i, c in enumerate(spl[1]):
-            if c.isdigit():
-                cur_num = spl[1][i:]
-                cur_num = extract_longest_numeric_sequence(cur_num)
-                i_num = i
-                break
-        self.num = None
-        try:
-            if cur_num is not None:
-                self.num = int(cur_num)
-        except ValueError:
-            pass
-        self.chain_id = spl[0]
-        self.res_id = spl[1][0:i_num]
-
-
-class Residue:
-    """
-    Class to hold data on individual residues, used for building strands and sequences in find_strands
-
-    Args:
-        chain_id (str): chain ID
-        res_id (str): residue ID
-        ins_code (str): ID code, sometimes used instead of residue ID, often is None
-        mol_name (str): molecule name
-        pdb (pd.DataFrame): DataFrame to hold the actual contents of the residue obtained from the .cif file
-    """
-
-    def __init__(self, chain_id, res_id, ins_code, mol_name, pdb):
-        self.chain_id = chain_id
-        self.res_id = res_id
-        self.ins_code = ins_code
-        self.mol_name = mol_name
-        self.pdb = pdb
 
 
 def process_motif_interaction_out_data(
@@ -163,8 +70,10 @@ def process_motif_interaction_out_data(
         potential_tert_contact_motif_1 = []
         potential_tert_contact_motif_2 = []
         for interaction in assembled_interaction_data:
-            if interaction.res_1 in residues_in_motif and interaction.res_2 in residues_in_motif:
-                # H-bonds fully inside motif
+            if (interaction.res_1 in residues_in_motif and interaction.res_2 in residues_in_motif) or (
+                    interaction.type_1 == "aa" and interaction.res_2 in residues_in_motif) or (
+                    interaction.type_2 == "aa" and interaction.res_1 in residues_in_motif):
+                # H-bonds fully inside motif (or RNP interactions with the motif)
                 interactions_in_motif.append(interaction)
             elif interaction.res_1 in residues_in_motif:
                 # H-bonds with 1 residue in motif and 1 outside

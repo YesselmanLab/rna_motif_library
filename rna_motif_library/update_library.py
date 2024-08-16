@@ -7,88 +7,17 @@ import os
 import threading
 import concurrent.futures
 
-from typing import Dict
 import pandas as pd
 from tqdm import tqdm
 
 from pydssr.dssr import write_dssr_json_output_to_file
-from biopandas.mmcif.pandas_mmcif import PandasMmcif
-from biopandas.mmcif.mmcif_parser import load_cif_data
-from biopandas.mmcif.engines import mmcif_col_types
-from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
 
-from rna_motif_library import tert_contacts
+from rna_motif_library import tert_contacts, dssr_hbonds
 from rna_motif_library.snap import generate_out_file
 from rna_motif_library import dssr
 from rna_motif_library import figure_plotting
 from rna_motif_library.settings import LIB_PATH, DSSR_EXE
 from rna_motif_library.figure_plotting import safe_mkdir
-
-canon_res_list = [
-    "A",
-    "ALA",
-    "ARG",
-    "ASN",
-    "ASP",
-    "CYS",
-    "C",
-    "G",
-    "GLN",
-    "GLU",
-    "GLY",
-    "HIS",
-    "ILE",
-    "LEU",
-    "LYS",
-    "MET",
-    "PHE",
-    "PRO",
-    "SER",
-    "THR",
-    "TRP",
-    "TYR",
-    "U",
-    "VAL",
-]
-
-
-class PandasMmcifOverride(PandasMmcif):
-    """
-    Class to override standard behavior for handling mmCIF files in Pandas,
-    particularly to address inconsistencies between ATOM and HETATM records.
-
-    """
-
-    def _construct_df(self, text: str) -> pd.DataFrame:
-        """
-        Constructs a DataFrame from mmCIF text.
-
-        Args:
-            text (str): The mmCIF file content as a string.
-
-        Returns:
-            combined_df (pd.DataFrame): A combined DataFrame of ATOM and HETATM records.
-
-        """
-        data = load_cif_data(text)
-        data = data[list(data.keys())[0]]
-        self.data = data
-
-        df: Dict[str, pd.DataFrame] = {}
-        full_df = pd.DataFrame.from_dict(data["atom_site"], orient="index").transpose()
-        full_df = full_df.astype(mmcif_col_types, errors="ignore")
-
-        # Combine ATOM and HETATM records into a single DataFrame
-        combined_df = pd.DataFrame(
-            full_df[(full_df.group_PDB == "ATOM") | (full_df.group_PDB == "HETATM")]
-        )
-
-        try:
-            df["ANISOU"] = pd.DataFrame(data["atom_site_anisotrop"])
-        except KeyError:
-            df["ANISOU"] = pd.DataFrame(columns=ANISOU_DF_COLUMNS)
-
-        return combined_df  # Return the combined DataFrame
 
 
 def download_cif_files(csv_path: str, threads: int) -> None:
@@ -301,14 +230,14 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
         all_potential_tert_contacts.append(potential_tert_contacts)
         all_interactions.append(found_interactions)
 
-    print_obtained_motif_interaction_data_to_csv(motifs_per_pdb, all_potential_tert_contacts, all_interactions, all_single_motif_interactions, csv_dir)
+    dssr_hbonds.print_obtained_motif_interaction_data_to_csv(motifs_per_pdb, all_potential_tert_contacts,
+                                                             all_interactions, all_single_motif_interactions, csv_dir)
 
     # Finally, using data from single motif interactions, we print a list of interactions in each motif by the type of interaction
     # interactions.csv
     # name,type,size,hbond_vals
 
-
-
+    # First import the data and go through changing the data
 
     # don't delete this code yet, need to fix this other stuff up here first
     """    
@@ -343,126 +272,6 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
     grouped_hbond_df = filtered_hbond_df.groupby(["res_atom_pair"])
     figure_plotting.save_present_hbonds(grouped_hbond_df=grouped_hbond_df)
     """
-
-def print_obtained_motif_interaction_data_to_csv(motifs_per_pdb, all_potential_tert_contacts, all_interactions, all_single_motif_interactions, csv_dir):
-    # After you have motifs, print some data to a CSV
-    # First thing to print would be a list of all motifs and the residues inside them
-    # We can use this list when identifying tertiary contacts
-    # residues_in_motif.csv
-    residue_data = []
-    for motifs in motifs_per_pdb:
-        for motif in motifs:
-            motif_name = motif.motif_name
-            motif_residues = ",".join(motif.res_list)
-            # Append the data as a dictionary to the list
-            residue_data.append({"motif_name": motif_name, "residues": motif_residues})
-
-    residues_in_motif_df = pd.DataFrame(residue_data)
-    residues_in_motif_df.to_csv(os.path.join(csv_dir, "residues_in_motif.csv"), index=False)
-
-    # print all potential tertiary contacts to CSV
-    potential_tert_contact_data = []
-    for potential_contacts in all_potential_tert_contacts:
-        for potential_contact in potential_contacts:
-            motif_1 = potential_contact.motif_1
-            motif_2 = potential_contact.motif_2
-            res_1 = potential_contact.res_1
-            res_2 = potential_contact.res_2
-            atom_1 = potential_contact.atom_1
-            atom_2 = potential_contact.atom_2
-            type_1 = potential_contact.type_1
-            type_2 = potential_contact.type_2
-            # Interactions with amino acids are absolutely not tertiary contacts
-            if type_1 == "aa" or type_2 == "aa" or type_1 == "ligand" or type_2 == "ligand":
-                continue
-
-            # Append the filtered data to the list as a dictionary
-            potential_tert_contact_data.append({
-                "motif_1": motif_1,
-                "motif_2": motif_2,
-                "res_1": res_1,
-                "res_2": res_2,
-                "atom_1": atom_1,
-                "atom_2": atom_2,
-                "type_1": type_1,
-                "type_2": type_2
-            })
-    # Create a DataFrame from the list of dictionaries and spit to CSV
-    potential_tert_contact_df = pd.DataFrame(potential_tert_contact_data)
-    potential_tert_contact_df.to_csv(os.path.join(csv_dir, "potential_tertiary_contacts.csv"), index=False)
-
-    # Next we print a detailed list of every interaction we've found
-    # interactions_detailed.csv
-    interaction_data = []
-    for interaction_set in all_interactions:
-        for interaction in interaction_set:
-            res_1 = interaction.res_1
-            res_2 = interaction.res_2
-            atom_1 = interaction.atom_1
-            atom_2 = interaction.atom_2
-            type_1 = interaction.type_1
-            type_2 = interaction.type_2
-            distance = interaction.distance
-            angle = interaction.angle
-            pdb_name = interaction.pdb_name
-            mol_1 = dssr.DSSRRes(res_1).res_id
-            mol_2 = dssr.DSSRRes(res_2).res_id
-            # filter out ligands
-            if type_1 == "ligand" or type_2 == "ligand":
-                continue
-            # Append the data to the list as a dictionary
-            interaction_data.append({
-                "pdb_name": pdb_name,
-                "res_1": res_1,
-                "res_2": res_2,
-                "mol_1": mol_1,
-                "mol_2": mol_2,
-                "atom_1": atom_1,
-                "atom_2": atom_2,
-                "type_1": type_1,
-                "type_2": type_2,
-                "distance": distance,
-                "angle": angle
-            })
-    # Create a DataFrame from the list of dictionaries
-    interactions_detailed_df = pd.DataFrame(interaction_data)
-    interactions_detailed_df.to_csv(os.path.join(csv_dir, "interactions_detailed.csv"), index=False)
-
-    # Single motif interactions
-    # single_motif_interactions.csv
-    single_motif_interaction_data = []
-    for interaction_set in all_single_motif_interactions:
-        for interaction in interaction_set:
-            res_1 = interaction.res_1
-            res_2 = interaction.res_2
-            atom_1 = interaction.atom_1
-            atom_2 = interaction.atom_2
-            type_1 = interaction.type_1
-            type_2 = interaction.type_2
-            distance = interaction.distance
-            angle = interaction.angle
-            motif_name = interaction.motif_name
-            mol_1 = dssr.DSSRRes(res_1).res_id
-            mol_2 = dssr.DSSRRes(res_2).res_id
-            # filter out ligands
-            if type_1 == "ligand" or type_2 == "ligand":
-                continue
-            # Append the data to the list as a dictionary
-            single_motif_interaction_data.append({
-                "motif_name": motif_name,
-                "res_1": res_1,
-                "res_2": res_2,
-                "mol_1": mol_1,
-                "mol_2": mol_2,
-                "atom_1": atom_1,
-                "atom_2": atom_2,
-                "type_1": type_1,
-                "type_2": type_2,
-                "distance": distance,
-                "angle": angle
-            })
-    single_motif_interaction_data_df = pd.DataFrame(single_motif_interaction_data)
-    single_motif_interaction_data_df.to_csv(os.path.join(csv_dir, "single_motif_interaction.csv"), index=False)
 
 
 def find_tertiary_contacts() -> None:

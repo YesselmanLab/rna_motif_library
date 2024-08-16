@@ -1,151 +1,132 @@
 import math
 import os
-from typing import Tuple, List, Dict, IO, Any
-
 import numpy as np
 import pandas as pd
 
-canon_amino_acid_list = [
-    "ALA",
-    "ARG",
-    "ASN",
-    "ASP",
-    "CYS",
-    "GLN",
-    "GLU",
-    "GLY",
-    "HIS",
-    "ILE",
-    "LEU",
-    "LYS",
-    "MET",
-    "PHE",
-    "PRO",
-    "SER",
-    "THR",
-    "TRP",
-    "TYR",
-    "VAL",
-]
+from typing import Tuple, List, Dict, IO
+from classes import DSSRRes, HBondInteraction, extract_longest_numeric_sequence, canon_amino_acid_list
 
 
-class PotentialTertiaryContact:
-    def __init__(self, motif_1, motif_2, res_1, res_2, atom_1, atom_2, type_1, type_2, distance, angle):
-        """
-        Holds data about potential tertiary contacts.
-        Purpose is to get data ready for export to CSV and tertiary contacts.
-        Some data will be left out.
+def print_obtained_motif_interaction_data_to_csv(motifs_per_pdb, all_potential_tert_contacts, all_interactions,
+                                                 all_single_motif_interactions, csv_dir):
+    # After you have motifs, print some data to a CSV
+    # First thing to print would be a list of all motifs and the residues inside them
+    # We can use this list when identifying tertiary contacts
+    # residues_in_motif.csv
+    residue_data = []
+    for motifs in motifs_per_pdb:
+        for motif in motifs:
+            motif_name = motif.motif_name
+            motif_residues = ",".join(motif.res_list)
+            # Append the data as a dictionary to the list
+            residue_data.append({"motif_name": motif_name, "residues": motif_residues})
 
-        Args:
+    residues_in_motif_df = pd.DataFrame(residue_data)
+    residues_in_motif_df.to_csv(os.path.join(csv_dir, "residues_in_motif.csv"), index=False)
 
+    # print all potential tertiary contacts to CSV
+    potential_tert_contact_data = []
+    for potential_contacts in all_potential_tert_contacts:
+        for potential_contact in potential_contacts:
+            motif_1 = potential_contact.motif_1
+            motif_2 = potential_contact.motif_2
+            res_1 = potential_contact.res_1
+            res_2 = potential_contact.res_2
+            atom_1 = potential_contact.atom_1
+            atom_2 = potential_contact.atom_2
+            type_1 = potential_contact.type_1
+            type_2 = potential_contact.type_2
+            # Interactions with amino acids are absolutely not tertiary contacts
+            if type_1 == "aa" or type_2 == "aa" or type_1 == "ligand" or type_2 == "ligand":
+                continue
 
-        """
-        self.motif_1 = motif_1
-        self.motif_2 = motif_2
-        self.res_1 = res_1
-        self.res_2 = res_2
-        self.atom_1 = atom_1
-        self.atom_2 = atom_2
-        self.type_1 = type_1
-        self.type_2 = type_2
-        self.distance = distance
-        self.angle = angle
+            # Append the filtered data to the list as a dictionary
+            potential_tert_contact_data.append({
+                "motif_1": motif_1,
+                "motif_2": motif_2,
+                "res_1": res_1,
+                "res_2": res_2,
+                "atom_1": atom_1,
+                "atom_2": atom_2,
+                "type_1": type_1,
+                "type_2": type_2
+            })
+    # Create a DataFrame from the list of dictionaries and spit to CSV
+    potential_tert_contact_df = pd.DataFrame(potential_tert_contact_data)
+    potential_tert_contact_df.to_csv(os.path.join(csv_dir, "potential_tertiary_contacts.csv"), index=False)
 
+    # Next we print a detailed list of every interaction we've found
+    # interactions_detailed.csv
+    interaction_data = []
+    for interaction_set in all_interactions:
+        for interaction in interaction_set:
+            res_1 = interaction.res_1
+            res_2 = interaction.res_2
+            atom_1 = interaction.atom_1
+            atom_2 = interaction.atom_2
+            type_1 = interaction.type_1
+            type_2 = interaction.type_2
+            distance = interaction.distance
+            angle = interaction.angle
+            pdb_name = interaction.pdb_name
+            mol_1 = DSSRRes(res_1).res_id
+            mol_2 = DSSRRes(res_2).res_id
+            # filter out ligands
+            if type_1 == "ligand" or type_2 == "ligand":
+                continue
+            # Append the data to the list as a dictionary
+            interaction_data.append({
+                "pdb_name": pdb_name,
+                "res_1": res_1,
+                "res_2": res_2,
+                "mol_1": mol_1,
+                "mol_2": mol_2,
+                "atom_1": atom_1,
+                "atom_2": atom_2,
+                "type_1": type_1,
+                "type_2": type_2,
+                "distance": distance,
+                "angle": angle
+            })
+    # Create a DataFrame from the list of dictionaries
+    interactions_detailed_df = pd.DataFrame(interaction_data)
+    interactions_detailed_df.to_csv(os.path.join(csv_dir, "interactions_detailed.csv"), index=False)
 
-class SingleMotifInteraction:
-
-    def __init__(self, motif_name, res_1, res_2, atom_1, atom_2, type_1, type_2, distance, angle):
-        """
-        Holds data for H-bond interactions within a single motif.
-        Purpose is to get data ready for export to CSV.
-        Therefore, some data from the HBondInteraction class will be left out.
-
-        Args:
-            motif_name (str): name of motif the interaction comes from
-            res_1 (str): residue 1 in the interaction
-            res_2 (str): residue 2 in the interaction
-            atom_1 (str): atom 1 in the interaction
-            atom_2 (str): atom 2 in the interaction
-            type_1 (str): component of residue 1 in interaction (base/sugar/phos/aa)
-            type_2 (str): component of residue 2 in interaction (base/sugar/phos/aa)
-            distance (float): distance of interaction, in angstroms
-            angle (float): dihedral angle of interaction, in degrees
-
-        """
-        self.motif_name = motif_name
-        self.res_1 = res_1
-        self.res_2 = res_2
-        self.atom_1 = atom_1
-        self.atom_2 = atom_2
-        self.type_1 = type_1
-        self.type_2 = type_2
-        self.distance = distance
-        self.angle = angle
-
-
-class HBondInteraction:
-    def __init__(self, res_1, res_2, atom_1, atom_2, type_1, type_2, distance, angle, pdb, first_atom_df,
-                 second_atom_df, third_atom_df, fourth_atom_df, pdb_name):
-        """
-        Holds data for H-bond interaction.
-        Used to store all the data about interactions.
-
-        Args:
-            res_1 (str): residue 1 in the interaction
-            res_2 (str): residue 2 in the interaction
-            atom_1 (str): atom 1 in the interaction
-            atom_2 (str): atom 2 in the interaction
-            type_1 (str): residue type 1 in the interaction
-            type_2 (str): residue type 2 in the interaction
-            distance (float): distance between atoms in interaction
-            angle (float): dihedral angle between two residues
-            pdb (pd.DataFrame): interaction PDB
-            first_atom_df (pd.DataFrame): PDB of the first atom in the interaction
-            second_atom_df (pd.DataFrame): PDB of the second atom in the interaction
-            third_atom_df (pd.DataFrame): PDB of the third atom connected to the first atom
-            fourth_atom_df (pd.DataFrame): PDB of the fourth atom connected to the second atom
-            pdb_name (str): name of PDB interaction comes from
-
-        """
-        self.res_1 = res_1
-        self.res_2 = res_2
-        self.atom_1 = atom_1
-        self.atom_2 = atom_2
-        self.type_1 = type_1
-        self.type_2 = type_2
-        self.distance = distance
-        self.angle = angle
-        self.pdb = pdb
-        self.first_atom_df = first_atom_df
-        self.second_atom_df = second_atom_df
-        self.third_atom_df = third_atom_df
-        self.fourth_atom_df = fourth_atom_df
-        self.pdb_name = pdb_name
-
-
-class HBondInteractionFactory:
-    """
-    Intermediate class to assist in building complete HBondInteraction data.
-
-    Args:
-        res_1 (str): residue 1 ID
-        res_2 (str): residue 2 ID
-        atom_1 (str): atom 1 ID
-        atom_2 (str): atom 2 ID
-        distance (float): distance between interacting atoms (in angstroms)
-        residue_pair (str): pair comparing the types as returned by DSSR
-        quality (str): quality of h-bond
-
-    """
-
-    def __init__(self, res_1, res_2, atom_1, atom_2, distance, residue_pair, quality):
-        self.res_1 = res_1
-        self.res_2 = res_2
-        self.atom_1 = atom_1
-        self.atom_2 = atom_2
-        self.distance = distance
-        self.residue_pair = residue_pair
-        self.quality = quality
+    # Single motif interactions
+    # single_motif_interactions.csv
+    single_motif_interaction_data = []
+    for interaction_set in all_single_motif_interactions:
+        for interaction in interaction_set:
+            res_1 = interaction.res_1
+            res_2 = interaction.res_2
+            atom_1 = interaction.atom_1
+            atom_2 = interaction.atom_2
+            type_1 = interaction.type_1
+            type_2 = interaction.type_2
+            distance = interaction.distance
+            angle = interaction.angle
+            motif_name = interaction.motif_name
+            mol_1 = DSSRRes(res_1).res_id
+            mol_2 = DSSRRes(res_2).res_id
+            # filter out ligands
+            if type_1 == "ligand" or type_2 == "ligand":
+                continue
+            # Append the data to the list as a dictionary
+            single_motif_interaction_data.append({
+                "motif_name": motif_name,
+                "res_1": res_1,
+                "res_2": res_2,
+                "mol_1": mol_1,
+                "mol_2": mol_2,
+                "atom_1": atom_1,
+                "atom_2": atom_2,
+                "type_1": type_1,
+                "type_2": type_2,
+                "distance": distance,
+                "angle": angle
+            })
+    single_motif_interaction_data_df = pd.DataFrame(single_motif_interaction_data)
+    single_motif_interaction_data_df.to_csv(os.path.join(csv_dir, "single_motif_interaction.csv"), index=False)
 
 
 def extract_hbonds_from_dssr():
@@ -382,31 +363,6 @@ def extract_residues_from_interaction_source(
         atom_2,
         distance_ext,
     )
-
-
-def extract_longest_numeric_sequence(input_string: str) -> str:
-    """
-    Extracts the longest numeric sequence from a given string.
-
-    Args:
-        input_string (str): The string to extract the numeric sequence from.
-
-    Returns:
-        longest_sequence (str): The longest numeric sequence found in the input string.
-
-    """
-    longest_sequence = ""
-    current_sequence = ""
-    for c in input_string:
-        if c.isdigit() or (
-                c == "-" and (not current_sequence or current_sequence[0] == "-")
-        ):
-            current_sequence += c
-            if len(current_sequence) >= len(longest_sequence):
-                longest_sequence = current_sequence
-        else:
-            current_sequence = ""
-    return longest_sequence
 
 
 def find_closest_atom(
