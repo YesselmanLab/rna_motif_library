@@ -254,6 +254,7 @@ def build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_d
         first_atom, second_atom = extract_interacting_atoms(interaction, pdb)
         third_atom, fourth_atom = find_closest_atom(first_atom, pdb), find_closest_atom(second_atom, pdb)
         if first_atom.empty or second_atom.empty:
+            # print(pdb)
             # print("EMPTY ATOM")
             # TODO come back to this, this is a placeholder; there aren't that many of these relative to the rest of interactions but need to look at
             continue

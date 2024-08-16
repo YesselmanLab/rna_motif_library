@@ -301,6 +301,50 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
         all_potential_tert_contacts.append(potential_tert_contacts)
         all_interactions.append(found_interactions)
 
+    print_obtained_motif_interaction_data_to_csv(motifs_per_pdb, all_potential_tert_contacts, all_interactions, all_single_motif_interactions, csv_dir)
+
+    # Finally, using data from single motif interactions, we print a list of interactions in each motif by the type of interaction
+    # interactions.csv
+    # name,type,size,hbond_vals
+
+
+
+
+    # don't delete this code yet, need to fix this other stuff up here first
+    """    
+    # When all is said and done need to count number of motifs and print to CSV
+    motif_directory = os.path.join("data/motifs")
+    safe_mkdir(motif_directory)
+    os.makedirs(motif_directory, exist_ok=True)
+    output_csv = os.path.join("data/out_csvs/motif_cif_counts.csv")
+    write_counts_to_csv(motif_directory, output_csv)
+
+    # Need to print data for every H-bond group
+    hbond_df_unfiltered = pd.read_csv("data/out_csvs/interactions_detailed.csv")
+    filtered_data = []
+    # Iterate through each row in the unfiltered DataFrame
+    for index, row in hbond_df_unfiltered.iterrows():
+        motif_1_split = row["name"].split(".")
+        # Check conditions for deletion
+        if motif_1_split[0] == "HAIRPIN" and 0 < float(motif_1_split[2]) < 3:
+            continue
+        else:
+            filtered_data.append(row)
+    hbond_df = pd.DataFrame(filtered_data)
+    hbond_df.reset_index(drop=True, inplace=True)
+    filtered_hbond_df = hbond_df[
+        hbond_df["res_1_name"].isin(canon_res_list)
+        & hbond_df["res_2_name"].isin(canon_res_list)
+        ]
+    filtered_hbond_df["res_atom_pair"] = filtered_hbond_df.apply(
+        lambda row: tuple(sorted([(row["res_1_name"], row["atom_1"]), (row["res_2_name"], row["atom_2"])])),
+        axis=1,
+    )
+    grouped_hbond_df = filtered_hbond_df.groupby(["res_atom_pair"])
+    figure_plotting.save_present_hbonds(grouped_hbond_df=grouped_hbond_df)
+    """
+
+def print_obtained_motif_interaction_data_to_csv(motifs_per_pdb, all_potential_tert_contacts, all_interactions, all_single_motif_interactions, csv_dir):
     # After you have motifs, print some data to a CSV
     # First thing to print would be a list of all motifs and the residues inside them
     # We can use this list when identifying tertiary contacts
@@ -384,45 +428,41 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
     interactions_detailed_df = pd.DataFrame(interaction_data)
     interactions_detailed_df.to_csv(os.path.join(csv_dir, "interactions_detailed.csv"), index=False)
 
-    exit(0)
-
-    # Finally, using data from single motif interactions, we print a list of interactions in each motif by the type of interaction
-    # interactions.csv
-    # name,type,size,hbond_vals
-
-    # don't delete this code yet, need to fix this other stuff up here first
-    """    
-    # When all is said and done need to count number of motifs and print to CSV
-    motif_directory = os.path.join("data/motifs")
-    safe_mkdir(motif_directory)
-    os.makedirs(motif_directory, exist_ok=True)
-    output_csv = os.path.join("data/out_csvs/motif_cif_counts.csv")
-    write_counts_to_csv(motif_directory, output_csv)
-
-    # Need to print data for every H-bond group
-    hbond_df_unfiltered = pd.read_csv("data/out_csvs/interactions_detailed.csv")
-    filtered_data = []
-    # Iterate through each row in the unfiltered DataFrame
-    for index, row in hbond_df_unfiltered.iterrows():
-        motif_1_split = row["name"].split(".")
-        # Check conditions for deletion
-        if motif_1_split[0] == "HAIRPIN" and 0 < float(motif_1_split[2]) < 3:
-            continue
-        else:
-            filtered_data.append(row)
-    hbond_df = pd.DataFrame(filtered_data)
-    hbond_df.reset_index(drop=True, inplace=True)
-    filtered_hbond_df = hbond_df[
-        hbond_df["res_1_name"].isin(canon_res_list)
-        & hbond_df["res_2_name"].isin(canon_res_list)
-        ]
-    filtered_hbond_df["res_atom_pair"] = filtered_hbond_df.apply(
-        lambda row: tuple(sorted([(row["res_1_name"], row["atom_1"]), (row["res_2_name"], row["atom_2"])])),
-        axis=1,
-    )
-    grouped_hbond_df = filtered_hbond_df.groupby(["res_atom_pair"])
-    figure_plotting.save_present_hbonds(grouped_hbond_df=grouped_hbond_df)
-    """
+    # Single motif interactions
+    # single_motif_interactions.csv
+    single_motif_interaction_data = []
+    for interaction_set in all_single_motif_interactions:
+        for interaction in interaction_set:
+            res_1 = interaction.res_1
+            res_2 = interaction.res_2
+            atom_1 = interaction.atom_1
+            atom_2 = interaction.atom_2
+            type_1 = interaction.type_1
+            type_2 = interaction.type_2
+            distance = interaction.distance
+            angle = interaction.angle
+            motif_name = interaction.motif_name
+            mol_1 = dssr.DSSRRes(res_1).res_id
+            mol_2 = dssr.DSSRRes(res_2).res_id
+            # filter out ligands
+            if type_1 == "ligand" or type_2 == "ligand":
+                continue
+            # Append the data to the list as a dictionary
+            single_motif_interaction_data.append({
+                "motif_name": motif_name,
+                "res_1": res_1,
+                "res_2": res_2,
+                "mol_1": mol_1,
+                "mol_2": mol_2,
+                "atom_1": atom_1,
+                "atom_2": atom_2,
+                "type_1": type_1,
+                "type_2": type_2,
+                "distance": distance,
+                "angle": angle
+            })
+    single_motif_interaction_data_df = pd.DataFrame(single_motif_interaction_data)
+    single_motif_interaction_data_df.to_csv(os.path.join(csv_dir, "single_motif_interaction.csv"), index=False)
 
 
 def find_tertiary_contacts() -> None:
