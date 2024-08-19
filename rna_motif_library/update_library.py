@@ -227,7 +227,7 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
             built_motifs,
             interactions_in_motif,
             potential_tert_contacts,
-            found_interactions
+            found_interactions,
         ) = dssr.process_motif_interaction_out_data(count, pdb_path)
         motifs_per_pdb.append(built_motifs)
         all_single_motif_interactions.append(interactions_in_motif)
@@ -253,21 +253,23 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
     rows = []
 
     # Group the DataFrame by 'motif_name'
-    grouped = interactions_df.groupby('motif_name')
+    grouped = interactions_df.groupby("motif_name")
 
     # Iterate over each group
     for motif_name, group in grouped:
         # Initialize a dictionary to hold the counts for the current motif_name
-        counts_dict = {'motif_name': motif_name}
+        counts_dict = {"motif_name": motif_name}
 
         # Extract the 'type' from 'motif_name' by splitting the string by "."
-        counts_dict['type'] = motif_name.split('.')[0]
+        counts_dict["type"] = motif_name.split(".")[0]
 
         # Iterate over each hbond_val to count occurrences
         for hbond in hbond_vals:
-            col1, col2 = hbond.split(':')
+            col1, col2 = hbond.split(":")
             # Count the occurrences of this specific combination within the group
-            count = group[(group['type_1'] == col1) & (group['type_2'] == col2)].shape[0]
+            count = group[(group["type_1"] == col1) & (group["type_2"] == col2)].shape[
+                0
+            ]
             counts_dict[hbond] = count
 
         # Append the dictionary to the rows list
@@ -277,12 +279,7 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
     result_df = pd.DataFrame(rows)
 
     # Save the DataFrame to a CSV file, including the new 'type' column
-    result_df.to_csv(os.path.join(csv_dir, 'interactions.csv'), index=False)
-
-    exit(0)
-
-
-
+    result_df.to_csv(os.path.join(csv_dir, "interactions.csv"), index=False)
 
     # don't delete this code yet, need to fix this other stuff up here first
     """    
