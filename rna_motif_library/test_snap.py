@@ -1,6 +1,7 @@
 import settings
 from snap import get_rnp_interactions
 
+
 def test_snap() -> None:
     """
     Tests the retrieval of interactions from SNAP

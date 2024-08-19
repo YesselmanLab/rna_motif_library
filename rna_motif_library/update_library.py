@@ -223,21 +223,66 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
         name = os.path.basename(pdb_path)[:-4]
         if (pdb_name != None) and (name != pdb_name):
             break
-        built_motifs, interactions_in_motif, potential_tert_contacts, found_interactions = dssr.process_motif_interaction_out_data(
-            count, pdb_path)
+        (
+            built_motifs,
+            interactions_in_motif,
+            potential_tert_contacts,
+            found_interactions
+        ) = dssr.process_motif_interaction_out_data(count, pdb_path)
         motifs_per_pdb.append(built_motifs)
         all_single_motif_interactions.append(interactions_in_motif)
         all_potential_tert_contacts.append(potential_tert_contacts)
         all_interactions.append(found_interactions)
 
-    dssr_hbonds.print_obtained_motif_interaction_data_to_csv(motifs_per_pdb, all_potential_tert_contacts,
-                                                             all_interactions, all_single_motif_interactions, csv_dir)
+    dssr_hbonds.print_obtained_motif_interaction_data_to_csv(
+        motifs_per_pdb,
+        all_potential_tert_contacts,
+        all_interactions,
+        all_single_motif_interactions,
+        csv_dir,
+    )
 
     # Finally, using data from single motif interactions, we print a list of interactions in each motif by the type of interaction
     # interactions.csv
     # name,type,size,hbond_vals
 
-    # First import the data and go through changing the data
+    # Assuming 'csv_dir' is defined and the path to the CSV files is set
+    interactions_df = pd.read_csv(os.path.join(csv_dir, "single_motif_interaction.csv"))
+
+    # Initialize a list to hold the rows for the final DataFrame
+    rows = []
+
+    # Group the DataFrame by 'motif_name'
+    grouped = interactions_df.groupby('motif_name')
+
+    # Iterate over each group
+    for motif_name, group in grouped:
+        # Initialize a dictionary to hold the counts for the current motif_name
+        counts_dict = {'motif_name': motif_name}
+
+        # Extract the 'type' from 'motif_name' by splitting the string by "."
+        counts_dict['type'] = motif_name.split('.')[0]
+
+        # Iterate over each hbond_val to count occurrences
+        for hbond in hbond_vals:
+            col1, col2 = hbond.split(':')
+            # Count the occurrences of this specific combination within the group
+            count = group[(group['type_1'] == col1) & (group['type_2'] == col2)].shape[0]
+            counts_dict[hbond] = count
+
+        # Append the dictionary to the rows list
+        rows.append(counts_dict)
+
+    # Convert the list of dictionaries to a DataFrame
+    result_df = pd.DataFrame(rows)
+
+    # Save the DataFrame to a CSV file, including the new 'type' column
+    result_df.to_csv(os.path.join(csv_dir, 'interactions.csv'), index=False)
+
+    exit(0)
+
+
+
 
     # don't delete this code yet, need to fix this other stuff up here first
     """    

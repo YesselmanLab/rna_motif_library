@@ -96,7 +96,19 @@ class PandasMmcifOverride(PandasMmcif):
 
 
 class PotentialTertiaryContact:
-    def __init__(self, motif_1, motif_2, res_1, res_2, atom_1, atom_2, type_1, type_2, distance, angle):
+    def __init__(
+        self,
+        motif_1,
+        motif_2,
+        res_1,
+        res_2,
+        atom_1,
+        atom_2,
+        type_1,
+        type_2,
+        distance,
+        angle,
+    ):
         """
         Holds data about potential tertiary contacts.
         Purpose is to get data ready for export to CSV and tertiary contacts.
@@ -120,7 +132,9 @@ class PotentialTertiaryContact:
 
 class SingleMotifInteraction:
 
-    def __init__(self, motif_name, res_1, res_2, atom_1, atom_2, type_1, type_2, distance, angle):
+    def __init__(
+        self, motif_name, res_1, res_2, atom_1, atom_2, type_1, type_2, distance, angle
+    ):
         """
         Holds data for H-bond interactions within a single motif.
         Purpose is to get data ready for export to CSV.
@@ -150,8 +164,23 @@ class SingleMotifInteraction:
 
 
 class HBondInteraction:
-    def __init__(self, res_1, res_2, atom_1, atom_2, type_1, type_2, distance, angle, pdb, first_atom_df,
-                 second_atom_df, third_atom_df, fourth_atom_df, pdb_name):
+    def __init__(
+        self,
+        res_1,
+        res_2,
+        atom_1,
+        atom_2,
+        type_1,
+        type_2,
+        distance,
+        angle,
+        pdb,
+        first_atom_df,
+        second_atom_df,
+        third_atom_df,
+        fourth_atom_df,
+        pdb_name,
+    ):
         """
         Holds data for H-bond interaction.
         Used to store all the data about interactions.
@@ -219,9 +248,17 @@ class Motif:
     Class to hold motif data. This data is final and should not be changed once built.
     """
 
-    def __init__(self, motif_name: str, motif_type: str, pdb: str, size: str,
-                 sequence: str = None,
-                 res_list: List[str] = None, strands: Any = None, motif_pdb: pd.DataFrame = None) -> None:
+    def __init__(
+        self,
+        motif_name: str,
+        motif_type: str,
+        pdb: str,
+        size: str,
+        sequence: str = None,
+        res_list: List[str] = None,
+        strands: Any = None,
+        motif_pdb: pd.DataFrame = None,
+    ) -> None:
         """
         Initialize a Motif object
 
@@ -320,7 +357,7 @@ def extract_longest_numeric_sequence(input_string: str) -> str:
     current_sequence = ""
     for c in input_string:
         if c.isdigit() or (
-                c == "-" and (not current_sequence or current_sequence[0] == "-")
+            c == "-" and (not current_sequence or current_sequence[0] == "-")
         ):
             current_sequence += c
             if len(current_sequence) >= len(longest_sequence):

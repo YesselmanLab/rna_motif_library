@@ -4,11 +4,21 @@ import numpy as np
 import pandas as pd
 
 from typing import Tuple, List, Dict, IO
-from classes import DSSRRes, HBondInteraction, extract_longest_numeric_sequence, canon_amino_acid_list
+from classes import (
+    DSSRRes,
+    HBondInteraction,
+    extract_longest_numeric_sequence,
+    canon_amino_acid_list,
+)
 
 
-def print_obtained_motif_interaction_data_to_csv(motifs_per_pdb, all_potential_tert_contacts, all_interactions,
-                                                 all_single_motif_interactions, csv_dir):
+def print_obtained_motif_interaction_data_to_csv(
+    motifs_per_pdb,
+    all_potential_tert_contacts,
+    all_interactions,
+    all_single_motif_interactions,
+    csv_dir,
+):
     # After you have motifs, print some data to a CSV
     # First thing to print would be a list of all motifs and the residues inside them
     # We can use this list when identifying tertiary contacts
@@ -22,7 +32,9 @@ def print_obtained_motif_interaction_data_to_csv(motifs_per_pdb, all_potential_t
             residue_data.append({"motif_name": motif_name, "residues": motif_residues})
 
     residues_in_motif_df = pd.DataFrame(residue_data)
-    residues_in_motif_df.to_csv(os.path.join(csv_dir, "residues_in_motif.csv"), index=False)
+    residues_in_motif_df.to_csv(
+        os.path.join(csv_dir, "residues_in_motif.csv"), index=False
+    )
 
     # print all potential tertiary contacts to CSV
     potential_tert_contact_data = []
@@ -37,23 +49,32 @@ def print_obtained_motif_interaction_data_to_csv(motifs_per_pdb, all_potential_t
             type_1 = potential_contact.type_1
             type_2 = potential_contact.type_2
             # Interactions with amino acids are absolutely not tertiary contacts
-            if type_1 == "aa" or type_2 == "aa" or type_1 == "ligand" or type_2 == "ligand":
+            if (
+                type_1 == "aa"
+                or type_2 == "aa"
+                or type_1 == "ligand"
+                or type_2 == "ligand"
+            ):
                 continue
 
             # Append the filtered data to the list as a dictionary
-            potential_tert_contact_data.append({
-                "motif_1": motif_1,
-                "motif_2": motif_2,
-                "res_1": res_1,
-                "res_2": res_2,
-                "atom_1": atom_1,
-                "atom_2": atom_2,
-                "type_1": type_1,
-                "type_2": type_2
-            })
+            potential_tert_contact_data.append(
+                {
+                    "motif_1": motif_1,
+                    "motif_2": motif_2,
+                    "res_1": res_1,
+                    "res_2": res_2,
+                    "atom_1": atom_1,
+                    "atom_2": atom_2,
+                    "type_1": type_1,
+                    "type_2": type_2,
+                }
+            )
     # Create a DataFrame from the list of dictionaries and spit to CSV
     potential_tert_contact_df = pd.DataFrame(potential_tert_contact_data)
-    potential_tert_contact_df.to_csv(os.path.join(csv_dir, "potential_tertiary_contacts.csv"), index=False)
+    potential_tert_contact_df.to_csv(
+        os.path.join(csv_dir, "potential_tertiary_contacts.csv"), index=False
+    )
 
     # Next we print a detailed list of every interaction we've found
     # interactions_detailed.csv
@@ -75,22 +96,26 @@ def print_obtained_motif_interaction_data_to_csv(motifs_per_pdb, all_potential_t
             if type_1 == "ligand" or type_2 == "ligand":
                 continue
             # Append the data to the list as a dictionary
-            interaction_data.append({
-                "pdb_name": pdb_name,
-                "res_1": res_1,
-                "res_2": res_2,
-                "mol_1": mol_1,
-                "mol_2": mol_2,
-                "atom_1": atom_1,
-                "atom_2": atom_2,
-                "type_1": type_1,
-                "type_2": type_2,
-                "distance": distance,
-                "angle": angle
-            })
+            interaction_data.append(
+                {
+                    "pdb_name": pdb_name,
+                    "res_1": res_1,
+                    "res_2": res_2,
+                    "mol_1": mol_1,
+                    "mol_2": mol_2,
+                    "atom_1": atom_1,
+                    "atom_2": atom_2,
+                    "type_1": type_1,
+                    "type_2": type_2,
+                    "distance": distance,
+                    "angle": angle,
+                }
+            )
     # Create a DataFrame from the list of dictionaries
     interactions_detailed_df = pd.DataFrame(interaction_data)
-    interactions_detailed_df.to_csv(os.path.join(csv_dir, "interactions_detailed.csv"), index=False)
+    interactions_detailed_df.to_csv(
+        os.path.join(csv_dir, "interactions_detailed.csv"), index=False
+    )
 
     # Single motif interactions
     # single_motif_interactions.csv
@@ -112,21 +137,25 @@ def print_obtained_motif_interaction_data_to_csv(motifs_per_pdb, all_potential_t
             if type_1 == "ligand" or type_2 == "ligand":
                 continue
             # Append the data to the list as a dictionary
-            single_motif_interaction_data.append({
-                "motif_name": motif_name,
-                "res_1": res_1,
-                "res_2": res_2,
-                "mol_1": mol_1,
-                "mol_2": mol_2,
-                "atom_1": atom_1,
-                "atom_2": atom_2,
-                "type_1": type_1,
-                "type_2": type_2,
-                "distance": distance,
-                "angle": angle
-            })
+            single_motif_interaction_data.append(
+                {
+                    "motif_name": motif_name,
+                    "res_1": res_1,
+                    "res_2": res_2,
+                    "mol_1": mol_1,
+                    "mol_2": mol_2,
+                    "atom_1": atom_1,
+                    "atom_2": atom_2,
+                    "type_1": type_1,
+                    "type_2": type_2,
+                    "distance": distance,
+                    "angle": angle,
+                }
+            )
     single_motif_interaction_data_df = pd.DataFrame(single_motif_interaction_data)
-    single_motif_interaction_data_df.to_csv(os.path.join(csv_dir, "single_motif_interaction.csv"), index=False)
+    single_motif_interaction_data_df.to_csv(
+        os.path.join(csv_dir, "single_motif_interaction.csv"), index=False
+    )
 
 
 def extract_hbonds_from_dssr():
@@ -157,27 +186,29 @@ def load_interactions_as_classes(unique_inters):
         distance = inter[4]
         res_part_1 = inter[5]
         res_part_2 = inter[6]
-        unique_hbond_interaction = HBondInteraction(res_1, res_2, atom_1, atom_2, distance, res_part_1, res_part_2)
+        unique_hbond_interaction = HBondInteraction(
+            res_1, res_2, atom_1, atom_2, distance, res_part_1, res_part_2
+        )
         unique_inters_loaded_as_classes.append(unique_hbond_interaction)
 
     return unique_inters_loaded_as_classes
 
 
 def print_interactions_to_csv(
-        alpha_sorted_types: List[str],
-        name_inter: str,
-        res_1_res_2_result_df: pd.DataFrame,
-        res_1_type: str,
-        res_2_type: str,
-        atom_1: str,
-        atom_2: str,
-        start_interactions_dict: Dict[str, int],
-        csv_file: IO[str],
-        motif_name: str,
-        res_1: str,
-        res_2: str,
-        distance_ext: str,
-        bond_angle_degrees: str,
+    alpha_sorted_types: List[str],
+    name_inter: str,
+    res_1_res_2_result_df: pd.DataFrame,
+    res_1_type: str,
+    res_2_type: str,
+    atom_1: str,
+    atom_2: str,
+    start_interactions_dict: Dict[str, int],
+    csv_file: IO[str],
+    motif_name: str,
+    res_1: str,
+    res_2: str,
+    distance_ext: str,
+    bond_angle_degrees: str,
 ) -> None:
     """
     Print interaction details to a CSV file and save the data to a CIF file.
@@ -289,7 +320,7 @@ def find_atoms(residue: pd.DataFrame, atom_id: str) -> pd.DataFrame:
 
 
 def extract_residues_from_interaction_source(
-        interaction: List[str], pdb_model_df: pd.DataFrame
+    interaction: List[str], pdb_model_df: pd.DataFrame
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, str, str, str, str, str, str, str]:
     """
     Extract residues from interaction source.
@@ -330,16 +361,16 @@ def extract_residues_from_interaction_source(
     res_2_res_id = extract_longest_numeric_sequence(res_2_res_data)
     res_1_inter_chain = pdb_model_df[
         pdb_model_df["auth_asym_id"].astype(str) == str(res_1_chain_id)
-        ]
+    ]
     res_2_inter_chain = pdb_model_df[
         pdb_model_df["auth_asym_id"].astype(str) == str(res_2_chain_id)
-        ]
+    ]
     res_1_inter_res = res_1_inter_chain[
         res_1_inter_chain["auth_seq_id"].astype(str) == str(res_1_res_id)
-        ]
+    ]
     res_2_inter_res = res_2_inter_chain[
         res_2_inter_chain["auth_seq_id"].astype(str) == str(res_2_res_id)
-        ]
+    ]
     res_1_res_2_result_df = pd.concat(
         [res_1_inter_res, res_2_inter_res], axis=0, ignore_index=True
     )
@@ -366,7 +397,7 @@ def extract_residues_from_interaction_source(
 
 
 def find_closest_atom(
-        atom_A: pd.DataFrame, whole_interaction: pd.DataFrame
+    atom_A: pd.DataFrame, whole_interaction: pd.DataFrame
 ) -> pd.DataFrame:
     """
     Finds the closest atom to a given atom within a set of interactions based on Euclidean distance.
@@ -428,10 +459,10 @@ def calc_distance(atom_df1: pd.DataFrame, atom_df2: pd.DataFrame) -> float:
 
 
 def calculate_bond_angle(
-        center_atom: pd.DataFrame,
-        second_atom: pd.DataFrame,
-        carbon_atom: pd.DataFrame,
-        fourth_atom: pd.DataFrame,
+    center_atom: pd.DataFrame,
+    second_atom: pd.DataFrame,
+    carbon_atom: pd.DataFrame,
+    fourth_atom: pd.DataFrame,
 ) -> str:
     """
     Calculates the bond angle and returns the angle with the atoms used in the calculation.

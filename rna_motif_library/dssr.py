@@ -7,17 +7,29 @@ import numpy as np
 from pydssr.dssr import DSSROutput
 from pydssr.dssr_classes import DSSR_HBOND
 
-from rna_motif_library.classes import SingleMotifInteraction, PotentialTertiaryContact, DSSRRes, \
-    HBondInteractionFactory, canon_amino_acid_list, Motif, extract_longest_numeric_sequence, PandasMmcifOverride, \
-    Residue, HBondInteraction
-from rna_motif_library.dssr_hbonds import dataframe_to_cif, find_closest_atom, calculate_bond_angle
+from rna_motif_library.classes import (
+    SingleMotifInteraction,
+    PotentialTertiaryContact,
+    DSSRRes,
+    HBondInteractionFactory,
+    canon_amino_acid_list,
+    Motif,
+    extract_longest_numeric_sequence,
+    PandasMmcifOverride,
+    Residue,
+    HBondInteraction,
+)
+from rna_motif_library.dssr_hbonds import (
+    dataframe_to_cif,
+    find_closest_atom,
+    calculate_bond_angle,
+    assign_res_type,
+)
 from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.snap import get_rnp_interactions
 
 
-def process_motif_interaction_out_data(
-        count: int,
-        pdb_path: str):
+def process_motif_interaction_out_data(count: int, pdb_path: str):
     """
     Function for extracting motifs from a PDB in the loop
 
@@ -43,11 +55,15 @@ def process_motif_interaction_out_data(
     os.makedirs(motif_out_path, exist_ok=True)
     # Get RNP interactions from SNAP and merge with DSSR data
     rnp_out_path = os.path.join(LIB_PATH, "data/snap_output", f"{name}.out")
-    unique_interaction_data = merge_hbond_interaction_data(get_rnp_interactions(out_file=rnp_out_path), hbonds)
+    unique_interaction_data = merge_hbond_interaction_data(
+        get_rnp_interactions(out_file=rnp_out_path), hbonds
+    )
     # This is the final interaction data in the temp class to assemble into the big H-Bond class
     pre_assembled_interaction_data = assemble_interaction_data(unique_interaction_data)
     # Assembly into big HBondInteraction class; this returns a big list of them
-    assembled_interaction_data = build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_df, name)
+    assembled_interaction_data = build_complete_hbond_interaction(
+        pre_assembled_interaction_data, pdb_model_df, name
+    )
     # Now for every interaction, print to PDB
     save_interactions_to_disk(assembled_interaction_data, name)
 
@@ -57,7 +73,9 @@ def process_motif_interaction_out_data(
     single_motif_interactions = []
     potential_tert_contacts = []
     for m in motifs:
-        built_motif = find_and_build_motif(m, name, pdb_model_df, discovered, motif_count)
+        built_motif = find_and_build_motif(
+            m, name, pdb_model_df, discovered, motif_count
+        )
         if built_motif == "UNKNOWN":
             print("UNKNOWN")
             continue
@@ -70,9 +88,20 @@ def process_motif_interaction_out_data(
         potential_tert_contact_motif_1 = []
         potential_tert_contact_motif_2 = []
         for interaction in assembled_interaction_data:
-            if (interaction.res_1 in residues_in_motif and interaction.res_2 in residues_in_motif) or (
-                    interaction.type_1 == "aa" and interaction.res_2 in residues_in_motif) or (
-                    interaction.type_2 == "aa" and interaction.res_1 in residues_in_motif):
+            if (
+                (
+                    interaction.res_1 in residues_in_motif
+                    and interaction.res_2 in residues_in_motif
+                )
+                or (
+                    interaction.type_1 == "aa"
+                    and interaction.res_2 in residues_in_motif
+                )
+                or (
+                    interaction.type_2 == "aa"
+                    and interaction.res_1 in residues_in_motif
+                )
+            ):
                 # H-bonds fully inside motif (or RNP interactions with the motif)
                 interactions_in_motif.append(interaction)
             elif interaction.res_1 in residues_in_motif:
@@ -92,12 +121,27 @@ def process_motif_interaction_out_data(
             res_2 = interaction.res_2
             atom_1 = interaction.atom_1
             atom_2 = interaction.atom_2
+
             type_1 = interaction.type_1
             type_2 = interaction.type_2
+            if type_1 == "nt":
+                type_1 = assign_res_type(atom_1, type_1)
+            if type_2 == "nt":
+                type_2 = assign_res_type(atom_2, type_2)
+
             distance = float(interaction.distance)
             angle = float(interaction.angle)
-            single_motif_interaction = SingleMotifInteraction(motif_name, res_1, res_2, atom_1, atom_2, type_1, type_2,
-                                                              distance, angle)
+            single_motif_interaction = SingleMotifInteraction(
+                motif_name,
+                res_1,
+                res_2,
+                atom_1,
+                atom_2,
+                type_1,
+                type_2,
+                distance,
+                angle,
+            )
             single_motif_interactions.append(single_motif_interaction)
 
         # For potential tert contacts where source is motif_1
@@ -112,8 +156,18 @@ def process_motif_interaction_out_data(
             type_2 = interaction.type_2
             distance = float(interaction.distance)
             angle = float(interaction.angle)
-            potential_tert_contact_m1 = PotentialTertiaryContact(motif_1, motif_2, res_1, res_2, atom_1, atom_2, type_1,
-                                                                 type_2, distance, angle)
+            potential_tert_contact_m1 = PotentialTertiaryContact(
+                motif_1,
+                motif_2,
+                res_1,
+                res_2,
+                atom_1,
+                atom_2,
+                type_1,
+                type_2,
+                distance,
+                angle,
+            )
             potential_tert_contacts.append(potential_tert_contact_m1)
 
         # For potential tert contacts where source is motif_2
@@ -128,11 +182,26 @@ def process_motif_interaction_out_data(
             type_2 = interaction.type_2
             distance = float(interaction.distance)
             angle = float(interaction.angle)
-            potential_tert_contact_m2 = PotentialTertiaryContact(motif_1, motif_2, res_1, res_2, atom_1, atom_2, type_1,
-                                                                 type_2, distance, angle)
+            potential_tert_contact_m2 = PotentialTertiaryContact(
+                motif_1,
+                motif_2,
+                res_1,
+                res_2,
+                atom_1,
+                atom_2,
+                type_1,
+                type_2,
+                distance,
+                angle,
+            )
             potential_tert_contacts.append(potential_tert_contact_m2)
 
-    return motif_list, single_motif_interactions, potential_tert_contacts, assembled_interaction_data
+    return (
+        motif_list,
+        single_motif_interactions,
+        potential_tert_contacts,
+        assembled_interaction_data,
+    )
 
 
 ### build functions down here
@@ -140,16 +209,32 @@ def process_motif_interaction_out_data(
 
 def save_interactions_to_disk(assembled_interaction_data, pdb):
     for interaction in assembled_interaction_data:
-        interaction_name = str(
-            pdb) + "." + interaction.res_1 + "." + interaction.atom_1 + "." + interaction.res_2 + "." + interaction.atom_2
-        folder_path = os.path.join(LIB_PATH, "data/interactions",
-                                   f"{DSSRRes(interaction.res_1).res_id}-{DSSRRes(interaction.res_2).res_id}")
+        interaction_name = (
+            str(pdb)
+            + "."
+            + interaction.res_1
+            + "."
+            + interaction.atom_1
+            + "."
+            + interaction.res_2
+            + "."
+            + interaction.atom_2
+        )
+        folder_path = os.path.join(
+            LIB_PATH,
+            "data/interactions",
+            f"{DSSRRes(interaction.res_1).res_id}-{DSSRRes(interaction.res_2).res_id}",
+        )
         os.makedirs(folder_path, exist_ok=True)
         file_path = os.path.join(folder_path, f"{interaction_name}.cif")
-        dataframe_to_cif(interaction.pdb, file_path=file_path, motif_name=interaction_name)
+        dataframe_to_cif(
+            interaction.pdb, file_path=file_path, motif_name=interaction_name
+        )
 
 
-def build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_df, pdb_name):
+def build_complete_hbond_interaction(
+    pre_assembled_interaction_data, pdb_model_df, pdb_name
+):
     built_interactions = []
     for interaction in pre_assembled_interaction_data:
         res_1 = DSSRRes(interaction.res_1)
@@ -161,7 +246,9 @@ def build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_d
         distance = interaction.distance
         pdb = get_interaction_pdb(res_1, res_2, pdb_model_df)
         first_atom, second_atom = extract_interacting_atoms(interaction, pdb)
-        third_atom, fourth_atom = find_closest_atom(first_atom, pdb), find_closest_atom(second_atom, pdb)
+        third_atom, fourth_atom = find_closest_atom(first_atom, pdb), find_closest_atom(
+            second_atom, pdb
+        )
         if first_atom.empty or second_atom.empty:
             # print(pdb)
             # print("EMPTY ATOM")
@@ -170,11 +257,26 @@ def build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_d
         # filter out protein-protein interactions
         if type_1 == "aa" and type_2 == "aa":
             continue
-        dihedral_angle = calculate_bond_angle(first_atom, second_atom, third_atom, fourth_atom)
+        dihedral_angle = calculate_bond_angle(
+            first_atom, second_atom, third_atom, fourth_atom
+        )
 
-        built_interaction = HBondInteraction(interaction.res_1, interaction.res_2, atom_1, atom_2, type_1, type_2,
-                                             distance, dihedral_angle, pdb, first_atom, second_atom, third_atom,
-                                             fourth_atom, pdb_name)
+        built_interaction = HBondInteraction(
+            interaction.res_1,
+            interaction.res_2,
+            atom_1,
+            atom_2,
+            type_1,
+            type_2,
+            distance,
+            dihedral_angle,
+            pdb,
+            first_atom,
+            second_atom,
+            third_atom,
+            fourth_atom,
+            pdb_name,
+        )
         built_interactions.append(built_interaction)
 
     return built_interactions
@@ -194,11 +296,17 @@ def extract_interacting_atoms(interaction, pdb):
     res_id_2 = DSSRRes(interaction.res_2).num
 
     first_atom = pdb[
-        (pdb["auth_atom_id"] == atom_1) & (pdb["auth_comp_id"] == res_1) & (pdb["auth_asym_id"] == chain_id_1) & (
-                pdb["auth_seq_id"] == res_id_1)]
+        (pdb["auth_atom_id"] == atom_1)
+        & (pdb["auth_comp_id"] == res_1)
+        & (pdb["auth_asym_id"] == chain_id_1)
+        & (pdb["auth_seq_id"] == res_id_1)
+    ]
     second_atom = pdb[
-        (pdb["auth_atom_id"] == atom_2) & (pdb["auth_comp_id"] == res_2) & (pdb["auth_asym_id"] == chain_id_2) & (
-                pdb["auth_seq_id"] == res_id_2)]
+        (pdb["auth_atom_id"] == atom_2)
+        & (pdb["auth_comp_id"] == res_2)
+        & (pdb["auth_asym_id"] == chain_id_2)
+        & (pdb["auth_seq_id"] == res_id_2)
+    ]
 
     if first_atom.empty:
         # Check for common prefixes or alternate namings
@@ -206,9 +314,12 @@ def extract_interacting_atoms(interaction, pdb):
         for prefix in prefixes:
             if prefix in atom_1:
                 first_atom = pdb[
-                    (pdb["auth_atom_id"].str.contains(prefix.replace("P", "")) & (pdb["auth_comp_id"] == res_1) & (
-                            pdb["auth_asym_id"] == chain_id_1) & (
-                             pdb["auth_seq_id"] == res_id_1))
+                    (
+                        pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
+                        & (pdb["auth_comp_id"] == res_1)
+                        & (pdb["auth_asym_id"] == chain_id_1)
+                        & (pdb["auth_seq_id"] == res_id_1)
+                    )
                 ]
                 if not first_atom.empty:
                     break
@@ -219,9 +330,12 @@ def extract_interacting_atoms(interaction, pdb):
         for prefix in prefixes:
             if prefix in atom_2:
                 second_atom = pdb[
-                    (pdb["auth_atom_id"].str.contains(prefix.replace("P", "")) & (pdb["auth_comp_id"] == res_2) & (
-                            pdb["auth_asym_id"] == chain_id_2) & (
-                             pdb["auth_seq_id"] == res_id_2))
+                    (
+                        pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
+                        & (pdb["auth_comp_id"] == res_2)
+                        & (pdb["auth_asym_id"] == chain_id_2)
+                        & (pdb["auth_seq_id"] == res_id_2)
+                    )
                 ]
                 if not first_atom.empty:
                     break
@@ -230,16 +344,28 @@ def extract_interacting_atoms(interaction, pdb):
 
 
 def get_interaction_pdb(res_1, res_2, pdb_model_df):
-    res_1_chain_id, res_1_atom_type, res_1_res_id = res_1.chain_id, res_1.res_id, res_1.num
-    res_2_chain_id, res_2_atom_type, res_2_res_id = res_2.chain_id, res_2.res_id, res_2.num
-    res_1_inter_chain = pdb_model_df[pdb_model_df["auth_asym_id"].astype(str) == str(res_1_chain_id)]
-    res_2_inter_chain = pdb_model_df[pdb_model_df["auth_asym_id"].astype(str) == str(res_2_chain_id)]
+    res_1_chain_id, res_1_atom_type, res_1_res_id = (
+        res_1.chain_id,
+        res_1.res_id,
+        res_1.num,
+    )
+    res_2_chain_id, res_2_atom_type, res_2_res_id = (
+        res_2.chain_id,
+        res_2.res_id,
+        res_2.num,
+    )
+    res_1_inter_chain = pdb_model_df[
+        pdb_model_df["auth_asym_id"].astype(str) == str(res_1_chain_id)
+    ]
+    res_2_inter_chain = pdb_model_df[
+        pdb_model_df["auth_asym_id"].astype(str) == str(res_2_chain_id)
+    ]
     res_1_inter_res = res_1_inter_chain[
         res_1_inter_chain["auth_seq_id"].astype(str) == str(res_1_res_id)
-        ]
+    ]
     res_2_inter_res = res_2_inter_chain[
         res_2_inter_chain["auth_seq_id"].astype(str) == str(res_2_res_id)
-        ]
+    ]
     res_1_res_2_result_df = pd.concat(
         [res_1_inter_res, res_2_inter_res], axis=0, ignore_index=True
     )
@@ -252,7 +378,9 @@ def assemble_interaction_data(unique_interaction_data):
     # Load all data into HBondInteractionFactory class to prepare for processing
     for interaction in unique_interaction_data:
         # Filter out bad H-bonds and aa:aa
-        if interaction[6] not in ["questionable", "unknown"] or interaction[5] not in ["aa:aa"]:
+        if interaction[6] not in ["questionable", "unknown"] or interaction[5] not in [
+            "aa:aa"
+        ]:
 
             new_interaction_atom_1 = interaction[2]
             new_interaction_atom_2 = interaction[3]
@@ -262,10 +390,15 @@ def assemble_interaction_data(unique_interaction_data):
                 new_interaction_atom_1 = interaction[2].split(".")[0]
             elif "." in new_interaction_atom_2:
                 new_interaction_atom_2 = interaction[3].split(".")[0]
-            hbond_interaction_assembly = HBondInteractionFactory(interaction[0], interaction[1], new_interaction_atom_1,
-                                                                 new_interaction_atom_2, float(interaction[4]),
-                                                                 interaction[5],
-                                                                 interaction[6])
+            hbond_interaction_assembly = HBondInteractionFactory(
+                interaction[0],
+                interaction[1],
+                new_interaction_atom_1,
+                new_interaction_atom_2,
+                float(interaction[4]),
+                interaction[5],
+                interaction[6],
+            )
             assembled_data.append(hbond_interaction_assembly)
     return assembled_data
 
@@ -279,7 +412,7 @@ def merge_hbond_interaction_data(rnp_interactions, hbonds):
             interaction.aa_atom.split("@")[0],
             str(interaction.dist),
             interaction.type,
-            "standard"
+            "standard",
         )
         for interaction in rnp_interactions
     ]
@@ -291,7 +424,7 @@ def merge_hbond_interaction_data(rnp_interactions, hbonds):
             hbond.atom2_id.split("@")[0],
             str(hbond.distance),
             hbond.residue_pair,
-            hbond.donAcc_type
+            hbond.donAcc_type,
         )
         for hbond in hbonds
     ]
@@ -311,7 +444,9 @@ def assign_residue_type(hbond: DSSR_HBOND):
     atom_2 = str(hbond.atom2_id.split("@")[0])
 
     # process each residue type to correct DSSR's mistakes
-    hbond.residue_pair = determine_interaction_type_from_atoms(rt_1, rt_2, atom_1, atom_2)
+    hbond.residue_pair = determine_interaction_type_from_atoms(
+        rt_1, rt_2, atom_1, atom_2
+    )
     return hbond.residue_pair.split(":")
 
 
@@ -378,7 +513,16 @@ def find_and_build_motif(m, pdb_name, pdb_model_df, discovered, motif_count):
     # Set motif name
     motif_name = pre_motif_name + "." + str(motif_count)
     # Finally, set our motif
-    our_motif = Motif(motif_name, motif_type, pdb_name, size, sequence, m.nts_long, list_of_strands, motif_pdb)
+    our_motif = Motif(
+        motif_name,
+        motif_type,
+        pdb_name,
+        size,
+        sequence,
+        m.nts_long,
+        list_of_strands,
+        motif_pdb,
+    )
     # And print the motif to the system
     motif_dir_path = os.path.join(LIB_PATH, "data/motifs", motif_type, size, sequence)
     os.makedirs(motif_dir_path, exist_ok=True)
@@ -440,7 +584,7 @@ def extract_motif_from_pdb(nts, model_df):
         for residue in residue_list:
             chain_res = model_df[
                 model_df["auth_asym_id"].astype(str) == str(chain_number)
-                ]
+            ]
             res_subset = chain_res[chain_res["auth_seq_id"].astype(str) == str(residue)]
             res.append(res_subset)
         list_of_chains.append(res)
@@ -510,8 +654,7 @@ def determine_motif_type(motif):
         return "UNKNOWN"
 
 
-def find_strands(
-        master_res_df):
+def find_strands(master_res_df):
     """
     Counts the number of strands in a motif and updates its name accordingly to better reflect structure.
 
@@ -646,8 +789,7 @@ def find_residue_roots(res_list):
     return roots, res_list_modified
 
 
-def connected_to(source_residue, residue_in_question,
-                 cutoff: float = 2.75):
+def connected_to(source_residue, residue_in_question, cutoff: float = 2.75):
     """
     Determine if another residue is connected to this residue.
     From 5' to 3'; if reverse, returns -1.
@@ -668,8 +810,12 @@ def connected_to(source_residue, residue_in_question,
     residue_2 = residue_in_question.pdb
 
     # Convert 'Cartn_x', 'Cartn_y', and 'Cartn_z' columns to numeric
-    residue_1[["Cartn_x", "Cartn_y", "Cartn_z"]] = residue_1[["Cartn_x", "Cartn_y", "Cartn_z"]].apply(pd.to_numeric)
-    residue_2[["Cartn_x", "Cartn_y", "Cartn_z"]] = residue_2[["Cartn_x", "Cartn_y", "Cartn_z"]].apply(pd.to_numeric)
+    residue_1[["Cartn_x", "Cartn_y", "Cartn_z"]] = residue_1[
+        ["Cartn_x", "Cartn_y", "Cartn_z"]
+    ].apply(pd.to_numeric)
+    residue_2[["Cartn_x", "Cartn_y", "Cartn_z"]] = residue_2[
+        ["Cartn_x", "Cartn_y", "Cartn_z"]
+    ].apply(pd.to_numeric)
 
     # Extract relevant atom data for both residues
     o3_atom_1 = residue_1[residue_1["auth_atom_id"].str.contains("O3'", regex=True)]
@@ -680,7 +826,8 @@ def connected_to(source_residue, residue_in_question,
     if not o3_atom_1.empty and not p_atom_2.empty:
         # Calculate the Euclidean distance between the two atoms
         distance = np.linalg.norm(
-            p_atom_2[["Cartn_x", "Cartn_y", "Cartn_z"]].values - o3_atom_1[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+            p_atom_2[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+            - o3_atom_1[["Cartn_x", "Cartn_y", "Cartn_z"]].values
         )
         if distance < cutoff:
             return 1  # 5' to 3' direction
@@ -694,7 +841,8 @@ def connected_to(source_residue, residue_in_question,
     if not o3_atom_2.empty and not p_atom_1.empty:
         # Calculate the Euclidean distance between the two atoms
         distance = np.linalg.norm(
-            o3_atom_2[["Cartn_x", "Cartn_y", "Cartn_z"]].values - p_atom_1[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+            o3_atom_2[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+            - p_atom_1[["Cartn_x", "Cartn_y", "Cartn_z"]].values
         )
         if distance < cutoff:
             return -1  # 3' to 5' direction
@@ -729,7 +877,9 @@ def build_strands_5to3(residue_roots, res_list):
             if next_residue:
                 chain.append(next_residue)
                 current_residue = next_residue
-                res_list.remove(next_residue)  # Remove the residue from the list to prevent reusing it
+                res_list.remove(
+                    next_residue
+                )  # Remove the residue from the list to prevent reusing it
             else:
                 break
 

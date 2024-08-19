@@ -32,9 +32,9 @@ def load_motif_residues(motif_residues_csv_path: str) -> dict:
 
 
 def find_tertiary_contacts(
-        interactions_from_csv: pd.core.groupby.generic.DataFrameGroupBy,
-        list_of_res_in_motifs: Dict[str, List[str]],
-        csv_dir: str,
+    interactions_from_csv: pd.core.groupby.generic.DataFrameGroupBy,
+    list_of_res_in_motifs: Dict[str, List[str]],
+    csv_dir: str,
 ) -> None:
     """
     Find tertiary contacts from interaction data and write them to CSV files.
@@ -146,8 +146,8 @@ def find_tertiary_contacts(
                 # res_1 is present in the current motif, res_2 is elsewhere so need to find it
                 # now find which motif res_2 is in
                 for (
-                        motif_name,
-                        motif_residue_list,
+                    motif_name,
+                    motif_residue_list,
                 ) in dict_with_source_motif_PDB_motifs.items():
                     # Check if the given string is present in the list
                     if res_2 in motif_residue_list:
@@ -190,8 +190,8 @@ def find_tertiary_contacts(
                 res_2_data = (res_2, name_of_source_motif)
                 # now find which motif res_1 is in
                 for (
-                        motif_name,
-                        motif_residue_list,
+                    motif_name,
+                    motif_residue_list,
                 ) in dict_with_source_motif_PDB_motifs.items():
                     # Check if the given string is present in the list
                     if res_1 in motif_residue_list:
@@ -479,8 +479,8 @@ def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
             motif_1_hairpin_len = 0
             motif_2_hairpin_len = 0
         if not (
-                (motif_1_name == "HAIRPIN" or motif_2_name == "HAIRPIN")
-                and ((0 < motif_1_hairpin_len < 3) or (0 < motif_2_hairpin_len < 3))
+            (motif_1_name == "HAIRPIN" or motif_2_name == "HAIRPIN")
+            and ((0 < motif_1_hairpin_len < 3) or (0 < motif_2_hairpin_len < 3))
         ):
             directory_to_search = "data/motifs"
             motif_cif_1 = str(motif_1) + ".cif"
@@ -499,7 +499,7 @@ def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
             if motif_types:
                 safe_mkdir("data/tertiary_contacts/" + motif_types)
                 tert_contact_out_path = (
-                        "data/tertiary_contacts/" + motif_types + "/" + tert_contact_name
+                    "data/tertiary_contacts/" + motif_types + "/" + tert_contact_name
                 )
             else:
                 tert_contact_out_path = "data/tertiary_contacts/" + tert_contact_name
@@ -520,7 +520,7 @@ def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
 
 # merges the contents of CIF files
 def merge_cif_files(
-        file1_path: str, file2_path: str, output_path: str, lines_to_delete: int
+    file1_path: str, file2_path: str, output_path: str, lines_to_delete: int
 ) -> None:
     """
     Merge the contents of two CIF files into one.

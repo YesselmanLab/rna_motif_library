@@ -5,8 +5,13 @@ import click
 
 from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.logger import setup_logging, get_logger
-from update_library import get_dssr_files, get_snap_files, download_cif_files, find_tertiary_contacts, \
-    generate_motif_files
+from update_library import (
+    get_dssr_files,
+    get_snap_files,
+    download_cif_files,
+    find_tertiary_contacts,
+    generate_motif_files,
+)
 
 log = get_logger("cli")
 
@@ -43,12 +48,12 @@ def download_cifs(threads):
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
     log.info(
-        "Download started at " +
-        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
+        "Download started at "
+        + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
     )
     log.info(
-        "Download finished at " +
-        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
+        "Download finished at "
+        + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
     )
     log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 

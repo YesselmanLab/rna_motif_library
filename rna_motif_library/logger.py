@@ -38,9 +38,7 @@ def setup_logging(file_name: str = None) -> logging.Logger:
     # Create a stream handler for output to console
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)  # Set the desired level for console output
-    formatter = logging.Formatter(
-        "%(levelname)s - %(name)s - %(message)s"
-    )
+    formatter = logging.Formatter("%(levelname)s - %(name)s - %(message)s")
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
 
