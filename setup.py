@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="rna_motif_library",
-    version="1.0.0",
+    version="0.2.0",
     description="A minimal package for RNA motif library creation",
     long_description_content_type="text/markdown",
     author="Joe Yesselman",
@@ -15,8 +15,10 @@ setup(
         "figure_plotting",
         "settings",
         "snap",
-        "tertiary_contacts",
+        "tert_contacts",
         "update_library",
+        "classes",
+        "cli",
     ],
     include_package_data=True,
     install_requires=[
