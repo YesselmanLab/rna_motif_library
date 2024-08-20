@@ -5,36 +5,90 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from rna_motif_library.dssr_hbonds import assign_res_type
 from rna_motif_library.figure_plotting import safe_mkdir
 
 
-def load_motif_residues(motif_residues_csv_path: str) -> dict:
-    """
-    Load motif residues from a CSV file into a dictionary.
+def find_unique_tert_contacts(tert_contact_df):
+    # Create a new column with motifs sorted alphabetically
+    tert_contact_df['sorted_motifs'] = tert_contact_df.apply(
+        lambda row: tuple(sorted([row['motif_1'], row['motif_2']])), axis=1
+    )
 
-    Args:
-        motif_residues_csv_path (str): Path to the CSV file containing motif residues.
+    # Group by this new column and keep only the first line from each group
+    grouped = tert_contact_df.groupby('sorted_motifs').first().reset_index()
 
-    Returns:
-        motif_residues_dict (dict): A dictionary where keys are motif names and values are lists of residues.
+    # Drop the 'sorted_motifs' column, since it's no longer needed
+    unique_tert_contact_df = grouped.drop(columns=['sorted_motifs'])
 
-    """
-    with open(motif_residues_csv_path, newline="") as csvfile:
-        csv_reader = csv.reader(csvfile)
-        motif_residues_dict = {}
+    return unique_tert_contact_df
 
-        for row in csv_reader:
-            name = row[0]  # Extract the motif name
-            data = row[1:]  # Extract the residues
-            motif_residues_dict[name] = data  # Store in the dictionary
 
-    return motif_residues_dict
+def update_unknown_motifs(potential_tert_contact_df, motif_residue_dict):
+    # Iterate through each row in the DataFrame
+    for index, row in potential_tert_contact_df.iterrows():
+        # Split motif names to compare the second element
+        motif_1_split = row['motif_1'].split(".")
+        motif_2_split = row['motif_2'].split(".")
+
+        if row['motif_1'] == 'unknown':
+            residue = row['res_1']
+            for motif_name, residues in motif_residue_dict.items():
+                motif_name_split = motif_name.split(".")
+                # Check if residue is in residues and the second element matches
+                if residue in residues and motif_2_split[1] == motif_name_split[1]:
+                    potential_tert_contact_df.at[index, 'motif_1'] = motif_name
+                    break  # Once found, no need to continue searching
+
+        if row['motif_2'] == 'unknown':
+            residue = row['res_2']
+            for motif_name, residues in motif_residue_dict.items():
+                motif_name_split = motif_name.split(".")
+                # Check if residue is in residues and the second element matches
+                if residue in residues and motif_1_split[1] == motif_name_split[1]:
+                    potential_tert_contact_df.at[index, 'motif_2'] = motif_name
+                    break  # Once found, no need to continue searching
+
+    # Remove rows where either 'motif_1' or 'motif_2' still contains 'unknown'
+    potential_tert_contact_df = potential_tert_contact_df[
+        (potential_tert_contact_df['motif_1'] != 'unknown') &
+        (potential_tert_contact_df['motif_2'] != 'unknown')
+        ]
+
+    return potential_tert_contact_df
+
+
+def import_residues_csv(csv_dir):
+    csv_path = os.path.join(csv_dir, "residues_in_motif.csv")
+    residues_dict = {}
+    with open(csv_path, mode='r') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            motif_name = row['motif_name']
+            residues = row['residues']
+            residues_dict[motif_name] = residues.split(",")
+    return residues_dict
+
+
+def import_tert_contact_csv(csv_dir):
+    # Import the file as a DataFrame
+    interactions_from_csv = pd.read_csv(
+        os.path.join(csv_dir, "potential_tertiary_contacts.csv")
+    )
+
+    # Apply the function to each row and replace the values in type_1 and type_2
+    interactions_from_csv['type_1'] = interactions_from_csv.apply(
+        lambda row: assign_res_type(row['atom_1'], row['type_1']), axis=1)
+    interactions_from_csv['type_2'] = interactions_from_csv.apply(
+        lambda row: assign_res_type(row['atom_2'], row['type_2']), axis=1)
+
+    return interactions_from_csv
 
 
 def find_tertiary_contacts(
-    interactions_from_csv: pd.core.groupby.generic.DataFrameGroupBy,
-    list_of_res_in_motifs: Dict[str, List[str]],
-    csv_dir: str,
+        interactions_from_csv: pd.core.groupby.generic.DataFrameGroupBy,
+        list_of_res_in_motifs: Dict[str, List[str]],
+        csv_dir: str,
 ) -> None:
     """
     Find tertiary contacts from interaction data and write them to CSV files.
@@ -146,8 +200,8 @@ def find_tertiary_contacts(
                 # res_1 is present in the current motif, res_2 is elsewhere so need to find it
                 # now find which motif res_2 is in
                 for (
-                    motif_name,
-                    motif_residue_list,
+                        motif_name,
+                        motif_residue_list,
                 ) in dict_with_source_motif_PDB_motifs.items():
                     # Check if the given string is present in the list
                     if res_2 in motif_residue_list:
@@ -190,8 +244,8 @@ def find_tertiary_contacts(
                 res_2_data = (res_2, name_of_source_motif)
                 # now find which motif res_1 is in
                 for (
-                    motif_name,
-                    motif_residue_list,
+                        motif_name,
+                        motif_residue_list,
                 ) in dict_with_source_motif_PDB_motifs.items():
                     # Check if the given string is present in the list
                     if res_1 in motif_residue_list:
@@ -228,6 +282,29 @@ def find_tertiary_contacts(
                             + res_type_2
                             + "\n"
                         )
+
+
+def load_motif_residues(motif_residues_csv_path: str) -> dict:
+    """
+    Load motif residues from a CSV file into a dictionary.
+
+    Args:
+        motif_residues_csv_path (str): Path to the CSV file containing motif residues.
+
+    Returns:
+        motif_residues_dict (dict): A dictionary where keys are motif names and values are lists of residues.
+
+    """
+    with open(motif_residues_csv_path, newline="") as csvfile:
+        csv_reader = csv.reader(csvfile)
+        motif_residues_dict = {}
+
+        for row in csv_reader:
+            name = row[0]  # Extract the motif name
+            data = row[1:]  # Extract the residues
+            motif_residues_dict[name] = data  # Store in the dictionary
+
+    return motif_residues_dict
 
 
 def find_unique_tertiary_contacts(csv_dir: str) -> None:
@@ -431,6 +508,8 @@ def sort_res(row: pd.Series) -> pd.Series:
     return pd.Series(np.sort(row.values))
 
 
+import os
+
 def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
     """
     Print tertiary contacts to CIF files.
@@ -440,87 +519,49 @@ def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
 
     Returns:
         None
-
     """
-    # make directory for tert contacts
+    # Create directory for tertiary contacts if it doesn't exist
     safe_mkdir("data/tertiary_contacts")
     print("Saving tertiary contacts to CIF files...")
-    # for printing the tert contact CIFs need to prepare data
-    motifs_1 = unique_tert_contact_df["motif_1"].tolist()
-    motifs_2 = unique_tert_contact_df["motif_2"].tolist()
-    types_1 = unique_tert_contact_df["type_1"].tolist()
-    types_2 = unique_tert_contact_df["type_2"].tolist()
-    ress_1 = unique_tert_contact_df["res_1"].tolist()
-    ress_2 = unique_tert_contact_df["res_2"].tolist()
-    # Create a list of tuples
-    motif_pairs = [
-        (motif1, motif2, types1, types2, ress1, ress2)
-        for motif1, motif2, types1, types2, ress1, ress2 in zip(
-            motifs_1, motifs_2, types_1, types_2, ress_1, ress_2
-        )
-    ]
-    # Create a list of tuples with the third element specifying the count
-    unique_motif_pairs_with_count = [
-        (pair[0], pair[1], pair[2], pair[3], pair[4], pair[5])
-        for pair in set(motif_pairs)
-    ]
-    for motif_pair in unique_motif_pairs_with_count:
-        motif_1 = motif_pair[0]
-        motif_2 = motif_pair[1]
-        # if motif_1 or motif_2 are hairpins less than 3 NTS long then don't process
-        motif_1_split = motif_1.split(".")
-        motif_2_split = motif_2.split(".")
-        motif_1_name = motif_1_split[0]
-        motif_2_name = motif_2_split[0]
-        try:
-            motif_1_hairpin_len = float(motif_1_split[2])
-            motif_2_hairpin_len = float(motif_2_split[2])
-        except ValueError:
-            motif_1_hairpin_len = 0
-            motif_2_hairpin_len = 0
-        if not (
-            (motif_1_name == "HAIRPIN" or motif_2_name == "HAIRPIN")
-            and ((0 < motif_1_hairpin_len < 3) or (0 < motif_2_hairpin_len < 3))
-        ):
-            directory_to_search = "data/motifs"
-            motif_cif_1 = str(motif_1) + ".cif"
-            motif_cif_2 = str(motif_2) + ".cif"
-            path_to_cif_1 = find_cif_file(directory_to_search, motif_cif_1)
-            path_to_cif_2 = find_cif_file(directory_to_search, motif_cif_2)
-            # path
-            tert_contact_name = motif_1 + "." + motif_2
-            # classifying them based on motif type
-            motif_1_type = motif_1.split(".")[0]
-            motif_2_type = motif_2.split(".")[0]
-            motif_types_list = [motif_1_type, motif_2_type]
-            motif_types_sorted = sorted(motif_types_list)
-            motif_types = str(motif_types_sorted[0]) + "-" + str(motif_types_sorted[1])
 
-            if motif_types:
-                safe_mkdir("data/tertiary_contacts/" + motif_types)
-                tert_contact_out_path = (
-                    "data/tertiary_contacts/" + motif_types + "/" + tert_contact_name
-                )
-            else:
-                tert_contact_out_path = "data/tertiary_contacts/" + tert_contact_name
-            print(tert_contact_name)
-            # take the CIF files and merge them
-            try:
-                merge_cif_files(
-                    file1_path=path_to_cif_1,
-                    file2_path=path_to_cif_2,
-                    output_path=f"{tert_contact_out_path}.cif",
-                    lines_to_delete=24,
-                )
-            except TypeError:
-                continue
-        else:
+    # Iterate through each row in the DataFrame
+    for _, row in unique_tert_contact_df.iterrows():
+        motif_1 = row["motif_1"]
+        motif_2 = row["motif_2"]
+
+        # Define the CIF file names
+        motif_cif_1 = f"{motif_1}.cif"
+        motif_cif_2 = f"{motif_2}.cif"
+
+        # Find the paths to the CIF files
+        directory_to_search = "data/motifs"
+        path_to_cif_1 = find_cif_file(directory_to_search, motif_cif_1)
+        path_to_cif_2 = find_cif_file(directory_to_search, motif_cif_2)
+
+        # Define the output path for the merged CIF file
+        tert_contact_name = f"{motif_1}.{motif_2}"
+        tert_contact_out_path = f"data/tertiary_contacts/{tert_contact_name}.cif"
+
+        # Print the tertiary contact name
+        print(f"Processing: {tert_contact_name}")
+
+        # Merge the CIF files
+        try:
+            merge_cif_files(
+                file1_path=path_to_cif_1,
+                file2_path=path_to_cif_2,
+                output_path=tert_contact_out_path,
+                lines_to_delete=24,  # Adjust this as needed
+            )
+        except TypeError as e:
+            print(f"Failed to merge {motif_1} and {motif_2}: {e}")
             continue
+
 
 
 # merges the contents of CIF files
 def merge_cif_files(
-    file1_path: str, file2_path: str, output_path: str, lines_to_delete: int
+        file1_path: str, file2_path: str, output_path: str, lines_to_delete: int
 ) -> None:
     """
     Merge the contents of two CIF files into one.

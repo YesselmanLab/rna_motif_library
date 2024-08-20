@@ -176,6 +176,7 @@ def load_tertiary_contacts():
 
     Returns:
         None
+
     """
     setup_logging()
     warnings.filterwarnings("ignore")

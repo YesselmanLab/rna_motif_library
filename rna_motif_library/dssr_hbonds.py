@@ -8,7 +8,7 @@ from classes import (
     DSSRRes,
     HBondInteraction,
     extract_longest_numeric_sequence,
-    canon_amino_acid_list,
+    canon_amino_acid_list, HBondInteractionFactory,
 )
 
 
@@ -186,7 +186,7 @@ def load_interactions_as_classes(unique_inters):
         distance = inter[4]
         res_part_1 = inter[5]
         res_part_2 = inter[6]
-        unique_hbond_interaction = HBondInteraction(
+        unique_hbond_interaction = HBondInteractionFactory(
             res_1, res_2, atom_1, atom_2, distance, res_part_1, res_part_2
         )
         unique_inters_loaded_as_classes.append(unique_hbond_interaction)

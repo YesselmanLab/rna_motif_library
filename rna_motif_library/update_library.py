@@ -18,6 +18,8 @@ from rna_motif_library import dssr
 from rna_motif_library import figure_plotting
 from rna_motif_library.settings import LIB_PATH, DSSR_EXE
 from rna_motif_library.figure_plotting import safe_mkdir
+from rna_motif_library.tert_contacts import import_tert_contact_csv, import_residues_csv, update_unknown_motifs, \
+    find_unique_tert_contacts, print_tert_contacts_to_cif
 
 
 def download_cif_files(csv_path: str, threads: int) -> None:
@@ -320,30 +322,24 @@ def motif_interaction_data_by_type_to_csv(csv_dir):
 
 def find_tertiary_contacts() -> None:
     """
-    Finds and processes tertiary contacts from the resultant motif/interaction data
+    Finds and processes tertiary contacts from the found potential tertiary contacts.
 
     Returns:
         None
 
     """
     csv_dir = os.path.join(LIB_PATH, "data", "out_csvs")
-
-    interactions_from_csv = pd.read_csv(
-        os.path.join(csv_dir, "interactions_detailed.csv")
-    )
-    grouped_interactions_csv_df = interactions_from_csv.groupby("name")
-    motif_residues_csv_path = os.path.join(csv_dir, "motif_residues_list.csv")
-    motif_residues_dict = tert_contacts.load_motif_residues(motif_residues_csv_path)
-    tert_contacts.find_tertiary_contacts(
-        interactions_from_csv=grouped_interactions_csv_df,
-        list_of_res_in_motifs=motif_residues_dict,
-        csv_dir=csv_dir,
-    )
-    tert_contacts.find_unique_tertiary_contacts(csv_dir=csv_dir)
-    unique_tert_contact_df = tert_contacts.delete_duplicate_contacts(csv_dir=csv_dir)
-    tert_contacts.print_tert_contacts_to_cif(
-        unique_tert_contact_df=unique_tert_contact_df
-    )
+    # Get motif residue dictionary
+    motif_residue_dict = import_residues_csv(csv_dir)
+    # Extract potential tert contact DF
+    potential_tert_contact_df = import_tert_contact_csv(csv_dir)
+    # And find motifs involved in tertiary contacts
+    tert_contact_df = update_unknown_motifs(potential_tert_contact_df, motif_residue_dict)
+    tert_contact_df.to_csv(os.path.join(csv_dir, "all_tert_contact_hbonds.csv"), index=False)
+    # Now we need to find unique tertiary contacts
+    unique_tert_contact_df = find_unique_tert_contacts(tert_contact_df)
+    unique_tert_contact_df.to_csv(os.path.join(csv_dir, "unique_tert_contacts.csv"), index=False)
+    print_tert_contacts_to_cif(unique_tert_contact_df=unique_tert_contact_df)
 
 
 def count_cif_files(directory: str) -> int:
