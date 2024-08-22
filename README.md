@@ -38,34 +38,34 @@ pip install .
 # Note, despite the use of "PDB" in language, all files are actually ".cif", not ".pdb"
 
 # To create the library first we need to download the PDBs specified in the CSV
-python rna_motif_library/cli.py download-cifs --threads 8
+python rna_motif_library/cli.py download_cifs --threads 8
 # Replace "8" with the number of CPU cores you want to use
 # Estimated time: 15 minutes for around 2000 .cifs
 # Expect a progress bar when it's working
 
 # After downloading we need to process with DSSR
-python rna_motif_library/cli.py process-dssr --threads 8
+python rna_motif_library/cli.py process_dssr --threads 8
 # Replace "8" with the number of CPU cores you want to use
 # Estimated time: 90 minutes for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will consist of the path to the PDB/CIF files
 
 # After processing with DSSR we need to process with SNAP
-python rna_motif_library/cli.py process-snap --threads 8
+python rna_motif_library/cli.py process_snap --threads 8
 # Replace "8" with the number of CPU cores you want to use
 # Estimated time: 9 hours for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will consist of the path + other information on nucleotides/etc
 
 # After processing with SNAP we need to generate motif files
-python rna_motif_library/cli.py generate-motifs
+python rna_motif_library/cli.py generate_motifs
 # No threading for this one
 # Estimated time: 72 hours for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will display the names of the motifs being processed
 
 # After generating motifs we find tertiary contacts
-python rna_motif_library/cli.py find-tertiary-contacts
+python rna_motif_library/cli.py load_tertiary_contacts
 # No threading for this one
 # Estimated time: 18 hours for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
@@ -99,7 +99,7 @@ If you are interested in only a certain number of PDBs, you can run the followin
 
 ```bash
 # Make sure to first delete the directories "data/motifs", "data/interactions", "data/tertiary_contacts", and "data/out_csvs" first so data doesn't overlap
-python cli.py generate-motifs --limit 8
+python cli.py generate_motifs --limit 8
 # Replace "8" with your desired number
 # This will always run certain files first; the order is not random, but fixed every time
 ```
@@ -110,7 +110,7 @@ If you are interested in a specific PDB, you can run the following:
 # Make sure to delete the directories "motifs", "interactions", "tertiary_contacts", "heatmaps", and "heatmap_data" if you've run the full code already
 # Make sure your file is within the nonredundant set
 # Look for "PDB_name.json" and "PDB_name.out" in /dssr_output and /snap_output
-python cli.py generate-motifs --pdb 3R9X
+python cli.py generate_motifs --pdb 3R9X
 # Replace "3R9X" with your desired PDB
 ```
 

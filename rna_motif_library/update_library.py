@@ -267,7 +267,17 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
     """
 
 
-def motif_interaction_data_by_type_to_csv(csv_dir):
+def motif_interaction_data_by_type_to_csv(csv_dir: str) -> None:
+    """
+    Sends motif/interaction data (by residue type) to CSV.
+
+    Args:
+        csv_dir (str): Directory where CSVS are output.
+
+    Returns:
+        None
+
+    """
     # Interaction types, load into CSV as header
     hbond_vals = [
         "base:base",

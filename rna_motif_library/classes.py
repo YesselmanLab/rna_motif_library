@@ -95,19 +95,39 @@ class PandasMmcifOverride(PandasMmcif):
         return combined_df  # Return the combined DataFrame
 
 
+class RNPInteraction:
+    """
+    Class to represent an RNA-Protein interaction.
+
+    Args:
+        nt_atom (str): atom of nucleotide in interaction
+        aa_atom (str): atom of amino acid in interaction
+        dist (float): distance between atoms in interaction (angstroms)
+        interaction_type (str): type of interaction (base:sidechain/base:aa/etc)
+
+    """
+
+    def __init__(self, nt_atom: str, aa_atom: str, dist: float, interaction_type: str):
+        self.nt_atom = nt_atom
+        self.aa_atom = aa_atom
+        self.dist = dist
+        self.type = interaction_type
+        self.nt_res = nt_atom.split("@")[1]
+
+
 class PotentialTertiaryContact:
     def __init__(
-        self,
-        motif_1,
-        motif_2,
-        res_1,
-        res_2,
-        atom_1,
-        atom_2,
-        type_1,
-        type_2,
-        distance,
-        angle,
+            self,
+            motif_1: str,
+            motif_2: str,
+            res_1: str,
+            res_2: str,
+            atom_1: str,
+            atom_2: str,
+            type_1: str,
+            type_2: str,
+            distance: float,
+            angle: float,
     ):
         """
         Holds data about potential tertiary contacts.
@@ -133,8 +153,9 @@ class PotentialTertiaryContact:
 class SingleMotifInteraction:
 
     def __init__(
-        self, motif_name, res_1, res_2, atom_1, atom_2, type_1, type_2, distance, angle
-    ):
+            self, motif_name: str, res_1: str, res_2: str, atom_1: str, atom_2: str, type_1: str, type_2: str,
+            distance: float, angle: float
+    ) -> None:
         """
         Holds data for H-bond interactions within a single motif.
         Purpose is to get data ready for export to CSV.
@@ -165,22 +186,22 @@ class SingleMotifInteraction:
 
 class HBondInteraction:
     def __init__(
-        self,
-        res_1,
-        res_2,
-        atom_1,
-        atom_2,
-        type_1,
-        type_2,
-        distance,
-        angle,
-        pdb,
-        first_atom_df,
-        second_atom_df,
-        third_atom_df,
-        fourth_atom_df,
-        pdb_name,
-    ):
+            self,
+            res_1: str,
+            res_2: str,
+            atom_1: str,
+            atom_2: str,
+            type_1: str,
+            type_2: str,
+            distance: float,
+            angle: float,
+            pdb: pd.DataFrame,
+            first_atom_df: pd.DataFrame,
+            second_atom_df: pd.DataFrame,
+            third_atom_df: pd.DataFrame,
+            fourth_atom_df: pd.DataFrame,
+            pdb_name: str,
+    ) -> None:
         """
         Holds data for H-bond interaction.
         Used to store all the data about interactions.
@@ -233,7 +254,8 @@ class HBondInteractionFactory:
 
     """
 
-    def __init__(self, res_1, res_2, atom_1, atom_2, distance, residue_pair, quality):
+    def __init__(self, res_1: str, res_2: str, atom_1: str, atom_2: str, distance: float, residue_pair: str,
+                 quality: str) -> None:
         self.res_1 = res_1
         self.res_2 = res_2
         self.atom_1 = atom_1
@@ -249,15 +271,15 @@ class Motif:
     """
 
     def __init__(
-        self,
-        motif_name: str,
-        motif_type: str,
-        pdb: str,
-        size: str,
-        sequence: str = None,
-        res_list: List[str] = None,
-        strands: Any = None,
-        motif_pdb: pd.DataFrame = None,
+            self,
+            motif_name: str,
+            motif_type: str,
+            pdb: str,
+            size: str,
+            sequence: str = None,
+            res_list: List[str] = None,
+            strands: Any = None,
+            motif_pdb: pd.DataFrame = None,
     ) -> None:
         """
         Initialize a Motif object
@@ -334,7 +356,7 @@ class Residue:
         pdb (pd.DataFrame): DataFrame to hold the actual contents of the residue obtained from the .cif file
     """
 
-    def __init__(self, chain_id, res_id, ins_code, mol_name, pdb):
+    def __init__(self, chain_id: str, res_id: str, ins_code: str, mol_name: str, pdb: pd.DataFrame) -> None:
         self.chain_id = chain_id
         self.res_id = res_id
         self.ins_code = ins_code
@@ -357,7 +379,7 @@ def extract_longest_numeric_sequence(input_string: str) -> str:
     current_sequence = ""
     for c in input_string:
         if c.isdigit() or (
-            c == "-" and (not current_sequence or current_sequence[0] == "-")
+                c == "-" and (not current_sequence or current_sequence[0] == "-")
         ):
             current_sequence += c
             if len(current_sequence) >= len(longest_sequence):

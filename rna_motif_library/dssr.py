@@ -17,7 +17,7 @@ from rna_motif_library.classes import (
     extract_longest_numeric_sequence,
     PandasMmcifOverride,
     Residue,
-    HBondInteraction,
+    HBondInteraction, RNPInteraction,
 )
 from rna_motif_library.dssr_hbonds import (
     dataframe_to_cif,
@@ -29,18 +29,20 @@ from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.snap import get_rnp_interactions
 
 
-def process_motif_interaction_out_data(count: int, pdb_path: str):
+def process_motif_interaction_out_data(count: int, pdb_path: str) -> Tuple[
+    List[str], List[SingleMotifInteraction], List[PotentialTertiaryContact], List[HBondInteraction]]:
     """
     Function for extracting motifs from a PDB in the loop
 
     Args:
         count (int): # of PDBs processed (loaded from outside)
         pdb_path (str): path to the source PDB
-        limit (int): # of PDB files to process (loaded from outside)
-        pdb_name (str): which specific PDB o process
 
     Returns:
-        None
+        motif_list (list): list of motif names
+        single_motif_interactions (list): list of SingleMotifInteraction interactions within single motif
+        potential_tert_contacts (list): list of PotentialTertiaryContact interactions
+        assembled_interaction_data (list): list of HBondInteraction interactions
 
     """
     name = os.path.basename(pdb_path)[:-4]
@@ -89,18 +91,18 @@ def process_motif_interaction_out_data(count: int, pdb_path: str):
         potential_tert_contact_motif_2 = []
         for interaction in assembled_interaction_data:
             if (
-                (
-                    interaction.res_1 in residues_in_motif
-                    and interaction.res_2 in residues_in_motif
-                )
-                or (
+                    (
+                            interaction.res_1 in residues_in_motif
+                            and interaction.res_2 in residues_in_motif
+                    )
+                    or (
                     interaction.type_1 == "aa"
                     and interaction.res_2 in residues_in_motif
-                )
-                or (
+            )
+                    or (
                     interaction.type_2 == "aa"
                     and interaction.res_1 in residues_in_motif
-                )
+            )
             ):
                 # H-bonds fully inside motif (or RNP interactions with the motif)
                 interactions_in_motif.append(interaction)
@@ -204,21 +206,29 @@ def process_motif_interaction_out_data(count: int, pdb_path: str):
     )
 
 
-### build functions down here
+def save_interactions_to_disk(assembled_interaction_data: List[HBondInteraction], pdb: str) -> None:
+    """
+    Saves HBondInteraction objects to the disk.
 
+    Args:
+        assembled_interaction_data (list): list of HBondInteraction objects to write to disk
+        pdb (str): name of PDB interaction is derived from
 
-def save_interactions_to_disk(assembled_interaction_data, pdb):
+    Returns:
+        None
+    """
+
     for interaction in assembled_interaction_data:
         interaction_name = (
-            str(pdb)
-            + "."
-            + interaction.res_1
-            + "."
-            + interaction.atom_1
-            + "."
-            + interaction.res_2
-            + "."
-            + interaction.atom_2
+                str(pdb)
+                + "."
+                + interaction.res_1
+                + "."
+                + interaction.atom_1
+                + "."
+                + interaction.res_2
+                + "."
+                + interaction.atom_2
         )
         folder_path = os.path.join(
             LIB_PATH,
@@ -232,9 +242,20 @@ def save_interactions_to_disk(assembled_interaction_data, pdb):
         )
 
 
-def build_complete_hbond_interaction(
-    pre_assembled_interaction_data, pdb_model_df, pdb_name
-):
+def build_complete_hbond_interaction(pre_assembled_interaction_data: List[HBondInteractionFactory],
+                                     pdb_model_df: pd.DataFrame, pdb_name: str) -> List[HBondInteraction]:
+    """
+    Builds a complete HBondInteraction object from HBondInteractionFactory preliminary data
+
+    Args:
+        pre_assembled_interaction_data (list): pre-assembled HBondInteractionFactory data to draw data from
+        pdb_model_df (pd.DataFrame): PDB dataframe
+        pdb_name (str): name of source PDB
+
+    Returns:
+        built_interactions (list): a list of built HBondInteraction objects
+    """
+
     built_interactions = []
     for interaction in pre_assembled_interaction_data:
         res_1 = DSSRRes(interaction.res_1)
@@ -252,7 +273,6 @@ def build_complete_hbond_interaction(
         if first_atom.empty or second_atom.empty:
             # print(pdb)
             # print("EMPTY ATOM")
-            # TODO come back to this, this is a placeholder; there aren't that many of these relative to the rest of interactions but need to look at
             continue
         # filter out protein-protein interactions
         if type_1 == "aa" and type_2 == "aa":
@@ -282,7 +302,18 @@ def build_complete_hbond_interaction(
     return built_interactions
 
 
-def extract_interacting_atoms(interaction, pdb):
+def extract_interacting_atoms(interaction: HBondInteraction, pdb: pd.DataFrame):
+    """
+    Extracts interacting atoms from PDB data given interaction data from DSSR/SNAP.
+
+    Args:
+        interaction (HBondInteraction): HBondInteraction object
+        pdb (pd.DataFrame): dataframe containing PDB structure information
+
+    Returns:
+        first_atom: PDB of first atom in interaction
+        second_atom: PDB of second atom in interaction
+    """
     atom_1 = interaction.atom_1
     atom_2 = interaction.atom_2
 
@@ -300,13 +331,13 @@ def extract_interacting_atoms(interaction, pdb):
         & (pdb["auth_comp_id"] == res_1)
         & (pdb["auth_asym_id"] == chain_id_1)
         & (pdb["auth_seq_id"] == res_id_1)
-    ]
+        ]
     second_atom = pdb[
         (pdb["auth_atom_id"] == atom_2)
         & (pdb["auth_comp_id"] == res_2)
         & (pdb["auth_asym_id"] == chain_id_2)
         & (pdb["auth_seq_id"] == res_id_2)
-    ]
+        ]
 
     if first_atom.empty:
         # Check for common prefixes or alternate namings
@@ -315,10 +346,10 @@ def extract_interacting_atoms(interaction, pdb):
             if prefix in atom_1:
                 first_atom = pdb[
                     (
-                        pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
-                        & (pdb["auth_comp_id"] == res_1)
-                        & (pdb["auth_asym_id"] == chain_id_1)
-                        & (pdb["auth_seq_id"] == res_id_1)
+                            pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
+                            & (pdb["auth_comp_id"] == res_1)
+                            & (pdb["auth_asym_id"] == chain_id_1)
+                            & (pdb["auth_seq_id"] == res_id_1)
                     )
                 ]
                 if not first_atom.empty:
@@ -331,10 +362,10 @@ def extract_interacting_atoms(interaction, pdb):
             if prefix in atom_2:
                 second_atom = pdb[
                     (
-                        pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
-                        & (pdb["auth_comp_id"] == res_2)
-                        & (pdb["auth_asym_id"] == chain_id_2)
-                        & (pdb["auth_seq_id"] == res_id_2)
+                            pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
+                            & (pdb["auth_comp_id"] == res_2)
+                            & (pdb["auth_asym_id"] == chain_id_2)
+                            & (pdb["auth_seq_id"] == res_id_2)
                     )
                 ]
                 if not first_atom.empty:
@@ -343,7 +374,19 @@ def extract_interacting_atoms(interaction, pdb):
     return first_atom, second_atom
 
 
-def get_interaction_pdb(res_1, res_2, pdb_model_df):
+def get_interaction_pdb(res_1: DSSRRes, res_2: DSSRRes, pdb_model_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Obtains PDB of combined interaction (not individual residues)
+
+    Args:
+        res_1 (DSSRRes): residue 1 in interaction obtained from DSSR/SNAP
+        res_2 (DSSRRes): residue 2 in interaction obtained from DSSR/SNAP
+        pdb_model_df (pd.DataFrame): dataframe with source PDB data
+
+    Returns:
+        res_1_res_2_result_df (pd.DataFrame): dataframe containing the overall interaction
+
+    """
     res_1_chain_id, res_1_atom_type, res_1_res_id = (
         res_1.chain_id,
         res_1.res_id,
@@ -356,16 +399,16 @@ def get_interaction_pdb(res_1, res_2, pdb_model_df):
     )
     res_1_inter_chain = pdb_model_df[
         pdb_model_df["auth_asym_id"].astype(str) == str(res_1_chain_id)
-    ]
+        ]
     res_2_inter_chain = pdb_model_df[
         pdb_model_df["auth_asym_id"].astype(str) == str(res_2_chain_id)
-    ]
+        ]
     res_1_inter_res = res_1_inter_chain[
         res_1_inter_chain["auth_seq_id"].astype(str) == str(res_1_res_id)
-    ]
+        ]
     res_2_inter_res = res_2_inter_chain[
         res_2_inter_chain["auth_seq_id"].astype(str) == str(res_2_res_id)
-    ]
+        ]
     res_1_res_2_result_df = pd.concat(
         [res_1_inter_res, res_2_inter_res], axis=0, ignore_index=True
     )
@@ -373,7 +416,18 @@ def get_interaction_pdb(res_1, res_2, pdb_model_df):
     return res_1_res_2_result_df
 
 
-def assemble_interaction_data(unique_interaction_data):
+def assemble_interaction_data(unique_interaction_data: List[Tuple[str, str, str, str, str, str, str]]) -> List[
+    HBondInteractionFactory]:
+    """
+    Loads data into intermediate HBondInteractionFactory from DSSR/SNAP output data.
+
+    Args:
+        unique_interaction_data (list): raw interaction data from DSSR/SNAP
+
+    Returns:
+        assembled_data (list): raw data loaded into the intermediate HBondInteractionFactory class for further processing
+
+    """
     assembled_data = []
     # Load all data into HBondInteractionFactory class to prepare for processing
     for interaction in unique_interaction_data:
@@ -403,7 +457,20 @@ def assemble_interaction_data(unique_interaction_data):
     return assembled_data
 
 
-def merge_hbond_interaction_data(rnp_interactions, hbonds):
+def merge_hbond_interaction_data(rnp_interactions: List[RNPInteraction], hbonds: List[DSSR_HBOND]) -> List[
+    Tuple[str, str, str, str, str, str, str]]:
+    """
+    Merges H-bond interaction data from DSSR and SNAP into one common data set.
+
+    Args:
+        rnp_interactions (list): list of RNPInteraction objects from SNAP
+        hbonds (list): list of DSSR_HBOND objects from DSSR
+
+    Returns:
+        unique_interaction_data (list): list of tuples with interaction data
+
+    """
+
     rnp_data = [
         (
             interaction.nt_atom.split("@")[1],
@@ -434,53 +501,22 @@ def merge_hbond_interaction_data(rnp_interactions, hbonds):
     return unique_interaction_data
 
 
-def assign_residue_type(hbond: DSSR_HBOND):
+def find_and_build_motif(m: Any, pdb_name: str, pdb_model_df: pd.DataFrame, discovered: List[str], motif_count: int):
     """
-    Assign base, phosphate, sugar, or amino acid in interactions_detailed.csv.
+    Identifies motif in source PDB by ID and extracts to disk, setting its name and other data.
+
+    Args:
+        m (Any): DSSR_Motif object, contains motif data returned directly from DSSR
+        pdb_name (str): name of PDB
+        pdb_model_df (pd.DataFrame): PDB structure as a dataframe
+        discovered (list): list of discovered motifs (to count potential duplicates)
+        motif_count (int): count of discovered motifs, used in conjunction with "discovered" to set motif name
+
+    Returns:
+        our_motif (Motif): Motif object with all associated data inside
+
     """
-    residue_pair = hbond.residue_pair
-    rt_1, rt_2 = residue_pair.split(":")
-    atom_1 = str(hbond.atom1_id.split("@")[0])
-    atom_2 = str(hbond.atom2_id.split("@")[0])
 
-    # process each residue type to correct DSSR's mistakes
-    hbond.residue_pair = determine_interaction_type_from_atoms(
-        rt_1, rt_2, atom_1, atom_2
-    )
-    return hbond.residue_pair.split(":")
-
-
-def determine_interaction_type_from_atoms(rt_1, rt_2, atom_1, atom_2):
-    # type 1
-    if rt_1 == "aa":
-        res_type_1 = "aa"
-    else:
-        if atom_1 in canon_amino_acid_list:
-            res_type_1 = "aa"
-        elif "P" in atom_1:
-            res_type_1 = "phos"
-        elif atom_1.endswith("'"):
-            res_type_1 = "sugar"
-        else:
-            res_type_1 = "base"
-
-    # type 2
-    if rt_2 == "aa":
-        res_type_2 = "aa"
-    else:
-        if atom_2 in canon_amino_acid_list:
-            res_type_2 = "aa"
-        elif "P" in atom_1:
-            res_type_2 = "phos"
-        elif atom_1.endswith("'"):
-            res_type_2 = "sugar"
-        else:
-            res_type_2 = "base"
-
-    return f"{res_type_1}:{res_type_2}"
-
-
-def find_and_build_motif(m, pdb_name, pdb_model_df, discovered, motif_count):
     # We need to determine the data for the motif and build a class
     # First get the type
     motif_type = determine_motif_type(m)
@@ -532,6 +568,13 @@ def find_and_build_motif(m, pdb_name, pdb_model_df, discovered, motif_count):
 
 
 def size_up_motif(strands, motif_type):
+    """
+    Sets the size of the motif according to motif type and strands.
+
+    :param strands:
+    :param motif_type:
+    :return:
+    """
     if motif_type == "JCT":
         lens = []
         for strand in strands:
@@ -584,7 +627,7 @@ def extract_motif_from_pdb(nts, model_df):
         for residue in residue_list:
             chain_res = model_df[
                 model_df["auth_asym_id"].astype(str) == str(chain_number)
-            ]
+                ]
             res_subset = chain_res[chain_res["auth_seq_id"].astype(str) == str(residue)]
             res.append(res_subset)
         list_of_chains.append(res)
@@ -654,7 +697,7 @@ def determine_motif_type(motif):
         return "UNKNOWN"
 
 
-def find_strands(master_res_df):
+def find_strands(master_res_df: pd.DataFrame) -> Tuple[List[Any], str]:
     """
     Counts the number of strands in a motif and updates its name accordingly to better reflect structure.
 
@@ -662,12 +705,8 @@ def find_strands(master_res_df):
         master_res_df (pd.DataFrame): DataFrame containing motif data from PDB.
 
     Returns:
-        len_chains (int): The number of strands in the motif.
-
-    TODO in order to test this function
-    we take a dataframe of residues
-    and save it, knowing the right answer
-    then write a bunch of edge cases for it
+        strands_of_rna (list): list of strands of residues
+        sequence (str): string containing sequence of the motif (AUCG-AUCG-AUCG)
 
     """
     # step 1: make a list of all known residues
@@ -685,7 +724,17 @@ def find_strands(master_res_df):
     return strands_of_rna, sequence
 
 
-def find_sequence(strands_of_rna):
+def find_sequence(strands_of_rna: List[List[Residue]]) -> str:
+    """
+    Finds sequences from found strands of RNA.
+
+    Args:
+        strands_of_rna (list): Strands of RNA found.
+
+    Returns:
+        sequence (str): RNA sequence of motif.
+
+    """
     res_strands = []
     for strand in strands_of_rna:
         res_strand = []
@@ -698,9 +747,9 @@ def find_sequence(strands_of_rna):
     return sequence
 
 
-def extract_residue_list(master_res_df: pd.DataFrame) -> List:
+def extract_residue_list(master_res_df: pd.DataFrame) -> List[Residue]:
     """
-    Extracts PDB data per residue and puts it in a list
+    Extracts PDB data per residue and puts it in a list of Residue objects.
 
     Args:
         master_res_df (pd.DataFrame): dataframe of the PDB data in the motif
@@ -749,16 +798,17 @@ def extract_residue_list(master_res_df: pd.DataFrame) -> List:
     return res_list
 
 
-def find_residue_roots(res_list):
+def find_residue_roots(res_list: List[Residue]) -> Tuple[List[Residue], List[Residue]]:
     """
     Finds the roots of chains of RNA by finding the bottom of the chain first.
     Roots are residues that are only connected 5' to 3' to one other residue.
 
     Args:
-        res_list (list): List of tuples, each containing a residue name and its corresponding DataFrame.
+        res_list (list): List of Residue objects.
 
     Returns:
         roots (list): List containing the root residues, which are only connected in the 5' to 3' direction.
+        res_list_modified (list): List containing all other residues to build strands with.
 
     """
     roots = []
@@ -789,7 +839,7 @@ def find_residue_roots(res_list):
     return roots, res_list_modified
 
 
-def connected_to(source_residue, residue_in_question, cutoff: float = 2.75):
+def connected_to(source_residue: Residue, residue_in_question: Residue, cutoff: float = 2.75) -> int:
     """
     Determine if another residue is connected to this residue.
     From 5' to 3'; if reverse, returns -1.
@@ -850,7 +900,7 @@ def connected_to(source_residue, residue_in_question, cutoff: float = 2.75):
     return 0  # No connection
 
 
-def build_strands_5to3(residue_roots, res_list):
+def build_strands_5to3(residue_roots: List[Residue], res_list: List[Residue]):
     """
     Given residue roots of strands, builds strands of RNA from the list of given residues.
 
@@ -859,7 +909,8 @@ def build_strands_5to3(residue_roots, res_list):
         res_list (list): List of Residue objs, each containing a residue name and its corresponding DataFrame.
 
     Returns:
-        built_strands (list): List of tuples, each containing a root residue and its built chain of residues in the 5' to 3' direction.
+        built_strands (list): List of residues, containing a root residue and its built chain of residues in the 5' to 3' direction.
+
     """
     built_strands = []
 
@@ -902,52 +953,9 @@ def remove_empty_dataframes(dataframes_list: List[pd.DataFrame]) -> List[pd.Data
     dataframes_list = [df for df in dataframes_list if not df.empty]
     return dataframes_list
 
-
-def extract_longest_letter_sequence(input_string: str) -> str:
-    """
-    Extracts the longest sequence of letters from a given string.
-
-    Args:
-        input_string (str): The string to extract the letter sequence from.
-
-    Returns:
-        str: The longest sequence of letters found in the input string.
-
-    """
-    # Find all sequences of letters using regular expression
-    letter_sequences = re.findall("[a-zA-Z]+", input_string)
-
-    # If there are no letter sequences, return an empty string
-    if not letter_sequences:
-        return ""
-
-    # Find the longest letter sequence
-    longest_sequence = max(letter_sequences, key=len)
-
-    return str(longest_sequence)
-
-
-def remove_duplicate_residues_in_chain(original_list: list) -> list:
-    """
-    Removes duplicate items in a list, meant for removing duplicate residues in a chain.
-
-    Args:
-        original_list: The list from which to remove duplicate items.
-
-    Returns:
-        unique_list: A list with duplicates removed.
-
-    """
-    unique_list = []
-    for item in original_list:
-        if item not in unique_list:
-            unique_list.append(item)
-    return unique_list
-
-
 def group_residues_by_chain(input_list: List[str]) -> Tuple[List[List[int]], List[str]]:
     """
-    Groups residues into their own chains for sequence counting.
+    Groups residues into their own chains for counting.
 
     Args:
         input_list (list): List of strings containing chain ID and residue ID separated by a dot.
@@ -1015,19 +1023,19 @@ def get_data_from_dssr(json_path: str) -> Tuple[List, List]:
     d_out = DSSROutput(json_path=json_path)
     motifs = d_out.get_motifs()
     hbonds = d_out.get_hbonds()
-    motifs = __merge_singlet_seperated(motifs)
-    motifs = __remove_duplicate_motifs(motifs)
-    motifs = __remove_large_motifs(motifs)
+    motifs = merge_singlet_separated(motifs)
+    motifs = remove_duplicate_motifs(motifs)
+    motifs = remove_large_motifs(motifs)
 
     return motifs, hbonds
 
 
-def __remove_duplicate_motifs(motifs: list) -> list:
+def remove_duplicate_motifs(motifs: List[Any]) -> List[Any]:
     """
     Removes duplicate motifs from a list of motifs.
 
     Args:
-        motifs (list): A list of motifs.
+        motifs (list): A list of motifs; motifs from DSSR_Motif class
 
     Returns:
         unique_motifs (list): A list of unique motifs.
@@ -1058,15 +1066,15 @@ def __remove_duplicate_motifs(motifs: list) -> list:
     return unique_motifs
 
 
-def __remove_large_motifs(motifs: list) -> list:
+def remove_large_motifs(motifs: List[Any]) -> List[Any]:
     """
     Removes motifs larger than 35 nucleotides.
 
     Args:
-        motifs (list): A list of motifs.
+        motifs (list): A list of motifs; DSSR_Motif objects.
 
     Returns:
-        new_motifs (list): A list of motifs with 35 or fewer nucleotides.
+        new_motifs (list): A list of motifs with 35 or fewer nucleotides; DSSR_Motif objects.
 
     """
     new_motifs = []
@@ -1077,7 +1085,7 @@ def __remove_large_motifs(motifs: list) -> list:
     return new_motifs
 
 
-def __merge_singlet_seperated(motifs: list) -> list:
+def merge_singlet_separated(motifs: List[Any]) -> List[Any]:
     """
     Merges singlet separated motifs into a unified list.
 
@@ -1124,31 +1132,3 @@ def __merge_singlet_seperated(motifs: list) -> list:
     new_motifs = others + [m for m in junctions if m not in merged]
 
     return new_motifs
-
-
-def __sorted_res_int(item: str) -> Tuple[str, str]:
-    """
-    Sorts residues by their chain ID and residue number.
-
-    Args:
-        item (str): A string representing a residue in the format "chainID.residueID".
-
-    Returns:
-        chain_id, residue_id (tuple): A tuple containing the chain ID and residue number.
-    """
-    spl = item.split(".")
-    return spl[0], spl[1][1:]
-
-
-def __sort_res(item: Any) -> Tuple[str, str]:
-    """
-    Sorts motifs by the first residue's chain ID and residue number.
-
-    Args:
-        item: An object with an attribute 'nts_long' containing residues in the format "chainID.residueID".
-
-    Returns:
-        chain_id, residue_id (tuple): A tuple containing the chain ID and residue number of the first residue.
-    """
-    spl = item.nts_long[0].split(".")
-    return spl[0], spl[1][1:]

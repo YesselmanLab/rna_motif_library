@@ -21,7 +21,7 @@ def cli():
     pass
 
 
-@cli.command("download-cifs")
+@cli.command()
 @click.option("--threads", default=1, help="Number of threads to use.")
 def download_cifs(threads):
     """
@@ -58,7 +58,7 @@ def download_cifs(threads):
     log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command("process-dssr")
+@cli.command()
 @click.option("--threads", default=1, help="Number of threads to use.")
 def process_dssr(threads):
     """
@@ -90,7 +90,7 @@ def process_dssr(threads):
     log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command("process-snap")
+@cli.command()
 @click.option("--threads", default=1, help="Number of threads to use.")
 def process_snap(threads):
     """
@@ -122,7 +122,7 @@ def process_snap(threads):
     log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command("generate-motifs")  # Set command name
+@cli.command()  # Set command name
 @click.option(
     "--limit", default=None, type=int, help="Limit the number of PDB files processed."
 )
@@ -166,7 +166,7 @@ def generate_motifs(limit, pdb):
     log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
-@cli.command("find-tertiary-contacts")  # Set command name
+@cli.command()  # Set command name
 def load_tertiary_contacts():
     """
     Finds tertiary contacts using hydrogen bonding data.
