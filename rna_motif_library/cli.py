@@ -47,14 +47,8 @@ def download_cifs(threads):
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
-    log.info(
-        "Download started at "
-        + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
-    )
-    log.info(
-        "Download finished at "
-        + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
-    )
+    log.info(f"Download started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}")
+    log.info(f"Download finished at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))}")
     log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
@@ -79,14 +73,8 @@ def process_dssr(threads):
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
-    log.info(
-        "DSSR processing started at",
-        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
-    )
-    log.info(
-        "DSSR processing finished at",
-        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
-    )
+    log.info(f"DSSR processing started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}")
+    log.info(f"DSSR processing finished at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))}")
     log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
@@ -111,14 +99,8 @@ def process_snap(threads):
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
-    log.info(
-        "SNAP processing started at",
-        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
-    )
-    log.info(
-        "SNAP processing finished at",
-        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
-    )
+    log.info(f"SNAP processing started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}")
+    log.info(f"SNAP processing finished at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))}")
     log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
@@ -155,14 +137,8 @@ def generate_motifs(limit, pdb):
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
 
-    log.info(
-        "Motif generation started at",
-        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
-    )
-    log.info(
-        "Motif generation finished at",
-        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
-    )
+    log.info(f"Motif generation started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}")
+    log.info(f"Motif generation finished at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))}")
     log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
@@ -188,14 +164,8 @@ def load_tertiary_contacts():
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
 
-    log.info(
-        "Tertiary contact discovery started at",
-        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time)),
-    )
-    log.info(
-        "Tertiary contact discovery finished at",
-        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time)),
-    )
+    log.info(f"Tertiary contact discovery started at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time))}")
+    log.info(f"Tertiary contact discovery finished at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))}")
     log.info(f"Time taken: {hours} hours, {minutes} minutes, {seconds} seconds")
 
 
