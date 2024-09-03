@@ -470,6 +470,7 @@ def print_obtained_motif_interaction_data_to_csv(motifs_per_pdb: List[List[Motif
     )
 
 
+
 def find_closest_atom(
         atom_A: pd.DataFrame, whole_interaction: pd.DataFrame
 ) -> pd.DataFrame:

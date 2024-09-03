@@ -1,6 +1,7 @@
 import csv
 import json
 from concurrent.futures import ThreadPoolExecutor
+from typing import List
 
 import wget
 import glob
@@ -14,6 +15,7 @@ from tqdm import tqdm
 from pydssr.dssr import write_dssr_json_output_to_file
 
 from rna_motif_library import dssr_hbonds
+from rna_motif_library.classes import HBondInteraction
 from rna_motif_library.snap import generate_out_file
 from rna_motif_library import dssr
 from rna_motif_library.settings import LIB_PATH, DSSR_EXE
@@ -228,7 +230,6 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
     )
 
     motif_interaction_data_by_type_to_csv(csv_dir)
-
 
 def motif_interaction_data_by_type_to_csv(csv_dir: str) -> None:
     """
