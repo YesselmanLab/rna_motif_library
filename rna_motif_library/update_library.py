@@ -13,12 +13,10 @@ from tqdm import tqdm
 
 from pydssr.dssr import write_dssr_json_output_to_file
 
-from rna_motif_library import tert_contacts, dssr_hbonds
+from rna_motif_library import dssr_hbonds
 from rna_motif_library.snap import generate_out_file
 from rna_motif_library import dssr
-from rna_motif_library import figure_plotting
 from rna_motif_library.settings import LIB_PATH, DSSR_EXE
-from rna_motif_library.figure_plotting import safe_mkdir
 from rna_motif_library.tert_contacts import import_tert_contact_csv, import_residues_csv, update_unknown_motifs, \
     find_unique_tert_contacts, print_tert_contacts_to_cif
 
@@ -125,10 +123,6 @@ def get_dssr_files(threads: int) -> None:
     validate_and_regenerate_invalid_json_files(out_path, pdb_dir)
 
 
-
-
-
-
 def get_snap_files(threads: int) -> None:
     """
     Runs snap to extract RNP interactions for each PDB file and stores the results in .out files.
@@ -197,8 +191,6 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
     # Define directories for output
     motif_dir = os.path.join(LIB_PATH, "data", "motifs")
     csv_dir = os.path.join(LIB_PATH, "data", "out_csvs")
-    safe_mkdir(motif_dir)
-    safe_mkdir(csv_dir)
     os.makedirs(motif_dir, exist_ok=True)
     os.makedirs(csv_dir, exist_ok=True)
 
@@ -236,40 +228,6 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
     )
 
     motif_interaction_data_by_type_to_csv(csv_dir)
-
-    # don't delete this code yet, need to fix this other stuff up here first
-    """    
-    # When all is said and done need to count number of motifs and print to CSV
-    motif_directory = os.path.join("data/motifs")
-    safe_mkdir(motif_directory)
-    os.makedirs(motif_directory, exist_ok=True)
-    output_csv = os.path.join("data/out_csvs/motif_cif_counts.csv")
-    write_counts_to_csv(motif_directory, output_csv)
-
-    # Need to print data for every H-bond group
-    hbond_df_unfiltered = pd.read_csv("data/out_csvs/interactions_detailed.csv")
-    filtered_data = []
-    # Iterate through each row in the unfiltered DataFrame
-    for index, row in hbond_df_unfiltered.iterrows():
-        motif_1_split = row["name"].split(".")
-        # Check conditions for deletion
-        if motif_1_split[0] == "HAIRPIN" and 0 < float(motif_1_split[2]) < 3:
-            continue
-        else:
-            filtered_data.append(row)
-    hbond_df = pd.DataFrame(filtered_data)
-    hbond_df.reset_index(drop=True, inplace=True)
-    filtered_hbond_df = hbond_df[
-        hbond_df["res_1_name"].isin(canon_res_list)
-        & hbond_df["res_2_name"].isin(canon_res_list)
-        ]
-    filtered_hbond_df["res_atom_pair"] = filtered_hbond_df.apply(
-        lambda row: tuple(sorted([(row["res_1_name"], row["atom_1"]), (row["res_2_name"], row["atom_2"])])),
-        axis=1,
-    )
-    grouped_hbond_df = filtered_hbond_df.groupby(["res_atom_pair"])
-    figure_plotting.save_present_hbonds(grouped_hbond_df=grouped_hbond_df)
-    """
 
 
 def motif_interaction_data_by_type_to_csv(csv_dir: str) -> None:

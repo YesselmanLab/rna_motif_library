@@ -1,5 +1,5 @@
-import settings
-from snap import get_rnp_interactions
+from rna_motif_library import settings
+from rna_motif_library.snap import get_rnp_interactions
 
 
 def test_snap() -> None:

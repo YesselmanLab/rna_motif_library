@@ -41,7 +41,6 @@ def download_cifs(threads):
     csv_files = [file for file in os.listdir(csv_directory) if file.endswith(".csv")]
     csv_path = os.path.join(csv_directory, csv_files[0])
     download_cif_files(csv_path, threads)
-    download_cif_files(csv_path, threads)
     end_time = time.time()
     total_seconds = int(end_time - start_time)
     hours = total_seconds // 3600

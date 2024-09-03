@@ -5,7 +5,6 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 from rna_motif_library.dssr_hbonds import assign_res_type
-from rna_motif_library.figure_plotting import safe_mkdir
 
 
 def find_unique_tert_contacts(tert_contact_df: pd.DataFrame) -> pd.DataFrame:
@@ -135,7 +134,7 @@ def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
         None
     """
     # Create directory for tertiary contacts if it doesn't exist
-    safe_mkdir("data/tertiary_contacts")
+    os.makedirs("data/tertiary_contacts", exist_ok=True)
     print("Saving tertiary contacts to CIF files...")
 
     # Iterate through each row in the DataFrame
@@ -153,9 +152,13 @@ def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
         path_to_cif_2 = find_cif_file(directory_to_search, motif_cif_2)
 
         # Define the output path for the merged CIF file
+        motif_type_1 = motif_1.split(".")[0]
+        motif_type_2 = motif_2.split(".")[0]
         tert_contact_name = f"{motif_1}.{motif_2}"
-        tert_contact_out_path = f"data/tertiary_contacts/{tert_contact_name}.cif"
-
+        sorted_motif_types = sorted([motif_type_1, motif_type_2])
+        tert_contact_folder_name = f"{sorted_motif_types[0]}-{sorted_motif_types[1]}"
+        tert_contact_out_path = f"data/tertiary_contacts/{tert_contact_folder_name}/{tert_contact_name}.cif"
+        os.makedirs(f"data/tertiary_contacts/{tert_contact_folder_name}", exist_ok=True)
         # Print the tertiary contact name
         print(f"Processing: {tert_contact_name}")
 

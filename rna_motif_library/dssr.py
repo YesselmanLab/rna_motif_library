@@ -227,7 +227,7 @@ def find_and_build_motif(m: Any, pdb_name: str, pdb_model_df: pd.DataFrame, disc
     # Now find the list of strands and sequence
     list_of_strands, sequence = find_strands(motif_pdb)
     # Get the size of the motif (as string)
-    size = size_up_motif(list_of_strands, motif_type)
+    size = set_motif_size(list_of_strands, motif_type)
     if size == "UNKNOWN":
         # print only for debugging purposes
         return "UNKNOWN"
@@ -266,13 +266,17 @@ def find_and_build_motif(m: Any, pdb_name: str, pdb_model_df: pd.DataFrame, disc
     return our_motif
 
 
-def size_up_motif(strands, motif_type):
+def set_motif_size(strands: List, motif_type: str) -> str:
     """
     Sets the size of the motif according to motif type and strands.
 
-    :param strands:
-    :param motif_type:
-    :return:
+    Args:
+        strands (list): List of all strands in motif (list of lists).
+        motif_type (str): String describing the motif type.
+
+    Returns:
+        size (str): String specifying size.
+
     """
     if motif_type == "JCT":
         lens = []
