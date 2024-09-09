@@ -12,13 +12,13 @@ setup(
     py_modules=[
         "dssr",
         "dssr_hbonds",
-        "figure_plotting",
         "settings",
         "snap",
         "tert_contacts",
         "update_library",
         "classes",
         "cli",
+        "logger"
     ],
     include_package_data=True,
     install_requires=[

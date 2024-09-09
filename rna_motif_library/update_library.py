@@ -198,9 +198,6 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
 
     count = 0
     motifs_per_pdb = []
-    all_single_motif_interactions = []
-    all_potential_tert_contacts = []
-    all_interactions = []
     for pdb_path in pdbs:
         count += 1
         # Keep processed files under the limit if specified
@@ -210,23 +207,14 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
         name = os.path.basename(pdb_path)[:-4]
         if (pdb_name != None) and (name != pdb_name):
             break
-        (
-            built_motifs,
-            interactions_in_motif,
-            potential_tert_contacts,
-            found_interactions,
-        ) = dssr.process_motif_interaction_out_data(count, pdb_path)
-        motifs_per_pdb.append(built_motifs)
-        all_single_motif_interactions.append(interactions_in_motif)
-        all_potential_tert_contacts.append(potential_tert_contacts)
-        all_interactions.append(found_interactions)
 
-    dssr_hbonds.print_obtained_motif_interaction_data_to_csv(
+        built_motifs = dssr.process_motif_interaction_out_data(count, pdb_path)
+        # we can keep this as is it's not too big a CSV i think
+        motifs_per_pdb.append(built_motifs)
+
+    dssr_hbonds.print_residues_in_motif_to_csv(
         motifs_per_pdb,
-        all_potential_tert_contacts,
-        all_interactions,
-        all_single_motif_interactions,
-        csv_dir,
+        csv_dir
     )
 
     motif_interaction_data_by_type_to_csv(csv_dir)

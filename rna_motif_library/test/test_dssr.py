@@ -1,10 +1,9 @@
 import os
-
 import pandas as pd
 
 from rna_motif_library.classes import DSSRRes, extract_longest_numeric_sequence
-from rna_motif_library.dssr import find_strands
-from rna_motif_library.settings import LIB_PATH
+from rna_motif_library.dssr import find_strands, get_data_from_dssr
+from rna_motif_library.settings import LIB_PATH, UNITTEST_PATH
 
 
 def test_extract_num_seq() -> None:
@@ -70,13 +69,16 @@ def test_determine_motif_type() -> None:
 
     Returns:
         None
+
     """
-
-
     # Load the desired JSON data
     # for every motif:
 
-    pass
+    motifs, hbonds = get_data_from_dssr(os.path.join(UNITTEST_PATH, "1GID.json"))
+    # we don't need hbonds so this variable will just remain ununsed
+
+    for m in motifs:
+        print(m.mtype)
 
 
 def import_cif_as_dataframe(cif_path: str) -> pd.DataFrame:

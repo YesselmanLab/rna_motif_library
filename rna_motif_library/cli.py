@@ -62,6 +62,7 @@ def process_dssr(threads):
 
     Returns:
         None
+
     """
     setup_logging()
     warnings.filterwarnings("ignore")
@@ -88,6 +89,7 @@ def process_snap(threads):
 
     Returns:
         None
+
     """
     setup_logging()
     warnings.filterwarnings("ignore")
@@ -123,6 +125,7 @@ def generate_motifs(limit, pdb):
 
     Returns:
         None
+
     """
     setup_logging()
     warnings.filterwarnings("ignore")

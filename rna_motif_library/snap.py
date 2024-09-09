@@ -1,10 +1,9 @@
 import os
 import subprocess
-import settings
 from typing import List, Optional
 
 from rna_motif_library.classes import RNPInteraction
-
+from rna_motif_library.settings import DSSR_EXE
 
 def get_rnp_interactions(
     pdb_path: Optional[str] = None, out_file: Optional[str] = None
@@ -71,7 +70,7 @@ def generate_out_file(pdb_path: str, out_path: str = "test.out") -> None:
         None
 
     """
-    dssr_exe = settings.DSSR_EXE
+    dssr_exe = DSSR_EXE
     subprocess.run(f"{dssr_exe} snap -i={pdb_path} -o={out_path}", shell=True)
     files = [
         "dssr-2ndstrs.bpseq",
