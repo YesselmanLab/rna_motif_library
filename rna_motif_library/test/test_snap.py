@@ -10,8 +10,8 @@ def test_snap() -> None:
         None
 
     """
-    pdb_path = str(settings.UNITTEST_PATH) + "resources/4b3g.pdb"
-    out_path = str(settings.UNITTEST_PATH) + "resources/4b3g.out"
+    pdb_path = str(settings.UNITTEST_PATH) + "/resources/4b3g.pdb"
+    out_path = str(settings.UNITTEST_PATH) + "/resources/4b3g.out"
     interactions = get_rnp_interactions(pdb_path, out_path)
     assert len(interactions) == 43
 

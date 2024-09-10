@@ -547,7 +547,7 @@ def determine_motif_type(motif):
     motif_type_beta = motif.mtype
     if motif_type_beta in ["JUNCTION", "BULGE", "ILOOP"]:
         return "JCT"
-    elif motif_type_beta in ["STEM"]:
+    elif motif_type_beta in ["STEM", "HEXIX"]:
         return "HELIX"
     elif motif_type_beta in ["SINGLE_STRAND"]:
         return "SSTRAND"
