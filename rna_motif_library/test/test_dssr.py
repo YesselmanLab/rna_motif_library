@@ -3,7 +3,7 @@ import pandas as pd
 
 from rna_motif_library.classes import DSSRRes, extract_longest_numeric_sequence
 from rna_motif_library.dssr import find_strands, get_data_from_dssr, determine_motif_type
-from rna_motif_library.settings import LIB_PATH, UNITTEST_PATH
+from rna_motif_library.settings import LIB_PATH
 
 
 def test_extract_num_seq() -> None:
@@ -43,7 +43,7 @@ def test_dssr_res() -> None:
 
 def test_find_strands_sequence() -> None:
     """
-    Tests counting strands and finding sequences
+    Tests counting strands and finding sequences.
 
     Returns:
         None
@@ -74,17 +74,21 @@ def test_determine_motif_type() -> None:
     # Load the desired JSON data
     json_path = os.path.join(LIB_PATH, "resources", "1GID.json")
     motifs, hbonds = get_data_from_dssr(json_path)
-    # we don't need hbonds so this variable will just remain ununsed
-
-    list_of_motif_types = []
-    n = 0
+    # we don't need hbonds so this variable will just remain unused
 
     for m in motifs:
         motif_type = determine_motif_type(m)
-        assert motif_type == list_of_motif_types[n]
-        n += 1
 
-
+        if m.mtype in ["JUNCTION", "BULGE", "ILOOP"]:
+            assert motif_type == "JCT"
+        elif m.mtype in ["STEM", "HEXIX"]:
+            assert motif_type == "HELIX"
+        elif m.mtype in ["SINGLE_STRAND"]:
+            assert motif_type == "SSTRAND"
+        elif m.mtype in ["HAIRPIN"]:
+            assert motif_type == "HAIRPIN"
+        else:
+            continue
 
 def import_cif_as_dataframe(cif_path: str) -> pd.DataFrame:
     """
