@@ -3,7 +3,11 @@ File for testing DSSR H-Bond functions
 
 
 """
+import os
+
+from rna_motif_library.dssr import get_data_from_dssr
 from rna_motif_library.dssr_hbonds import assign_res_type
+from rna_motif_library.settings import LIB_PATH
 
 
 def test_assign_res_type() -> None:
@@ -34,9 +38,24 @@ def test_assign_res_type() -> None:
 
 
 def test_build_complete_hbond_interaction() -> None:
-    # Load an example of an intermediate class and use it plus JSON data to build the complete HBondInteraction object
+    """
 
-    # Also tests:
+    Builds complete interaction from JSON file and tests associated functionality.
+
+
+    Returns:
+        None
+
+    """
+
+    json_path = os.path.join(LIB_PATH, "resources", "1GID.json")
+    motifs, hbonds = get_data_from_dssr(json_path)
+
+
+
+
+
+    # Also tests within this:
     # calculate_bond_angle
     # Load any four atoms, calculate their dihedral angle by hand to double check
     # calc_distance

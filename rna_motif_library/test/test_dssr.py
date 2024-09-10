@@ -90,6 +90,7 @@ def test_determine_motif_type() -> None:
         else:
             continue
 
+
 def import_cif_as_dataframe(cif_path: str) -> pd.DataFrame:
     """
     Imports a tabular .cif file as a pandas DataFrame.
@@ -141,6 +142,7 @@ def main():
     test_dssr_res()
     test_extract_num_seq()
     test_find_strands_sequence()
+    test_determine_motif_type()
 
 
 if __name__ == "__main__":
