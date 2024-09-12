@@ -1,0 +1,210 @@
+
+****************************************************************************
+Note: By default, each nucleotide/amino-acid is identified by chainId.name#.
+      For example, B.DA1689 means adenosine #1689 on chain B,
+               and C.ARG49 denotes arginine #49 on chain C.
+      Use the --idstr=long option to get strictly delineated id strings.
+
+Command: x3dna-dssr snap -i=/Users/jyesselm/PycharmProjects/rna_motif_library/data/pdbs/1gid.cif --format=mmcif -o=/Users/jyesselm/PycharmProjects/rna_motif_library/data/snap_output/1gid.out
+Date and time: Wed Sep 11 14:27:19 2024
+File name: 1gid.cif
+    no. of peptide chains: 0 []
+    no. of DNA/RNA chains: 2 [A=158,B=158]
+    no. of amino acids:    0
+    no. of nucleotides:    316
+    no. of atoms:          6824
+    no. of waters:         6
+    no. of metals:         28 [Mg=24,Co=4]
+
+****************************************************************************
+List of 8 helices
+  Note: a helix is defined by base-stacking interactions, regardless of bp
+        type and backbone connectivity, and may contain more than one stem.
+      helix#number[stems-contained] bps=number-of-base-pairs in the helix
+      bp-type: '|' for a canonical WC/wobble pair, '.' otherwise
+      helix-form: classification of a dinucleotide step comprising the bp
+        above the given designation and the bp that follows it. Types
+        include 'A', 'B' or 'Z' for the common A-, B- and Z-form helices,
+        '.' for an unclassified step, and 'x' for a step without a
+        continuous backbone.
+      --------------------------------------------------------------------
+  helix#1[0] bps=34
+      strand-1 5'-ACUGGGGAAGGGCGUAAGAGUCCUAGUCAACAGA-3'
+       bp-type    .||||||..||||||..|.||||.||||||||||
+      strand-2 5'-AGGUCCUAACCCGCAGCCAUAGGAUUAGUUGUCU-3'
+      helix-form  x.....x...x...x..xx...xxx........
+   1 A.A123         A.A198         A-A ~rHoogsteen  --        tWH  tW-M
+   2 A.C121         A.G200         C-G WC           19-XIX    cWW  cW-W
+   3 A.U120         A.G201         U-G Wobble       28-XXVIII cWW  cW-W
+   4 A.G119         A.U202         G-U Wobble       28-XXVIII cWW  cW-W
+   5 A.G118         A.C203         G-C WC           19-XIX    cWW  cW-W
+   6 A.G117         A.C204         G-C WC           19-XIX    cWW  cW-W
+   7 A.G116         A.U205         G-U Wobble       28-XXVIII cWW  cW-W
+   8 A.A114         A.A206         A-A ~Sheared     --        tHS  tM-m
+   9 A.A113         A.A207         A-A ~Sheared     --        tSH  tm-M
+  10 A.G112         A.C208         G-C WC           19-XIX    cWW  cW-W
+  11 A.G111         A.C209         G-C WC           19-XIX    cWW  cW-W
+  12 A.G110         A.C211         G-C WC           19-XIX    cWW  cW-W
+  13 A.C109         A.G212         C-G WC           19-XIX    cWW  cW-W
+  14 A.G108         A.C213         G-C WC           19-XIX    cWW  cW-W
+  15 A.U107         A.A214         U-A WC           20-XX     cWW  cW-W
+  16 A.A105         A.G215         A-G Imino        08-VIII   cWW  cW-W
+  17 A.A104         A.C216         A-C --           --        cWW  cW-W
+  18 A.G103         A.C217         G-C WC           19-XIX    cWW  cW-W
+  19 A.A219         A.A218         A+A Platform     --        cHS  cM+m
+  20 A.G220         A.U253         G-U Wobble       28-XXVIII cWW  cW-W
+  21 A.U221         A.A252         U-A WC           20-XX     cWW  cW-W
+  22 A.C222         A.G251         C-G WC           19-XIX    cWW  cW-W
+  23 A.C223         A.G250         C-G WC           19-XIX    cWW  cW-W
+  24 A.U224         A.A248         U-A rHoogsteen   24-XXIV   tWH  tW-M
+  25 A.A226         A.U249         A-U WC           20-XX     cWW  cW-W
+  26 A.G227         A.U247         G-U Wobble       28-XXVIII cWW  cW-W
+  27 A.U228         A.A246         U-A WC           20-XX     cWW  cW-W
+  28 A.C229         A.G245         C-G WC           19-XIX    cWW  cW-W
+  29 A.A230         A.U244         A-U WC           20-XX     cWW  cW-W
+  30 A.A231         A.U243         A-U WC           20-XX     cWW  cW-W
+  31 A.C232         A.G242         C-G WC           19-XIX    cWW  cW-W
+  32 A.A233         A.U241         A-U WC           20-XX     cWW  cW-W
+  33 A.G234         A.C240         G-C WC           19-XIX    cWW  cW-W
+  34 A.A235         A.U239         A-U WC           20-XX     cWW  cW-W
+  --------------------------------------------------------------------------
+  helix#2[0] bps=13
+      strand-1 5'-CGCCGUCAGUACC-3'
+       bp-type    ..|||||||.|||
+      strand-2 3'-CAGGCAGUCAUGG-5'
+      helix-form  x...xAAAxxA.
+   1 A.C124         A.C197         C-C ~rHoogsteen  --        tHW  tM-W
+   2 A.G126         A.A196         G-A Imino        08-VIII   cWW  cW-W
+   3 A.C127         A.G195         C-G WC           19-XIX    cWW  cW-W
+   4 A.C128         A.G194         C-G WC           19-XIX    cWW  cW-W
+   5 A.G129         A.C193         G-C WC           19-XIX    cWW  cW-W
+   6 A.U131         A.A192         U-A WC           20-XX     cWW  cW-W
+   7 A.C132         A.G191         C-G WC           19-XIX    cWW  cW-W
+   8 A.A133         A.U190         A-U WC           20-XX     cWW  cW-W
+   9 A.G134         A.C189         G-C WC           19-XIX    cWW  cW-W
+  10 A.U135         A.A187         U+A Hoogsteen    23-XXIII  cWH  cW+M
+  11 A.A136         A.U182         A-U WC           20-XX     cWW  cW-W
+  12 A.C137         A.G181         C-G WC           19-XIX    cWW  cW-W
+  13 A.C138         A.G180         C-G WC           19-XIX    cWW  cW-W
+  --------------------------------------------------------------------------
+  helix#3[0] bps=12
+      strand-1 5'-AAGUCUCAGGGG-3'
+       bp-type    ..|||||||||.
+      strand-2 3'-GGUAGAGUUUCA-5'
+      helix-form  ...AAAA....
+   1 A.A139         A.G164         A-G Sheared      11-XI     tHS  tM-m
+   2 A.A140         A.G163         A-G Sheared      11-XI     tHS  tM-m
+   3 A.G141         A.U162         G-U Wobble       28-XXVIII cWW  cW-W
+   4 A.U142         A.A161         U-A WC           20-XX     cWW  cW-W
+   5 A.C143         A.G160         C-G WC           19-XIX    cWW  cW-W
+   6 A.U144         A.A159         U-A WC           20-XX     cWW  cW-W
+   7 A.C145         A.G158         C-G WC           19-XIX    cWW  cW-W
+   8 A.A146         A.U157         A-U WC           20-XX     cWW  cW-W
+   9 A.G147         A.U156         G-U Wobble       28-XXVIII cWW  cW-W
+  10 A.G148         A.U155         G-U Wobble       28-XXVIII cWW  cW-W
+  11 A.G149         A.C154         G-C WC           19-XIX    cWW  cW-W
+  12 A.G150         A.A153         G-A Sheared      11-XI     tSH  tm-M
+  --------------------------------------------------------------------------
+  helix#4[0] bps=6
+      strand-1 5'-GCAUCC-3'
+       bp-type    ||..||
+      strand-2 5'-CGAAGG-3'
+      helix-form  .xx..
+   1 A.G169         B.C255         G-C WC           19-XIX    cWW  cW-W
+   2 A.C170         B.G254         C-G WC           19-XIX    cWW  cW-W
+   3 A.A171         A.A172         A+A Platform     --        cSH  cm+M
+   4 A.U167         A.A173         U+A --           --        tW.  tW+.
+   5 A.C166         A.G174         C-G WC           19-XIX    cWW  cW-W
+   6 A.C165         A.G175         C-G WC           19-XIX    cWW  cW-W
+  --------------------------------------------------------------------------
+  helix#5[0] bps=6
+      strand-1 5'-CGAAGG-3'
+       bp-type    ||..||
+      strand-2 5'-GCAUCC-3'
+      helix-form  .xx..
+   1 A.C255         B.G169         C-G WC           19-XIX    cWW  cW-W
+   2 A.G254         B.C170         G-C WC           19-XIX    cWW  cW-W
+   3 B.A172         B.A171         A+A Platform     --        cHS  cM+m
+   4 B.A173         B.U167         A+U --           --        t.W  t.+W
+   5 B.G174         B.C166         G-C WC           19-XIX    cWW  cW-W
+   6 B.G175         B.C165         G-C WC           19-XIX    cWW  cW-W
+  --------------------------------------------------------------------------
+  helix#6[0] bps=13
+      strand-1 5'-CGCCGUCAGUACC-3'
+       bp-type    ..|||||||.|||
+      strand-2 3'-CAGGCAGUCAUGG-5'
+      helix-form  x..Ax..AxxA.
+   1 B.C124         B.C197         C-C ~rHoogsteen  --        tHW  tM-W
+   2 B.G126         B.A196         G-A Imino        08-VIII   cWW  cW-W
+   3 B.C127         B.G195         C-G WC           19-XIX    cWW  cW-W
+   4 B.C128         B.G194         C-G WC           19-XIX    cWW  cW-W
+   5 B.G129         B.C193         G-C WC           19-XIX    cWW  cW-W
+   6 B.U131         B.A192         U-A WC           20-XX     cWW  cW-W
+   7 B.C132         B.G191         C-G WC           19-XIX    cWW  cW-W
+   8 B.A133         B.U190         A-U WC           20-XX     cWW  cW-W
+   9 B.G134         B.C189         G-C WC           19-XIX    cWW  cW-W
+  10 B.U135         B.A187         U+A Hoogsteen    23-XXIII  cWH  cW+M
+  11 B.A136         B.U182         A-U WC           20-XX     cWW  cW-W
+  12 B.C137         B.G181         C-G WC           19-XIX    cWW  cW-W
+  13 B.C138         B.G180         C-G WC           19-XIX    cWW  cW-W
+  --------------------------------------------------------------------------
+  helix#7[0] bps=12
+      strand-1 5'-AAGUCUCAGGGG-3'
+       bp-type    ..|||||||||.
+      strand-2 3'-GGUAGAGUUUCA-5'
+      helix-form  ...AAAA....
+   1 B.A139         B.G164         A-G Sheared      11-XI     tHS  tM-m
+   2 B.A140         B.G163         A-G Sheared      11-XI     tHS  tM-m
+   3 B.G141         B.U162         G-U Wobble       28-XXVIII cWW  cW-W
+   4 B.U142         B.A161         U-A WC           20-XX     cWW  cW-W
+   5 B.C143         B.G160         C-G WC           19-XIX    cWW  cW-W
+   6 B.U144         B.A159         U-A WC           20-XX     cWW  cW-W
+   7 B.C145         B.G158         C-G WC           19-XIX    cWW  cW-W
+   8 B.A146         B.U157         A-U WC           20-XX     cWW  cW-W
+   9 B.G147         B.U156         G-U Wobble       28-XXVIII cWW  cW-W
+  10 B.G148         B.U155         G-U Wobble       28-XXVIII cWW  cW-W
+  11 B.G149         B.C154         G-C WC           19-XIX    cWW  cW-W
+  12 B.G150         B.A153         G-A Sheared      11-XI     tSH  tm-M
+  --------------------------------------------------------------------------
+  helix#8[0] bps=34
+      strand-1 5'-AGGUCCUAACCCGCAGCCAGUCCUUGUCAACAGA-3'
+       bp-type    .||||||..||||||..|.||||.||||||||||
+      strand-2 3'-ACUGGGGAAGGGCGUAAGAUAGGAAUAGUUGUCU-5'
+      helix-form  x...A.x..Ax.AAx..xx.AAxxx.AAAAAAA
+   1 B.A198         B.A123         A-A --           05-V      tHW  tM-W
+   2 B.G200         B.C121         G-C WC           19-XIX    cWW  cW-W
+   3 B.G201         B.U120         G-U Wobble       28-XXVIII cWW  cW-W
+   4 B.U202         B.G119         U-G Wobble       28-XXVIII cWW  cW-W
+   5 B.C203         B.G118         C-G WC           19-XIX    cWW  cW-W
+   6 B.C204         B.G117         C-G WC           19-XIX    cWW  cW-W
+   7 B.U205         B.G116         U-G Wobble       28-XXVIII cWW  cW-W
+   8 B.A206         B.A114         A-A ~Sheared     --        tSH  tm-M
+   9 B.A207         B.A113         A-A ~Sheared     --        tHS  tM-m
+  10 B.C208         B.G112         C-G WC           19-XIX    cWW  cW-W
+  11 B.C209         B.G111         C-G WC           19-XIX    cWW  cW-W
+  12 B.C211         B.G110         C-G WC           19-XIX    cWW  cW-W
+  13 B.G212         B.C109         G-C WC           19-XIX    cWW  cW-W
+  14 B.C213         B.G108         C-G WC           19-XIX    cWW  cW-W
+  15 B.A214         B.U107         A-U WC           20-XX     cWW  cW-W
+  16 B.G215         B.A105         G-A Imino        08-VIII   cWW  cW-W
+  17 B.C216         B.A104         C-A --           --        cWW  cW-W
+  18 B.C217         B.G103         C-G WC           19-XIX    cWW  cW-W
+  19 B.A219         B.A218         A+A Platform     --        cHS  cM+m
+  20 B.G220         B.U253         G-U Wobble       28-XXVIII cWW  cW-W
+  21 B.U221         B.A252         U-A WC           20-XX     cWW  cW-W
+  22 B.C222         B.G251         C-G WC           19-XIX    cWW  cW-W
+  23 B.C223         B.G250         C-G WC           19-XIX    cWW  cW-W
+  24 B.U224         B.A248         U-A rHoogsteen   24-XXIV   tWH  tW-M
+  25 B.U249         B.A226         U-A WC           20-XX     cWW  cW-W
+  26 B.G227         B.U247         G-U Wobble       28-XXVIII cWW  cW-W
+  27 B.U228         B.A246         U-A WC           20-XX     cWW  cW-W
+  28 B.C229         B.G245         C-G WC           19-XIX    cWW  cW-W
+  29 B.A230         B.U244         A-U WC           20-XX     cWW  cW-W
+  30 B.A231         B.U243         A-U WC           20-XX     cWW  cW-W
+  31 B.C232         B.G242         C-G WC           19-XIX    cWW  cW-W
+  32 B.A233         B.U241         A-U WC           20-XX     cWW  cW-W
+  33 B.G234         B.C240         G-C WC           19-XIX    cWW  cW-W
+  34 B.A235         B.U239         A-U WC           20-XX     cWW  cW-W
+
+****************************************************************************
+Time used: 00:00:00:00

@@ -3,11 +3,14 @@ File for testing DSSR H-Bond functions
 
 
 """
+import math
 import os
 
-from rna_motif_library.dssr import get_data_from_dssr
-from rna_motif_library.dssr_hbonds import assign_res_type
+from rna_motif_library.dssr import get_data_from_dssr, get_pdb_model_df
+from rna_motif_library.dssr_hbonds import assign_res_type, assemble_interaction_data, build_complete_hbond_interaction, \
+    merge_hbond_interaction_data, calc_distance, find_closest_atom, calculate_bond_angle
 from rna_motif_library.settings import LIB_PATH
+from rna_motif_library.snap import get_rnp_interactions
 
 
 def test_assign_res_type() -> None:
@@ -48,28 +51,48 @@ def test_build_complete_hbond_interaction() -> None:
 
     """
 
+    # import PDB
+    name = "1GID"
+    pdb_path = os.path.join(LIB_PATH, "resources", "1gid.cif")
+    pdb_model_df = get_pdb_model_df(pdb_path)
+
     json_path = os.path.join(LIB_PATH, "resources", "1GID.json")
     motifs, hbonds = get_data_from_dssr(json_path)
+    # ignore "motifs" as they are unused
 
+    rnp_path = os.path.join(LIB_PATH, "resources", "1gid.out")
 
+    unique_interaction_data = merge_hbond_interaction_data(get_rnp_interactions(out_file=rnp_path), hbonds)
+    pre_assembled_interaction_data = assemble_interaction_data(unique_interaction_data)
+    assembled_interaction_data = build_complete_hbond_interaction(pre_assembled_interaction_data, pdb_model_df, name)
 
+    for interaction in assembled_interaction_data:
+        # Check the class is loaded properly
+        assert str(type(interaction)) == "<class 'rna_motif_library.classes.HBondInteraction'>"
 
+    # calc_distance test
+    subset_df = pdb_model_df[pdb_model_df['id'] == 528]
+    subset_df_2 = pdb_model_df[pdb_model_df['id'] == 529]
+    distance = calc_distance(subset_df, subset_df_2)
+    expected_distance = 1.490
+    assert abs(distance-expected_distance) < 0.001
 
-    # Also tests within this:
     # calculate_bond_angle
-    # Load any four atoms, calculate their dihedral angle by hand to double check
-    # calc_distance
-    # Load any two random atoms here and calculate their distance by hand to double check
-    # find_closest_atom
-    # Need to import raw interaction from JSON and use one interaction to do it
-    # extract_interacting_atoms
-    # Need to import raw interaction from JSON and use one interaction to do it
+    # Load any four atoms from PDB, calculate their dihedral angle by hand to double check
+    first_atom = pdb_model_df[pdb_model_df['id'] == 531]
+    second_atom = pdb_model_df[pdb_model_df['id'] == 1787]
 
-    pass
+    third_atom = find_closest_atom(first_atom, pdb_model_df)
+    fourth_atom = find_closest_atom(second_atom, pdb_model_df)
+    bond_angle = calculate_bond_angle(first_atom, second_atom, third_atom, fourth_atom)
+    expected_angle = 7.10
+    assert abs(bond_angle-expected_angle) < 0.1
+
 
 
 def main():
-    pass
+    test_assign_res_type()
+    test_build_complete_hbond_interaction()
 
 
 if __name__ == "__main__":
