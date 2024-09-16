@@ -395,6 +395,11 @@ def find_and_build_motif(m: Any, pdb_name: str, pdb_model_df: pd.DataFrame, disc
             motif_type = "TWOWAY"
         else:
             motif_type = "NWAY"
+
+    # fix that weird classification issue
+    if motif_type == "NWAY" and len(size.split("-")) < 2:
+        motif_type = "SSTRAND"
+    
     # Pre-set motif name
     pre_motif_name = motif_type + "." + pdb_name + "." + str(size) + "." + sequence
     # Check if discovered; if so, then increment count
@@ -420,6 +425,8 @@ def find_and_build_motif(m: Any, pdb_name: str, pdb_model_df: pd.DataFrame, disc
     os.makedirs(motif_dir_path, exist_ok=True)
     motif_cif_path = os.path.join(motif_dir_path, f"{motif_name}.cif")
     dataframe_to_cif(motif_pdb, motif_cif_path, motif_name)
+    # Clear the PDB so it doesn't hog extra RAM
+    our_motif.motif_pdb = None
     return our_motif
 
 
