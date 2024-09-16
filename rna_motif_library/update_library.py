@@ -19,8 +19,16 @@ from rna_motif_library.classes import HBondInteraction
 from rna_motif_library.snap import generate_out_file
 from rna_motif_library import dssr
 from rna_motif_library.settings import LIB_PATH, DSSR_EXE
-from rna_motif_library.tert_contacts import import_tert_contact_csv, import_residues_csv, update_unknown_motifs, \
-    find_unique_tert_contacts, print_tert_contacts_to_cif
+from rna_motif_library.tert_contacts import (
+    import_tert_contact_csv,
+    import_residues_csv,
+    update_unknown_motifs,
+    find_unique_tert_contacts,
+    print_tert_contacts_to_cif,
+)
+from rna_motif_library.logger import get_logger
+
+log = get_logger("update_library")
 
 
 def download_cif_files(csv_path: str, threads: int) -> None:
@@ -36,9 +44,7 @@ def download_cif_files(csv_path: str, threads: int) -> None:
 
     """
     pdb_dir = LIB_PATH + "/data/pdbs/"
-    # Ensure the directory exists
     os.makedirs(pdb_dir, exist_ok=True)
-    # Read the CSV
     df = pd.read_csv(
         csv_path, header=None, names=["equivalence_class", "represent", "class_members"]
     )
@@ -115,7 +121,7 @@ def get_dssr_files(threads: int) -> None:
 
         with lock:
             count += 1
-            print(count, pdb_path)
+            log.info(f"Processed {count} PDBs {name}")
 
         return 1
 
@@ -212,12 +218,10 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
         # we can keep this as is it's not too big a CSV i think
         motifs_per_pdb.append(built_motifs)
 
-    dssr_hbonds.print_residues_in_motif_to_csv(
-        motifs_per_pdb,
-        csv_dir
-    )
+    dssr_hbonds.print_residues_in_motif_to_csv(motifs_per_pdb, csv_dir)
 
     motif_interaction_data_by_type_to_csv(csv_dir)
+
 
 def motif_interaction_data_by_type_to_csv(csv_dir: str) -> None:
     """
@@ -296,11 +300,17 @@ def find_tertiary_contacts() -> None:
     # Extract potential tert contact DF
     potential_tert_contact_df = import_tert_contact_csv(csv_dir)
     # And find motifs involved in tertiary contacts
-    tert_contact_df = update_unknown_motifs(potential_tert_contact_df, motif_residue_dict)
-    tert_contact_df.to_csv(os.path.join(csv_dir, "all_tert_contact_hbonds.csv"), index=False)
+    tert_contact_df = update_unknown_motifs(
+        potential_tert_contact_df, motif_residue_dict
+    )
+    tert_contact_df.to_csv(
+        os.path.join(csv_dir, "all_tert_contact_hbonds.csv"), index=False
+    )
     # Now we need to find unique tertiary contacts
     unique_tert_contact_df = find_unique_tert_contacts(tert_contact_df)
-    unique_tert_contact_df.to_csv(os.path.join(csv_dir, "unique_tert_contacts.csv"), index=False)
+    unique_tert_contact_df.to_csv(
+        os.path.join(csv_dir, "unique_tert_contacts.csv"), index=False
+    )
     print_tert_contacts_to_cif(unique_tert_contact_df=unique_tert_contact_df)
 
 
@@ -364,7 +374,7 @@ def validate_and_regenerate_invalid_json_files(out_path: str, pdb_dir: str):
 
     for json_file in json_files:
         try:
-            with open(json_file, 'r') as file:
+            with open(json_file, "r") as file:
                 json.load(file)  # Try to load the JSON file
         except (json.JSONDecodeError, IOError):
             print(f"Invalid JSON detected: {json_file}. Regenerating...")
