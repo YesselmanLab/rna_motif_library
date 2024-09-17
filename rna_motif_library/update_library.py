@@ -99,8 +99,6 @@ def get_dssr_files(threads: int) -> None:
     """
     pdb_dir = LIB_PATH + "/data/pdbs/"
     out_path = LIB_PATH + "/data/dssr_output/"
-
-    # Ensure output directory exists
     if not os.path.exists(out_path):
         os.makedirs(out_path, exist_ok=True)
 
@@ -115,8 +113,6 @@ def get_dssr_files(threads: int) -> None:
 
         if os.path.isfile(json_out_path):
             return 0  # File already processed, no need to increment count
-
-        # Writes raw JSON data
         write_dssr_json_output_to_file(DSSR_EXE, pdb_path, json_out_path)
 
         with lock:
@@ -127,7 +123,7 @@ def get_dssr_files(threads: int) -> None:
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
         executor.map(process_pdb, pdbs)
-
+    # TODO this should be put into the process_pdb function above to speed up with threading
     validate_and_regenerate_invalid_json_files(out_path, pdb_dir)
 
 
@@ -158,8 +154,8 @@ def get_snap_files(threads: int) -> None:
         if os.path.isfile(out_file):
             return f"{name}.out ALREADY EXISTS"
 
-        print(f"Processing {pdb_path}")  # Debug: prints the PDB path being processed
-        generate_out_file(pdb_path, out_file)  # Call to generate the .out file
+        log.info(f"Processing {pdb_path}")
+        generate_out_file(pdb_path, out_file)
         return f"{name}.out GENERATED"
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
@@ -169,8 +165,8 @@ def get_snap_files(threads: int) -> None:
     already_exists_count = sum(1 for result in results if "ALREADY EXISTS" in result)
     generated_count = sum(1 for result in results if "GENERATED" in result)
 
-    print(f"{already_exists_count} files already existed.")
-    print(f"{generated_count} new .out files generated.")
+    log.info(f"{already_exists_count} files already existed.")
+    log.info(f"{generated_count} new .out files generated.")
 
 
 def generate_motif_files(limit=None, pdb_name=None) -> None:
@@ -191,9 +187,9 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
     if pdb_name is not None:
         pdb_name_path = os.path.join(pdb_dir, str(pdb_name) + ".cif")
         if not os.path.exists(pdb_name_path):
-            print(f"The provided PDB '{pdb_name}' doesn't exist.")
-            print("Make sure to run DSSR and SNAP first before generating motifs.")
-            print("Exiting run.")
+            log.error(f"The provided PDB '{pdb_name}' doesn't exist.")
+            log.error("Make sure to run DSSR and SNAP first before generating motifs.")
+            log.error("Exiting run.")
             exit(1)
 
     # Define directories for output
