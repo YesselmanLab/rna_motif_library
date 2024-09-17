@@ -1,3 +1,4 @@
+import concurrent.futures
 import math
 import os
 import numpy as np
@@ -149,13 +150,14 @@ def get_interaction_pdb(res_1: DSSRRes, res_2: DSSRRes, pdb_model_df: pd.DataFra
     return res_1_res_2_result_df
 
 
-def assemble_interaction_data(unique_interaction_data: List[Tuple[str, str, str, str, str, str, str]]) -> List[
-    HBondInteractionFactory]:
+def assemble_interaction_data(unique_interaction_data: List[Tuple[str, str, str, str, str, str, str]], threads: int) -> \
+List[HBondInteractionFactory]:
     """
     Loads data into intermediate HBondInteractionFactory from DSSR/SNAP output data.
 
     Args:
         unique_interaction_data (list): raw interaction data from DSSR/SNAP
+        threads (int): number of threads to run on
 
     Returns:
         assembled_data (list): raw data loaded into the intermediate HBondInteractionFactory class for further processing
@@ -163,21 +165,20 @@ def assemble_interaction_data(unique_interaction_data: List[Tuple[str, str, str,
     """
     assembled_data = []
     # Load all data into HBondInteractionFactory class to prepare for processing
-    for interaction in unique_interaction_data:
+    def process_interaction(interaction: Tuple[str, str, str, str, str, str, str]):
         # Filter out bad H-bonds and aa:aa
-        if interaction[6] not in ["questionable", "unknown"] or interaction[5] not in [
-            "aa:aa"
-        ]:
-
+        if interaction[6] not in ["questionable", "unknown"] or interaction[5] not in ["aa:aa"]:
             new_interaction_atom_1 = interaction[2]
             new_interaction_atom_2 = interaction[3]
 
-            # Also process the weird ones with . in their name
+            # Process names with '.' in them
             if "." in new_interaction_atom_1:
                 new_interaction_atom_1 = interaction[2].split(".")[0]
             elif "." in new_interaction_atom_2:
                 new_interaction_atom_2 = interaction[3].split(".")[0]
-            hbond_interaction_assembly = HBondInteractionFactory(
+
+            # Create HBondInteractionFactory object
+            return HBondInteractionFactory(
                 interaction[0],
                 interaction[1],
                 new_interaction_atom_1,
@@ -186,7 +187,16 @@ def assemble_interaction_data(unique_interaction_data: List[Tuple[str, str, str,
                 interaction[5],
                 interaction[6],
             )
-            assembled_data.append(hbond_interaction_assembly)
+        return None
+
+    # Using ThreadPoolExecutor to run process_interaction concurrently
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+        # Process the interactions in parallel
+        results = list(executor.map(process_interaction, unique_interaction_data))
+
+    # Filter out None results (those that didn't match the criteria)
+    assembled_data = [result for result in results if result is not None]
+
     return assembled_data
 
 
@@ -307,7 +317,7 @@ def extract_interacting_atoms(interaction: HBondInteractionFactory, pdb: pd.Data
 
 
 def print_residues_in_motif_to_csv(motifs_per_pdb: List[List[Motif]],
-                                                 csv_dir: str) -> None:
+                                   csv_dir: str) -> None:
     """
     Prints all obtained motif/interaction data to a CSV.
 

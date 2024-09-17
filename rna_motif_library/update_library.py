@@ -1,7 +1,6 @@
 import csv
 import json
 from concurrent.futures import ThreadPoolExecutor
-from typing import List
 
 import wget
 import glob
@@ -15,7 +14,6 @@ from tqdm import tqdm
 from pydssr.dssr import write_dssr_json_output_to_file
 
 from rna_motif_library import dssr_hbonds
-from rna_motif_library.classes import HBondInteraction
 from rna_motif_library.snap import generate_out_file
 from rna_motif_library import dssr
 from rna_motif_library.settings import LIB_PATH, DSSR_EXE
@@ -173,11 +171,12 @@ def get_snap_files(threads: int) -> None:
     print(f"{generated_count} new .out files generated.")
 
 
-def generate_motif_files(limit=None, pdb_name=None) -> None:
+def generate_motif_files(threads: int, limit=None, pdb_name=None) -> None:
     """
     Processes PDB files to extract and analyze motif interactions, storing detailed outputs.
 
     Args:
+        threads (int): number of threads to work on
         limit (int): number of PDBs to process
         pdb_name (str): which specific PDB to process (both are entered via command line)
 
@@ -214,8 +213,8 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
         if (pdb_name != None) and (name != pdb_name):
             break
 
-        built_motifs = dssr.process_motif_interaction_out_data(count, pdb_path)
-        # we can keep this as is it's not too big a CSV i think
+        built_motifs = dssr.process_motif_interaction_out_data(count, pdb_path, threads)
+        # we can keep this as is it's not too big a CSV I think
         motifs_per_pdb.append(built_motifs)
 
     dssr_hbonds.print_residues_in_motif_to_csv(motifs_per_pdb, csv_dir)
