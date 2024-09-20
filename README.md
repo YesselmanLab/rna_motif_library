@@ -60,8 +60,7 @@ python rna_motif_library/cli.py process-snap --threads 8
 # Feedback will consist of the path + other information on nucleotides/etc
 
 # After processing with SNAP we need to generate motif files
-python rna_motif_library/cli.py generate-motifs --threads 8
-# Replace "8" with the number of CPU cores you want to use
+python rna_motif_library/cli.py generate-motifs
 # Estimated time: 72 hours for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will display the names of the motifs being processed

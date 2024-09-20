@@ -129,14 +129,8 @@ def process_snap(threads):
     type=str,
     help="Process a specific PDB within the set (defaults to all)."
 )
-@click.option(
-    "--threads",
-    default=1,
-    type=int,
-    help="Number of threads to use (default: 1)."
-)
 @log_and_setup
-def generate_motifs(limit, pdb, threads):
+def generate_motifs(limit, pdb):
     """
     Extracts motifs from source PDB using data from DSSR, and interactions using data from DSSR and SNAP.
 
@@ -150,7 +144,7 @@ def generate_motifs(limit, pdb, threads):
 
     """
     warnings.filterwarnings("ignore")
-    generate_motif_files(limit=limit, pdb_name=pdb, threads=threads)
+    generate_motif_files(limit=limit, pdb_name=pdb)
 
 
 @cli.command()

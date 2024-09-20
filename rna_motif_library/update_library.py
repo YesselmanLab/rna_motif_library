@@ -167,12 +167,11 @@ def get_snap_files(threads: int) -> None:
     log.info(f"{generated_count} new .out files generated.")
 
 
-def generate_motif_files(threads: int, limit=None, pdb_name=None) -> None:
+def generate_motif_files(limit=None, pdb_name=None) -> None:
     """
     Processes PDB files to extract and analyze motif interactions, storing detailed outputs.
 
     Args:
-        threads (int): number of threads to work on
         limit (int): number of PDBs to process
         pdb_name (str): which specific PDB to process (both are entered via command line)
 
@@ -209,7 +208,7 @@ def generate_motif_files(threads: int, limit=None, pdb_name=None) -> None:
         if (pdb_name != None) and (name != pdb_name):
             break
 
-        built_motifs = dssr.process_motif_interaction_out_data(count, pdb_path, threads)
+        built_motifs = dssr.process_motif_interaction_out_data(count, pdb_path)
         # we can keep this as is it's not too big a CSV I think
         motifs_per_pdb.append(built_motifs)
 

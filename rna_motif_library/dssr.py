@@ -23,14 +23,13 @@ from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.snap import get_rnp_interactions
 
 
-def process_motif_interaction_out_data(count: int, pdb_path: str, threads: int) -> List[Motif]:
+def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]:
     """
     Function for extracting motifs from a PDB in the loop
 
     Args:
         count (int): # of PDBs processed (loaded from outside)
         pdb_path (str): path to the source PDB
-        threads (int): number of threads to run on
 
     Returns:
         motif_list (list): list of motif names
@@ -52,7 +51,7 @@ def process_motif_interaction_out_data(count: int, pdb_path: str, threads: int) 
         get_rnp_interactions(out_file=rnp_out_path), hbonds
     )
     # This is the final interaction data in the temp class to assemble into the big H-Bond class
-    pre_assembled_interaction_data = assemble_interaction_data(unique_interaction_data, threads)
+    pre_assembled_interaction_data = assemble_interaction_data(unique_interaction_data)
     # Assembly into big HBondInteraction class; this returns a big list of them
     assembled_interaction_data = build_complete_hbond_interaction(
         pre_assembled_interaction_data, pdb_model_df, name
