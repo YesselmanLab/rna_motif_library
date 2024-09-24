@@ -5,6 +5,7 @@ from typing import List, Optional
 from rna_motif_library.classes import RNPInteraction
 from rna_motif_library.settings import DSSR_EXE
 
+
 def get_rnp_interactions(
     pdb_path: Optional[str] = None, out_file: Optional[str] = None
 ) -> List[RNPInteraction]:

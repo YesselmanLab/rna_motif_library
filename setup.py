@@ -18,7 +18,7 @@ setup(
         "update_library",
         "classes",
         "cli",
-        "logger"
+        "logger",
     ],
     include_package_data=True,
     install_requires=[

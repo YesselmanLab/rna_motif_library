@@ -7,12 +7,22 @@ import pandas as pd
 from typing import List, Tuple
 
 from pydssr.dssr_classes import DSSR_HBOND
-from rna_motif_library.classes import DSSRRes, HBondInteraction, canon_amino_acid_list, SingleMotifInteraction, \
-    PotentialTertiaryContact, Motif, HBondInteractionFactory, RNPInteraction
+from rna_motif_library.classes import (
+    DSSRRes,
+    HBondInteraction,
+    canon_amino_acid_list,
+    SingleMotifInteraction,
+    PotentialTertiaryContact,
+    Motif,
+    HBondInteractionFactory,
+    RNPInteraction,
+)
 from rna_motif_library.settings import LIB_PATH
 
 
-def save_interactions_to_disk(assembled_interaction_data: List[HBondInteraction], pdb: str) -> None:
+def save_interactions_to_disk(
+    assembled_interaction_data: List[HBondInteraction], pdb: str
+) -> None:
     """
     Saves HBondInteraction objects to the disk.
 
@@ -26,15 +36,15 @@ def save_interactions_to_disk(assembled_interaction_data: List[HBondInteraction]
 
     for interaction in assembled_interaction_data:
         interaction_name = (
-                str(pdb)
-                + "."
-                + interaction.res_1
-                + "."
-                + interaction.atom_1
-                + "."
-                + interaction.res_2
-                + "."
-                + interaction.atom_2
+            str(pdb)
+            + "."
+            + interaction.res_1
+            + "."
+            + interaction.atom_1
+            + "."
+            + interaction.res_2
+            + "."
+            + interaction.atom_2
         )
         folder_path = os.path.join(
             LIB_PATH,
@@ -48,8 +58,11 @@ def save_interactions_to_disk(assembled_interaction_data: List[HBondInteraction]
         )
 
 
-def build_complete_hbond_interaction(pre_assembled_interaction_data: List[HBondInteractionFactory],
-                                     pdb_model_df: pd.DataFrame, pdb_name: str) -> List[HBondInteraction]:
+def build_complete_hbond_interaction(
+    pre_assembled_interaction_data: List[HBondInteractionFactory],
+    pdb_model_df: pd.DataFrame,
+    pdb_name: str,
+) -> List[HBondInteraction]:
     """
     Builds a complete HBondInteraction object from HBondInteractionFactory preliminary data
 
@@ -108,7 +121,9 @@ def build_complete_hbond_interaction(pre_assembled_interaction_data: List[HBondI
     return built_interactions
 
 
-def get_interaction_pdb(res_1: DSSRRes, res_2: DSSRRes, pdb_model_df: pd.DataFrame) -> pd.DataFrame:
+def get_interaction_pdb(
+    res_1: DSSRRes, res_2: DSSRRes, pdb_model_df: pd.DataFrame
+) -> pd.DataFrame:
     """
     Obtains PDB of combined interaction (not individual residues)
 
@@ -133,16 +148,16 @@ def get_interaction_pdb(res_1: DSSRRes, res_2: DSSRRes, pdb_model_df: pd.DataFra
     )
     res_1_inter_chain = pdb_model_df[
         pdb_model_df["auth_asym_id"].astype(str) == str(res_1_chain_id)
-        ]
+    ]
     res_2_inter_chain = pdb_model_df[
         pdb_model_df["auth_asym_id"].astype(str) == str(res_2_chain_id)
-        ]
+    ]
     res_1_inter_res = res_1_inter_chain[
         res_1_inter_chain["auth_seq_id"].astype(str) == str(res_1_res_id)
-        ]
+    ]
     res_2_inter_res = res_2_inter_chain[
         res_2_inter_chain["auth_seq_id"].astype(str) == str(res_2_res_id)
-        ]
+    ]
     res_1_res_2_result_df = pd.concat(
         [res_1_inter_res, res_2_inter_res], axis=0, ignore_index=True
     )
@@ -150,8 +165,9 @@ def get_interaction_pdb(res_1: DSSRRes, res_2: DSSRRes, pdb_model_df: pd.DataFra
     return res_1_res_2_result_df
 
 
-def assemble_interaction_data(unique_interaction_data: List[Tuple[str, str, str, str, str, str, str]]) -> \
-List[HBondInteractionFactory]:
+def assemble_interaction_data(
+    unique_interaction_data: List[Tuple[str, str, str, str, str, str, str]]
+) -> List[HBondInteractionFactory]:
     """
     Loads data into intermediate HBondInteractionFactory from DSSR/SNAP output data.
 
@@ -190,8 +206,10 @@ List[HBondInteractionFactory]:
             assembled_data.append(hbond_interaction_assembly)
     return assembled_data
 
-def merge_hbond_interaction_data(rnp_interactions: List[RNPInteraction], hbonds: List[DSSR_HBOND]) -> List[
-    Tuple[str, str, str, str, str, str, str]]:
+
+def merge_hbond_interaction_data(
+    rnp_interactions: List[RNPInteraction], hbonds: List[DSSR_HBOND]
+) -> List[Tuple[str, str, str, str, str, str, str]]:
     """
     Merges H-bond interaction data from DSSR and SNAP into one common data set.
 
@@ -263,13 +281,13 @@ def extract_interacting_atoms(interaction: HBondInteractionFactory, pdb: pd.Data
         & (pdb["auth_comp_id"] == res_1)
         & (pdb["auth_asym_id"] == chain_id_1)
         & (pdb["auth_seq_id"] == res_id_1)
-        ]
+    ]
     second_atom = pdb[
         (pdb["auth_atom_id"] == atom_2)
         & (pdb["auth_comp_id"] == res_2)
         & (pdb["auth_asym_id"] == chain_id_2)
         & (pdb["auth_seq_id"] == res_id_2)
-        ]
+    ]
 
     if first_atom.empty:
         # Check for common prefixes or alternate namings
@@ -278,10 +296,10 @@ def extract_interacting_atoms(interaction: HBondInteractionFactory, pdb: pd.Data
             if prefix in atom_1:
                 first_atom = pdb[
                     (
-                            pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
-                            & (pdb["auth_comp_id"] == res_1)
-                            & (pdb["auth_asym_id"] == chain_id_1)
-                            & (pdb["auth_seq_id"] == res_id_1)
+                        pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
+                        & (pdb["auth_comp_id"] == res_1)
+                        & (pdb["auth_asym_id"] == chain_id_1)
+                        & (pdb["auth_seq_id"] == res_id_1)
                     )
                 ]
                 if not first_atom.empty:
@@ -294,10 +312,10 @@ def extract_interacting_atoms(interaction: HBondInteractionFactory, pdb: pd.Data
             if prefix in atom_2:
                 second_atom = pdb[
                     (
-                            pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
-                            & (pdb["auth_comp_id"] == res_2)
-                            & (pdb["auth_asym_id"] == chain_id_2)
-                            & (pdb["auth_seq_id"] == res_id_2)
+                        pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
+                        & (pdb["auth_comp_id"] == res_2)
+                        & (pdb["auth_asym_id"] == chain_id_2)
+                        & (pdb["auth_seq_id"] == res_id_2)
                     )
                 ]
                 if not first_atom.empty:
@@ -306,8 +324,9 @@ def extract_interacting_atoms(interaction: HBondInteractionFactory, pdb: pd.Data
     return first_atom, second_atom
 
 
-def print_residues_in_motif_to_csv(motifs_per_pdb: List[List[Motif]],
-                                   csv_dir: str) -> None:
+def print_residues_in_motif_to_csv(
+    motifs_per_pdb: List[List[Motif]], csv_dir: str
+) -> None:
     """
     Prints all obtained motif/interaction data to a CSV.
 
@@ -339,7 +358,7 @@ def print_residues_in_motif_to_csv(motifs_per_pdb: List[List[Motif]],
 
 
 def find_closest_atom(
-        atom_A: pd.DataFrame, whole_interaction: pd.DataFrame
+    atom_A: pd.DataFrame, whole_interaction: pd.DataFrame
 ) -> pd.DataFrame:
     """
     Finds the closest atom to a given atom within a set of interactions based on Euclidean distance.
@@ -401,10 +420,10 @@ def calc_distance(atom_df1: pd.DataFrame, atom_df2: pd.DataFrame) -> float:
 
 
 def calculate_bond_angle(
-        center_atom: pd.DataFrame,
-        second_atom: pd.DataFrame,
-        carbon_atom: pd.DataFrame,
-        fourth_atom: pd.DataFrame,
+    center_atom: pd.DataFrame,
+    second_atom: pd.DataFrame,
+    carbon_atom: pd.DataFrame,
+    fourth_atom: pd.DataFrame,
 ) -> float:
     """
     Calculates the bond angle and returns the angle with the atoms used in the calculation.

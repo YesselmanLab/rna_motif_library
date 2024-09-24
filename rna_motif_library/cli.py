@@ -121,13 +121,13 @@ def process_snap(threads):
     "--limit",
     default=None,
     type=int,
-    help="Limit the number of PDB files processed (defaults to all)."
+    help="Limit the number of PDB files processed (defaults to all).",
 )
 @click.option(
     "--pdb",
     default=None,
     type=str,
-    help="Process a specific PDB within the set (defaults to all)."
+    help="Process a specific PDB within the set (defaults to all).",
 )
 @log_and_setup
 def generate_motifs(limit, pdb):

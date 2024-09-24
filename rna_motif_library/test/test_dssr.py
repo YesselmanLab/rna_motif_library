@@ -2,7 +2,11 @@ import os
 import pandas as pd
 
 from rna_motif_library.classes import DSSRRes, extract_longest_numeric_sequence
-from rna_motif_library.dssr import find_strands, get_data_from_dssr, determine_motif_type
+from rna_motif_library.dssr import (
+    find_strands,
+    get_data_from_dssr,
+    determine_motif_type,
+)
 from rna_motif_library.settings import LIB_PATH
 
 
@@ -51,13 +55,17 @@ def test_find_strands_sequence() -> None:
     path = os.path.join(LIB_PATH, "resources", "find_strands")
 
     # Test helix
-    pdb_df_helix = import_cif_as_dataframe(os.path.join(path, "HELIX.5JUP.2.AU-GU.0.cif"))
+    pdb_df_helix = import_cif_as_dataframe(
+        os.path.join(path, "HELIX.5JUP.2.AU-GU.0.cif")
+    )
     list_of_strands, sequence = find_strands(pdb_df_helix)
     assert len(list_of_strands) == 2
     assert sequence == "AU-GU"
 
     # Test nway
-    pdb_df_nway = import_cif_as_dataframe(os.path.join(path, "NWAY.2BTE.2-2-9-2-4.CG-UG-GCAAGCGUG-CC-GUGG.0.cif"))
+    pdb_df_nway = import_cif_as_dataframe(
+        os.path.join(path, "NWAY.2BTE.2-2-9-2-4.CG-UG-GCAAGCGUG-CC-GUGG.0.cif")
+    )
     list_of_strands, sequence = find_strands(pdb_df_nway)
     assert len(list_of_strands) == 5
     assert sequence == "CG-UG-GCAAGCGUG-CC-GUGG"
@@ -103,7 +111,7 @@ def import_cif_as_dataframe(cif_path: str) -> pd.DataFrame:
         pd.DataFrame: DataFrame containing the tabular data from the .cif file.
 
     """
-    with open(cif_path, 'r') as file:
+    with open(cif_path, "r") as file:
         lines = file.readlines()
 
     # Identify the start of the table (e.g., loop_ keyword in the CIF file)
@@ -118,17 +126,17 @@ def import_cif_as_dataframe(cif_path: str) -> pd.DataFrame:
 
     # Extract column names and remove prefixes
     columns = []
-    for line in lines[start_idx + 1:]:
-        if line.startswith('_'):
+    for line in lines[start_idx + 1 :]:
+        if line.startswith("_"):
             # Remove everything before and including the last dot
-            columns.append(line.strip().split('.')[-1])
+            columns.append(line.strip().split(".")[-1])
         else:
             break
 
     # Extract the data
     data = []
-    for line in lines[start_idx + 1 + len(columns):]:
-        if line.startswith('_') or line.strip() == "":
+    for line in lines[start_idx + 1 + len(columns) :]:
+        if line.startswith("_") or line.strip() == "":
             break
         data.append(line.strip().split())
 

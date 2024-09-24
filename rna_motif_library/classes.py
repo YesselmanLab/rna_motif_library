@@ -117,17 +117,17 @@ class RNPInteraction:
 
 class PotentialTertiaryContact:
     def __init__(
-            self,
-            motif_1: str,
-            motif_2: str,
-            res_1: str,
-            res_2: str,
-            atom_1: str,
-            atom_2: str,
-            type_1: str,
-            type_2: str,
-            distance: float,
-            angle: float,
+        self,
+        motif_1: str,
+        motif_2: str,
+        res_1: str,
+        res_2: str,
+        atom_1: str,
+        atom_2: str,
+        type_1: str,
+        type_2: str,
+        distance: float,
+        angle: float,
     ):
         """
         Holds data about potential tertiary contacts.
@@ -153,8 +153,16 @@ class PotentialTertiaryContact:
 class SingleMotifInteraction:
 
     def __init__(
-            self, motif_name: str, res_1: str, res_2: str, atom_1: str, atom_2: str, type_1: str, type_2: str,
-            distance: float, angle: float
+        self,
+        motif_name: str,
+        res_1: str,
+        res_2: str,
+        atom_1: str,
+        atom_2: str,
+        type_1: str,
+        type_2: str,
+        distance: float,
+        angle: float,
     ) -> None:
         """
         Holds data for H-bond interactions within a single motif.
@@ -186,21 +194,21 @@ class SingleMotifInteraction:
 
 class HBondInteraction:
     def __init__(
-            self,
-            res_1: str,
-            res_2: str,
-            atom_1: str,
-            atom_2: str,
-            type_1: str,
-            type_2: str,
-            distance: float,
-            angle: float,
-            pdb: pd.DataFrame,
-            first_atom_df: pd.DataFrame,
-            second_atom_df: pd.DataFrame,
-            third_atom_df: pd.DataFrame,
-            fourth_atom_df: pd.DataFrame,
-            pdb_name: str,
+        self,
+        res_1: str,
+        res_2: str,
+        atom_1: str,
+        atom_2: str,
+        type_1: str,
+        type_2: str,
+        distance: float,
+        angle: float,
+        pdb: pd.DataFrame,
+        first_atom_df: pd.DataFrame,
+        second_atom_df: pd.DataFrame,
+        third_atom_df: pd.DataFrame,
+        fourth_atom_df: pd.DataFrame,
+        pdb_name: str,
     ) -> None:
         """
         Holds data for H-bond interaction.
@@ -254,8 +262,16 @@ class HBondInteractionFactory:
 
     """
 
-    def __init__(self, res_1: str, res_2: str, atom_1: str, atom_2: str, distance: float, residue_pair: str,
-                 quality: str) -> None:
+    def __init__(
+        self,
+        res_1: str,
+        res_2: str,
+        atom_1: str,
+        atom_2: str,
+        distance: float,
+        residue_pair: str,
+        quality: str,
+    ) -> None:
         self.res_1 = res_1
         self.res_2 = res_2
         self.atom_1 = atom_1
@@ -271,15 +287,15 @@ class Motif:
     """
 
     def __init__(
-            self,
-            motif_name: str,
-            motif_type: str,
-            pdb: str,
-            size: str,
-            sequence: str = None,
-            res_list: List[str] = None,
-            strands: Any = None,
-            motif_pdb: pd.DataFrame = None,
+        self,
+        motif_name: str,
+        motif_type: str,
+        pdb: str,
+        size: str,
+        sequence: str = None,
+        res_list: List[str] = None,
+        strands: Any = None,
+        motif_pdb: pd.DataFrame = None,
     ) -> None:
         """
         Initialize a Motif object
@@ -356,7 +372,14 @@ class Residue:
         pdb (pd.DataFrame): DataFrame to hold the actual contents of the residue obtained from the .cif file
     """
 
-    def __init__(self, chain_id: str, res_id: str, ins_code: str, mol_name: str, pdb: pd.DataFrame) -> None:
+    def __init__(
+        self,
+        chain_id: str,
+        res_id: str,
+        ins_code: str,
+        mol_name: str,
+        pdb: pd.DataFrame,
+    ) -> None:
         self.chain_id = chain_id
         self.res_id = res_id
         self.ins_code = ins_code
@@ -379,7 +402,7 @@ def extract_longest_numeric_sequence(input_string: str) -> str:
     current_sequence = ""
     for c in input_string:
         if c.isdigit() or (
-                c == "-" and (not current_sequence or current_sequence[0] == "-")
+            c == "-" and (not current_sequence or current_sequence[0] == "-")
         ):
             current_sequence += c
             if len(current_sequence) >= len(longest_sequence):

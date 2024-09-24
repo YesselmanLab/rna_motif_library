@@ -18,20 +18,22 @@ def find_unique_tert_contacts(tert_contact_df: pd.DataFrame) -> pd.DataFrame:
 
     """
     # Create a new column with motifs sorted alphabetically
-    tert_contact_df['sorted_motifs'] = tert_contact_df.apply(
-        lambda row: tuple(sorted([row['motif_1'], row['motif_2']])), axis=1
+    tert_contact_df["sorted_motifs"] = tert_contact_df.apply(
+        lambda row: tuple(sorted([row["motif_1"], row["motif_2"]])), axis=1
     )
 
     # Group by this new column and keep only the first line from each group
-    grouped = tert_contact_df.groupby('sorted_motifs').first().reset_index()
+    grouped = tert_contact_df.groupby("sorted_motifs").first().reset_index()
 
     # Drop the 'sorted_motifs' column, since it's no longer needed
-    unique_tert_contact_df = grouped.drop(columns=['sorted_motifs'])
+    unique_tert_contact_df = grouped.drop(columns=["sorted_motifs"])
 
     return unique_tert_contact_df
 
 
-def update_unknown_motifs(potential_tert_contact_df: pd.DataFrame, motif_residue_dict: Dict) -> pd.DataFrame:
+def update_unknown_motifs(
+    potential_tert_contact_df: pd.DataFrame, motif_residue_dict: Dict
+) -> pd.DataFrame:
     """
     Finds the "unknown" second motif in tertiary contacts.
 
@@ -46,32 +48,32 @@ def update_unknown_motifs(potential_tert_contact_df: pd.DataFrame, motif_residue
     # Iterate through each row in the DataFrame
     for index, row in potential_tert_contact_df.iterrows():
         # Split motif names to compare the second element
-        motif_1_split = row['motif_1'].split(".")
-        motif_2_split = row['motif_2'].split(".")
+        motif_1_split = row["motif_1"].split(".")
+        motif_2_split = row["motif_2"].split(".")
 
-        if row['motif_1'] == 'unknown':
-            residue = row['res_1']
+        if row["motif_1"] == "unknown":
+            residue = row["res_1"]
             for motif_name, residues in motif_residue_dict.items():
                 motif_name_split = motif_name.split(".")
                 # Check if residue is in residues and the second element matches
                 if residue in residues and motif_2_split[1] == motif_name_split[1]:
-                    potential_tert_contact_df.at[index, 'motif_1'] = motif_name
+                    potential_tert_contact_df.at[index, "motif_1"] = motif_name
                     break  # Once found, no need to continue searching
 
-        if row['motif_2'] == 'unknown':
-            residue = row['res_2']
+        if row["motif_2"] == "unknown":
+            residue = row["res_2"]
             for motif_name, residues in motif_residue_dict.items():
                 motif_name_split = motif_name.split(".")
                 # Check if residue is in residues and the second element matches
                 if residue in residues and motif_1_split[1] == motif_name_split[1]:
-                    potential_tert_contact_df.at[index, 'motif_2'] = motif_name
+                    potential_tert_contact_df.at[index, "motif_2"] = motif_name
                     break  # Once found, no need to continue searching
 
     # Remove rows where either 'motif_1' or 'motif_2' still contains 'unknown'
     potential_tert_contact_df = potential_tert_contact_df[
-        (potential_tert_contact_df['motif_1'] != 'unknown') &
-        (potential_tert_contact_df['motif_2'] != 'unknown')
-        ]
+        (potential_tert_contact_df["motif_1"] != "unknown")
+        & (potential_tert_contact_df["motif_2"] != "unknown")
+    ]
 
     return potential_tert_contact_df
 
@@ -89,11 +91,11 @@ def import_residues_csv(csv_dir: str) -> Dict:
     """
     csv_path = os.path.join(csv_dir, "residues_in_motif.csv")
     residues_dict = {}
-    with open(csv_path, mode='r') as file:
+    with open(csv_path, mode="r") as file:
         reader = csv.DictReader(file)
         for row in reader:
-            motif_name = row['motif_name']
-            residues = row['residues']
+            motif_name = row["motif_name"]
+            residues = row["residues"]
             residues_dict[motif_name] = residues.split(",")
     return residues_dict
 
@@ -115,10 +117,12 @@ def import_tert_contact_csv(csv_dir: str) -> pd.DataFrame:
     )
 
     # Apply the function to each row and replace the values in type_1 and type_2
-    interactions_from_csv['type_1'] = interactions_from_csv.apply(
-        lambda row: assign_res_type(row['atom_1'], row['type_1']), axis=1)
-    interactions_from_csv['type_2'] = interactions_from_csv.apply(
-        lambda row: assign_res_type(row['atom_2'], row['type_2']), axis=1)
+    interactions_from_csv["type_1"] = interactions_from_csv.apply(
+        lambda row: assign_res_type(row["atom_1"], row["type_1"]), axis=1
+    )
+    interactions_from_csv["type_2"] = interactions_from_csv.apply(
+        lambda row: assign_res_type(row["atom_2"], row["type_2"]), axis=1
+    )
 
     return interactions_from_csv
 
@@ -157,7 +161,9 @@ def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
         tert_contact_name = f"{motif_1}.{motif_2}"
         sorted_motif_types = sorted([motif_type_1, motif_type_2])
         tert_contact_folder_name = f"{sorted_motif_types[0]}-{sorted_motif_types[1]}"
-        tert_contact_out_path = f"data/tertiary_contacts/{tert_contact_folder_name}/{tert_contact_name}.cif"
+        tert_contact_out_path = (
+            f"data/tertiary_contacts/{tert_contact_folder_name}/{tert_contact_name}.cif"
+        )
         os.makedirs(f"data/tertiary_contacts/{tert_contact_folder_name}", exist_ok=True)
         # Print the tertiary contact name
         print(f"Processing: {tert_contact_name}")
@@ -177,7 +183,7 @@ def print_tert_contacts_to_cif(unique_tert_contact_df: pd.DataFrame) -> None:
 
 # merges the contents of CIF files
 def merge_cif_files(
-        file1_path: str, file2_path: str, output_path: str, lines_to_delete: int
+    file1_path: str, file2_path: str, output_path: str, lines_to_delete: int
 ) -> None:
     """
     Merge the contents of two CIF files into one.

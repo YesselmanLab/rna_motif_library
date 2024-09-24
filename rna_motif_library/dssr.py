@@ -12,12 +12,16 @@ from rna_motif_library.classes import (
     extract_longest_numeric_sequence,
     PandasMmcifOverride,
     Residue,
-    HBondInteraction, DSSRRes
+    HBondInteraction,
+    DSSRRes,
 )
 from rna_motif_library.dssr_hbonds import (
     dataframe_to_cif,
-    assign_res_type, merge_hbond_interaction_data, assemble_interaction_data,
-    build_complete_hbond_interaction, save_interactions_to_disk
+    assign_res_type,
+    merge_hbond_interaction_data,
+    assemble_interaction_data,
+    build_complete_hbond_interaction,
+    save_interactions_to_disk,
 )
 from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.snap import get_rnp_interactions
@@ -81,18 +85,18 @@ def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]
         potential_tert_contact_motif_2 = []
         for interaction in assembled_interaction_data:
             if (
-                    (
-                            interaction.res_1 in residues_in_motif
-                            and interaction.res_2 in residues_in_motif
-                    )
-                    or (
+                (
+                    interaction.res_1 in residues_in_motif
+                    and interaction.res_2 in residues_in_motif
+                )
+                or (
                     interaction.type_1 == "aa"
                     and interaction.res_2 in residues_in_motif
-            )
-                    or (
+                )
+                or (
                     interaction.type_2 == "aa"
                     and interaction.res_1 in residues_in_motif
-            )
+                )
             ):
                 # H-bonds fully inside motif (or RNP interactions with the motif)
                 interactions_in_motif.append(interaction)
@@ -188,14 +192,18 @@ def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]
             )
             potential_tert_contacts.append(potential_tert_contact_m2)
 
-    append_data_to_existing_csvs(potential_tert_contacts, assembled_interaction_data, single_motif_interactions)
+    append_data_to_existing_csvs(
+        potential_tert_contacts, assembled_interaction_data, single_motif_interactions
+    )
 
     return motif_list
 
 
-def append_data_to_existing_csvs(potential_tert_contacts: List[PotentialTertiaryContact],
-                                 assembled_interaction_data: List[HBondInteraction],
-                                 single_motif_interactions: List[SingleMotifInteraction]) -> None:
+def append_data_to_existing_csvs(
+    potential_tert_contacts: List[PotentialTertiaryContact],
+    assembled_interaction_data: List[HBondInteraction],
+    single_motif_interactions: List[SingleMotifInteraction],
+) -> None:
     """
     Writes/appends potential tertiary contact, single motif interaction, and detailed interaction data to the appropriate CSV files.
     Purpose of this function is to reduce RAM usage from the previous method.
@@ -214,11 +222,14 @@ def append_data_to_existing_csvs(potential_tert_contacts: List[PotentialTertiary
 
     # establish if the destination CSVs exist or not
     potential_tert_contact_file_exists = os.path.isfile(
-        os.path.join(LIB_PATH, "data/out_csvs/potential_tertiary_contacts.csv"))
+        os.path.join(LIB_PATH, "data/out_csvs/potential_tertiary_contacts.csv")
+    )
     interactions_detailed_file_exists = os.path.isfile(
-        os.path.join(LIB_PATH, "data/out_csvs/interactions_detailed.csv"))
+        os.path.join(LIB_PATH, "data/out_csvs/interactions_detailed.csv")
+    )
     single_motif_interaction_file_exists = os.path.isfile(
-        os.path.join(LIB_PATH, "data/out_csvs/single_motif_interaction.csv"))
+        os.path.join(LIB_PATH, "data/out_csvs/single_motif_interaction.csv")
+    )
 
     # First handle potential tert contacts
     potential_tert_contact_data = []
@@ -233,12 +244,7 @@ def append_data_to_existing_csvs(potential_tert_contacts: List[PotentialTertiary
         type_1 = potential_contact.type_1
         type_2 = potential_contact.type_2
         # Interactions with amino acids are absolutely not tertiary contacts
-        if (
-                type_1 == "aa"
-                or type_2 == "aa"
-                or type_1 == "ligand"
-                or type_2 == "ligand"
-        ):
+        if type_1 == "aa" or type_2 == "aa" or type_1 == "ligand" or type_2 == "ligand":
             continue
 
         # Append the filtered data to the list as a dictionary
@@ -259,12 +265,20 @@ def append_data_to_existing_csvs(potential_tert_contacts: List[PotentialTertiary
     potential_tert_contact_df = pd.DataFrame(potential_tert_contact_data)
     if not potential_tert_contact_file_exists:
         # Write with header to the destination
-        potential_tert_contact_df.to_csv(os.path.join(LIB_PATH, "data/out_csvs/potential_tertiary_contacts.csv"),
-                                         mode='w', header=True, index=False)
+        potential_tert_contact_df.to_csv(
+            os.path.join(LIB_PATH, "data/out_csvs/potential_tertiary_contacts.csv"),
+            mode="w",
+            header=True,
+            index=False,
+        )
     else:
         # Append data without header
-        potential_tert_contact_df.to_csv(os.path.join(LIB_PATH, "data/out_csvs/potential_tertiary_contacts.csv"),
-                                         mode='a', header=False, index=False)
+        potential_tert_contact_df.to_csv(
+            os.path.join(LIB_PATH, "data/out_csvs/potential_tertiary_contacts.csv"),
+            mode="a",
+            header=False,
+            index=False,
+        )
 
     # Next handle the assembled interaction data
     interaction_data = []
@@ -303,61 +317,79 @@ def append_data_to_existing_csvs(potential_tert_contacts: List[PotentialTertiary
     interactions_detailed_df = pd.DataFrame(interaction_data)
     if not interactions_detailed_file_exists:
         # Write with header to the destination
-        interactions_detailed_df.to_csv(os.path.join(LIB_PATH, "data/out_csvs/interactions_detailed.csv"),
-                                         mode='w', header=True, index=False)
+        interactions_detailed_df.to_csv(
+            os.path.join(LIB_PATH, "data/out_csvs/interactions_detailed.csv"),
+            mode="w",
+            header=True,
+            index=False,
+        )
     else:
         # Append data without header
-        interactions_detailed_df.to_csv(os.path.join(LIB_PATH, "data/out_csvs/interactions_detailed.csv"),
-                                         mode='a', header=False, index=False)
+        interactions_detailed_df.to_csv(
+            os.path.join(LIB_PATH, "data/out_csvs/interactions_detailed.csv"),
+            mode="a",
+            header=False,
+            index=False,
+        )
 
     # Finally handle the single motif interactions
     single_motif_interaction_data = []
     for interaction in single_motif_interactions:
-            res_1 = interaction.res_1
-            res_2 = interaction.res_2
-            atom_1 = interaction.atom_1
-            atom_2 = interaction.atom_2
-            type_1 = interaction.type_1
-            type_2 = interaction.type_2
-            distance = interaction.distance
-            angle = interaction.angle
-            motif_name = interaction.motif_name
-            mol_1 = DSSRRes(res_1).res_id
-            mol_2 = DSSRRes(res_2).res_id
-            # filter out ligands
-            if type_1 == "ligand" or type_2 == "ligand":
-                continue
-            # Append the data to the list as a dictionary
-            single_motif_interaction_data.append(
-                {
-                    "motif_name": motif_name,
-                    "res_1": res_1,
-                    "res_2": res_2,
-                    "mol_1": mol_1,
-                    "mol_2": mol_2,
-                    "atom_1": atom_1,
-                    "atom_2": atom_2,
-                    "type_1": type_1,
-                    "type_2": type_2,
-                    "distance": distance,
-                    "angle": angle,
-                }
-            )
+        res_1 = interaction.res_1
+        res_2 = interaction.res_2
+        atom_1 = interaction.atom_1
+        atom_2 = interaction.atom_2
+        type_1 = interaction.type_1
+        type_2 = interaction.type_2
+        distance = interaction.distance
+        angle = interaction.angle
+        motif_name = interaction.motif_name
+        mol_1 = DSSRRes(res_1).res_id
+        mol_2 = DSSRRes(res_2).res_id
+        # filter out ligands
+        if type_1 == "ligand" or type_2 == "ligand":
+            continue
+        # Append the data to the list as a dictionary
+        single_motif_interaction_data.append(
+            {
+                "motif_name": motif_name,
+                "res_1": res_1,
+                "res_2": res_2,
+                "mol_1": mol_1,
+                "mol_2": mol_2,
+                "atom_1": atom_1,
+                "atom_2": atom_2,
+                "type_1": type_1,
+                "type_2": type_2,
+                "distance": distance,
+                "angle": angle,
+            }
+        )
     single_motif_interaction_data_df = pd.DataFrame(single_motif_interaction_data)
     # Spit single motif inters to CSV
     if not single_motif_interaction_file_exists:
         single_motif_interaction_data_df.to_csv(
-            os.path.join(LIB_PATH, "data/out_csvs/single_motif_interaction.csv"), mode='w', header=True, index=False
+            os.path.join(LIB_PATH, "data/out_csvs/single_motif_interaction.csv"),
+            mode="w",
+            header=True,
+            index=False,
         )
     else:
         single_motif_interaction_data_df.to_csv(
-            os.path.join(LIB_PATH, "data/out_csvs/single_motif_interaction.csv"), mode='a', header=False, index=False
+            os.path.join(LIB_PATH, "data/out_csvs/single_motif_interaction.csv"),
+            mode="a",
+            header=False,
+            index=False,
         )
 
 
-
-
-def find_and_build_motif(m: Any, pdb_name: str, pdb_model_df: pd.DataFrame, discovered: List[str], motif_count: int):
+def find_and_build_motif(
+    m: Any,
+    pdb_name: str,
+    pdb_model_df: pd.DataFrame,
+    discovered: List[str],
+    motif_count: int,
+):
     """
     Identifies motif in source PDB by ID and extracts to disk, setting its name and other data.
 
@@ -494,7 +526,7 @@ def extract_motif_from_pdb(nts, model_df):
         for residue in residue_list:
             chain_res = model_df[
                 model_df["auth_asym_id"].astype(str) == str(chain_number)
-                ]
+            ]
             res_subset = chain_res[chain_res["auth_seq_id"].astype(str) == str(residue)]
             res.append(res_subset)
         list_of_chains.append(res)
@@ -706,7 +738,9 @@ def find_residue_roots(res_list: List[Residue]) -> Tuple[List[Residue], List[Res
     return roots, res_list_modified
 
 
-def connected_to(source_residue: Residue, residue_in_question: Residue, cutoff: float = 2.75) -> int:
+def connected_to(
+    source_residue: Residue, residue_in_question: Residue, cutoff: float = 2.75
+) -> int:
     """
     Determine if another residue is connected to this residue.
     From 5' to 3'; if reverse, returns -1.
