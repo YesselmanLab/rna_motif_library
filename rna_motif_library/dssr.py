@@ -453,7 +453,18 @@ def find_and_build_motif(
         motif_pdb,
     )
     # And print the motif to the system
-    motif_dir_path = os.path.join(LIB_PATH, "data/motifs", motif_type, size, sequence)
+    if motif_type == "NWAY":
+        spl = size.split("-")
+        size_num = len(spl)
+        size_str = str(size_num)
+        size_str_name = size_str + "ways"
+        motif_dir_path = os.path.join(
+            LIB_PATH, "data/motifs", motif_type, size_str_name, size, sequence
+        )
+    else:
+        motif_dir_path = os.path.join(
+            LIB_PATH, "data/motifs", motif_type, size, sequence
+        )
     os.makedirs(motif_dir_path, exist_ok=True)
     motif_cif_path = os.path.join(motif_dir_path, f"{motif_name}.cif")
     dataframe_to_cif(motif_pdb, motif_cif_path, motif_name)

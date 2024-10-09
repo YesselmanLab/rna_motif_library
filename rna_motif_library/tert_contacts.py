@@ -28,7 +28,27 @@ def find_unique_tert_contacts(tert_contact_df: pd.DataFrame) -> pd.DataFrame:
     # Drop the 'sorted_motifs' column, since it's no longer needed
     unique_tert_contact_df = grouped.drop(columns=["sorted_motifs"])
 
-    return unique_tert_contact_df
+    # Now delete those tertiary contacts with like sequences
+    # First need to extract sequences by removing the dupe indicator
+    def dupe_remover(column):
+        """Function to process motifs by removing the dupe indicator thus keeping the sequence"""
+        return column.str.split(".").str[:-1].str.join(".")
+
+    unique_tert_contact_df["seq_1"] = dupe_remover(unique_tert_contact_df["motif_1"])
+    unique_tert_contact_df["seq_2"] = dupe_remover(unique_tert_contact_df["motif_2"])
+    # Now remove dupes according to sequence
+    # Create a new column with sequences sorted alphabetically
+    unique_tert_contact_df["sorted_seqs"] = unique_tert_contact_df.apply(
+        lambda row: tuple(sorted([row["seq_1"], row["seq_2"]])), axis=1
+    )
+
+    # Group by the sorted sequences and keep only the first line from each group
+    final_grouped = unique_tert_contact_df.groupby("sorted_seqs").first().reset_index()
+
+    # Drop the 'sorted_seqs' column, since it's no longer needed
+    final_unique_tert_contact_df = final_grouped.drop(columns=["sorted_seqs"])
+
+    return final_unique_tert_contact_df
 
 
 def update_unknown_motifs(
