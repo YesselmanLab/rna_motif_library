@@ -61,14 +61,14 @@ python rna_motif_library/cli.py process-snap --threads 8
 
 # After processing with SNAP we need to generate motif files
 python rna_motif_library/cli.py generate-motifs
-# Estimated time: 72 hours for around 2000 .cifs
+# Estimated time: 5 days for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will display the names of the motifs being processed
 
 # After generating motifs we find tertiary contacts
 python rna_motif_library/cli.py load-tertiary-contacts
 # No threading for this one
-# Estimated time: 18 hours for around 2000 .cifs
+# Estimated time: 36 hours for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will display which motifs' hydrogen bonding it's looking at
 

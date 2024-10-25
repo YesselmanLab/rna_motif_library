@@ -15,6 +15,17 @@ from update_library import (
     generate_motif_files,
 )
 
+# TODO look at this stuff for the next week or so
+# we want the angle not the dihedral angle
+# so save the dihedral but need to do angle calcs and rename the dihedral stuff and push it aside
+# also, take another look at threading because it shouldn't be so damn slow
+# figure out how to use github release
+# have a docker image to run on a virtual machine
+# we don't have the rights to DSSR or SNAP so we need to add a way to install these things
+
+
+
+
 log = get_logger("cli")
 
 
