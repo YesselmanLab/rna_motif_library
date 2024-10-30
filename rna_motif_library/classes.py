@@ -117,17 +117,17 @@ class RNPInteraction:
 
 class PotentialTertiaryContact:
     def __init__(
-        self,
-        motif_1: str,
-        motif_2: str,
-        res_1: str,
-        res_2: str,
-        atom_1: str,
-        atom_2: str,
-        type_1: str,
-        type_2: str,
-        distance: float,
-        angle: float,
+            self,
+            motif_1: str,
+            motif_2: str,
+            res_1: str,
+            res_2: str,
+            atom_1: str,
+            atom_2: str,
+            type_1: str,
+            type_2: str,
+            distance: float,
+            angle: float,
     ):
         """
         Holds data about potential tertiary contacts.
@@ -153,16 +153,16 @@ class PotentialTertiaryContact:
 class SingleMotifInteraction:
 
     def __init__(
-        self,
-        motif_name: str,
-        res_1: str,
-        res_2: str,
-        atom_1: str,
-        atom_2: str,
-        type_1: str,
-        type_2: str,
-        distance: float,
-        angle: float,
+            self,
+            motif_name: str,
+            res_1: str,
+            res_2: str,
+            atom_1: str,
+            atom_2: str,
+            type_1: str,
+            type_2: str,
+            distance: float,
+            angle: float,
     ) -> None:
         """
         Holds data for H-bond interactions within a single motif.
@@ -194,21 +194,21 @@ class SingleMotifInteraction:
 
 class HBondInteraction:
     def __init__(
-        self,
-        res_1: str,
-        res_2: str,
-        atom_1: str,
-        atom_2: str,
-        type_1: str,
-        type_2: str,
-        distance: float,
-        angle: float,
-        pdb: pd.DataFrame,
-        first_atom_df: pd.DataFrame,
-        second_atom_df: pd.DataFrame,
-        third_atom_df: pd.DataFrame,
-        fourth_atom_df: pd.DataFrame,
-        pdb_name: str,
+            self,
+            res_1: str,
+            res_2: str,
+            atom_1: str,
+            atom_2: str,
+            type_1: str,
+            type_2: str,
+            distance: float,
+            angle: float,
+            pdb: pd.DataFrame,
+            first_atom_df: pd.DataFrame,
+            second_atom_df: pd.DataFrame,
+            third_atom_df: pd.DataFrame,
+            fourth_atom_df: pd.DataFrame,
+            pdb_name: str,
     ) -> None:
         """
         Holds data for H-bond interaction.
@@ -263,14 +263,14 @@ class HBondInteractionFactory:
     """
 
     def __init__(
-        self,
-        res_1: str,
-        res_2: str,
-        atom_1: str,
-        atom_2: str,
-        distance: float,
-        residue_pair: str,
-        quality: str,
+            self,
+            res_1: str,
+            res_2: str,
+            atom_1: str,
+            atom_2: str,
+            distance: float,
+            residue_pair: str,
+            quality: str,
     ) -> None:
         self.res_1 = res_1
         self.res_2 = res_2
@@ -287,15 +287,15 @@ class Motif:
     """
 
     def __init__(
-        self,
-        motif_name: str,
-        motif_type: str,
-        pdb: str,
-        size: str,
-        sequence: str = None,
-        res_list: List[str] = None,
-        strands: Any = None,
-        motif_pdb: pd.DataFrame = None,
+            self,
+            motif_name: str,
+            motif_type: str,
+            pdb: str,
+            size: str,
+            sequence: str = None,
+            res_list: List[str] = None,
+            strands: Any = None,
+            motif_pdb: pd.DataFrame = None,
     ) -> None:
         """
         Initialize a Motif object
@@ -321,6 +321,26 @@ class Motif:
         self.res_list = res_list if res_list is not None else []
         self.strands = strands if strands is not None else []
         self.motif_pdb = motif_pdb if motif_pdb is not None else pd.DataFrame()
+
+    def to_dict(self):
+        """
+        Returns the object as a dictionary.
+
+        Returns:
+            The entire instance of a Motif class inside a dictionary.
+            Intended for writing the motif to JSON.
+        """
+        return {
+            'motif_name': self.motif_name,
+            'motif_type': self.motif_type,
+            'pdb': self.pdb,
+            'size': self.size,
+            'sequence': self.sequence,
+            'res_list': self.res_list,
+            'strands': [[res.to_dict() for res in strand] for strand in self.strands],
+            'motif_pdb': self.motif_pdb.to_dict(orient='records') if isinstance(self.motif_pdb,
+                                                                                pd.DataFrame) and not self.motif_pdb.empty else None
+        }
 
 
 class DSSRRes:
@@ -373,18 +393,36 @@ class Residue:
     """
 
     def __init__(
-        self,
-        chain_id: str,
-        res_id: str,
-        ins_code: str,
-        mol_name: str,
-        pdb: pd.DataFrame,
+            self,
+            chain_id: str,
+            res_id: str,
+            ins_code: str,
+            mol_name: str,
+            pdb: pd.DataFrame,
     ) -> None:
         self.chain_id = chain_id
         self.res_id = res_id
         self.ins_code = ins_code
         self.mol_name = mol_name
         self.pdb = pdb
+
+    def to_dict(self):
+        """
+        Writes residue information to a dictionary.
+
+        Return:
+            Dictionary containing residues.
+        """
+        return {
+            'chain_id': self.chain_id,
+            'res_id': self.res_id,
+            'ins_code': self.ins_code,
+            'mol_name': self.mol_name,
+            'pdb': self.pdb.to_dict(orient='records') if isinstance(self.pdb, pd.DataFrame) and not self.pdb.empty else None
+        }
+
+    def to_pdb_str(self):
+        return "PDB_STR"
 
 
 def extract_longest_numeric_sequence(input_string: str) -> str:
@@ -402,7 +440,7 @@ def extract_longest_numeric_sequence(input_string: str) -> str:
     current_sequence = ""
     for c in input_string:
         if c.isdigit() or (
-            c == "-" and (not current_sequence or current_sequence[0] == "-")
+                c == "-" and (not current_sequence or current_sequence[0] == "-")
         ):
             current_sequence += c
             if len(current_sequence) >= len(longest_sequence):

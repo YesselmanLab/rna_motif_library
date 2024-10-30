@@ -1,3 +1,4 @@
+import json
 import os
 from typing import List, Any, Tuple
 import pandas as pd
@@ -25,7 +26,6 @@ from rna_motif_library.dssr_hbonds import (
 )
 from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.snap import get_rnp_interactions
-
 
 def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]:
     """
