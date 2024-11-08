@@ -80,6 +80,7 @@ When finished, you will see several new directories. <br>
 interacting
 `data/tertiary_contacts` - tertiary contacts found go here, classified by what two types of motifs are in the contact
 `data/out_csvs` - CSVs with further data go here
+`data/out_json` - motif data for each PDB is saved in JSON files for further analysis
 
 Note: folders in `data/motifs` named `nways` refer to n-way junctions (2ways, 3ways, etc)
 
@@ -105,7 +106,7 @@ python cli.py generate-motifs --limit 8
 # This will always run certain files first; the order is not random, but fixed every time
 ```
 
-If you are interested in a specific PDB, you can run the following:
+If you are interested in a specific PDB, you can run the following command in the same directory:
 
 ```bash
 # Make sure to delete the directories "motifs", "interactions", "tertiary_contacts", "heatmaps", and "heatmap_data" if you've run the full code already
@@ -114,6 +115,20 @@ If you are interested in a specific PDB, you can run the following:
 python cli.py generate-motifs --pdb 3R9X
 # Replace "3R9X" with your desired PDB
 ```
+
+## Quick regeneration/analysis
+
+Once `generate-motifs` is run and completed, it will create a number of JSON files in `data/out_json`, each containing motif data.
+These files will contain properties of the motif as well as the CIF data and coordinates of the atoms.
+This data can be used for deeper analyses without having to re-run the script again.
+
+To regenerate motif `.cif` files from JSON data, run the following command:
+```bash
+python rna_motif_library/cli.py reload-from-json
+
+```
+This command will take all the JSON files in `data/out_json` and regenerate the motifs accodingly.
+
 
 ## Error handling
 
