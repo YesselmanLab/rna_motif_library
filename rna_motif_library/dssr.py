@@ -415,11 +415,16 @@ def find_and_build_motif(
     motif_pdb = extract_motif_from_pdb(m.nts_long, pdb_model_df)
     # Now find the list of strands and sequence
     list_of_strands, sequence = find_strands(motif_pdb)
+    if list_of_strands == "UNKNOWN":
+        return "UNKNOWN"
+    elif sequence == "UNKNOWN":
+        return "UNKNOWN"
     # Get the size of the motif (as string)
     size = set_motif_size(list_of_strands, motif_type)
     if size == "UNKNOWN":
         # print only for debugging purposes
         return "UNKNOWN"
+
     # Real quick, set NWAY/TWOWAY junction based on return of size
     spl = size.split("-")
     if motif_type == "JCT":
@@ -625,6 +630,9 @@ def find_strands(master_res_df: pd.DataFrame) -> Tuple[List[Any], str]:
     # step 2: find the roots of the residues
     residue_roots, res_list_modified = find_residue_roots(list_of_residues)
 
+    if residue_roots == "UNKNOWN":
+        return "UNKNOWN", "UNKNOWN"
+
     # step 3: given the residue roots, build strands of RNA
     strands_of_rna = build_strands_5to3(residue_roots, res_list_modified)
 
@@ -734,6 +742,8 @@ def find_residue_roots(res_list: List[Residue]) -> Tuple[List[Residue], List[Res
                     has_5to3_connection = True
                 elif is_connected == -1:
                     has_3to5_connection = True
+                elif is_connected == 2:
+                    return "UNKNOWN", "UNKNOWN"
 
             # If it's connected in the 3' to 5' direction, it cannot be a root
             if has_3to5_connection:
@@ -787,10 +797,13 @@ def connected_to(
 
     if not o3_atom_1.empty and not p_atom_2.empty:
         # Calculate the Euclidean distance between the two atoms
-        distance = np.linalg.norm(
-            p_atom_2[["Cartn_x", "Cartn_y", "Cartn_z"]].values
-            - o3_atom_1[["Cartn_x", "Cartn_y", "Cartn_z"]].values
-        )
+        try:
+            distance = np.linalg.norm(
+                p_atom_2[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+                - o3_atom_1[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+            )
+        except ValueError:
+            return 2
         if distance < cutoff:
             return 1  # 5' to 3' direction
 
