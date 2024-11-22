@@ -152,6 +152,10 @@ def process_snap(threads, directory):
     type=str,
     help="Process a specific PDB within the set (defaults to all).",
 )
+@click.option("--directory",
+              defailt=None,
+              type=str,
+              help="The directory where the PDBs are located")
 @log_and_setup
 def generate_motifs(limit, pdb):
     """

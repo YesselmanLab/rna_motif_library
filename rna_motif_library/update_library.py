@@ -174,7 +174,7 @@ def get_snap_files(threads: int, directory: str) -> None:
     log.info(f"{generated_count} new .out files generated.")
 
 
-def generate_motif_files(limit=None, pdb_name=None) -> None:
+def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
     """
     Processes PDB files to extract and analyze motif interactions, storing detailed outputs.
 
@@ -186,7 +186,10 @@ def generate_motif_files(limit=None, pdb_name=None) -> None:
         None
 
     """
-    pdb_dir = os.path.join(LIB_PATH, "data/pdbs/")
+    if directory is not None:
+        pdb_dir = directory
+    else:
+        pdb_dir = os.path.join(LIB_PATH, "data/pdbs/")
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
 
     if pdb_name is not None:
