@@ -153,7 +153,7 @@ def process_snap(threads, directory):
     help="Process a specific PDB within the set (defaults to all).",
 )
 @click.option("--directory",
-              defailt=None,
+              default=None,
               type=str,
               help="The directory where the PDBs are located")
 @log_and_setup
