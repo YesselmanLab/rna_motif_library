@@ -101,26 +101,30 @@ def download_cifs(threads):
 
 @cli.command()
 @click.option("--threads", default=1, help="Number of threads to use.")
+@click.option("--directory", default=None, help="Directory to PDBs used")
 @log_and_setup
-def process_dssr(threads):
+def process_dssr(threads, directory):
     """
     Processes every downloaded PDB with DSSR, extracting the secondary structure into a JSON.
 
     Args:
         threads (int): Number of threads to run on.
+        directory (str): Directory to use for processing.
+        Directory = "/notebooks/distributed_sets/set_i/"
 
     Returns:
         None
 
     """
     warnings.filterwarnings("ignore")
-    get_dssr_files(threads)
+    get_dssr_files(threads, directory)
 
 
 @cli.command()
 @click.option("--threads", default=1, help="Number of threads to use.")
+@click.option("--directory", default=None, help="Directory of PDBs to process")
 @log_and_setup
-def process_snap(threads):
+def process_snap(threads, directory):
     """
     Processes every downloaded PDB with SNAP, extracting RNA-protein interaction data.
 
@@ -132,7 +136,7 @@ def process_snap(threads):
 
     """
     warnings.filterwarnings("ignore")
-    get_snap_files(threads)
+    get_snap_files(threads, directory)
 
 
 @cli.command()

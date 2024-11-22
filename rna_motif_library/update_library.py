@@ -84,18 +84,22 @@ def download_cif_files(csv_path: str, threads: int) -> None:
         os.remove(file)
 
 
-def get_dssr_files(threads: int) -> None:
+def get_dssr_files(threads: int, directory: str) -> None:
     """
     Runs DSSR on PDB files to extract and store secondary structure information in JSON format.
 
     Args:
         threads (int): number of threads to run on
+        directory (str): directory of PDBs to process
 
     Returns:
         None
 
     """
-    pdb_dir = LIB_PATH + "/data/pdbs/"
+    if directory is not None:
+        pdb_dir = directory
+    else:
+        pdb_dir = LIB_PATH + "/data/pdbs/"
     out_path = LIB_PATH + "/data/dssr_output/"
     if not os.path.exists(out_path):
         os.makedirs(out_path, exist_ok=True)
@@ -125,7 +129,7 @@ def get_dssr_files(threads: int) -> None:
     validate_and_regenerate_invalid_json_files(out_path, pdb_dir)
 
 
-def get_snap_files(threads: int) -> None:
+def get_snap_files(threads: int, directory: str) -> None:
     """
     Runs snap to extract RNP interactions for each PDB file and stores the results in .out files.
 
@@ -136,7 +140,10 @@ def get_snap_files(threads: int) -> None:
         None
 
     """
-    pdb_dir = LIB_PATH + "/data/pdbs/"
+    if directory is not None:
+        pdb_dir = directory
+    else:
+        pdb_dir = LIB_PATH + "/data/pdbs/"
     out_path = LIB_PATH + "/data/snap_output/"
 
     # Ensure the output directory exists

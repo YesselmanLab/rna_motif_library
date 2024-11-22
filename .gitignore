@@ -3,3 +3,4 @@ data/
 *egg*
 venv/
 *.pyc
+/notebooks/distributed_sets/
