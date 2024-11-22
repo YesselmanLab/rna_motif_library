@@ -157,7 +157,7 @@ def process_snap(threads, directory):
               type=str,
               help="The directory where the PDBs are located")
 @log_and_setup
-def generate_motifs(limit, pdb):
+def generate_motifs(limit, pdb, directory):
     """
     Extracts motifs from source PDB using data from DSSR, and interactions using data from DSSR and SNAP.
 
@@ -175,7 +175,7 @@ def generate_motifs(limit, pdb):
     json_out_directory = os.path.join(LIB_PATH, "data", "out_json")
     os.makedirs(json_out_directory, exist_ok=True)
 
-    generate_motif_files(limit=limit, pdb_name=pdb)
+    generate_motif_files(limit=limit, pdb_name=pdb, directory=directory)
 
 
 @cli.command()
