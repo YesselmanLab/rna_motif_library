@@ -37,4 +37,4 @@ def get_os() -> str:
 LIB_PATH: str = get_lib_path()
 UNITTEST_PATH: str = LIB_PATH
 RESOURCES_PATH: str = os.path.join(LIB_PATH, "resources/")
-DSSR_EXE: str = os.path.join(RESOURCES_PATH, f"snap/{get_os()}/x3dna-dssr ")
+DSSR_EXE: str = os.path.join(RESOURCES_PATH, f"snap/{get_os()}/x3dna-dssr")
