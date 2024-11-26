@@ -444,6 +444,15 @@ class Motif:
             json.dump(self.to_dict(), f)
 
 
+def get_motifs_from_json(json_path: str) -> List[Motif]:
+    """
+    Get motifs from a JSON file.
+    """
+    with open(json_path, "r") as f:
+        data = json.load(f)
+    return [Motif.from_dict(d) for d in data]
+
+
 class Residue:
     """
     Class to hold data on individual residues, used for building strands and sequences in find_strands

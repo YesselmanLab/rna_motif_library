@@ -16,7 +16,7 @@ from pydssr.dssr import write_dssr_json_output_to_file
 from rna_motif_library import dssr_hbonds
 from rna_motif_library.snap import generate_out_file
 from rna_motif_library import dssr
-from rna_motif_library.settings import LIB_PATH, DSSR_EXE
+from rna_motif_library.settings import LIB_PATH, DSSR_EXE, DATA_PATH
 from rna_motif_library.tert_contacts import (
     import_tert_contact_csv,
     import_residues_csv,
@@ -41,7 +41,7 @@ def download_cif_files(csv_path: str, threads: int) -> None:
         None
 
     """
-    pdb_dir = LIB_PATH + "/data/pdbs/"
+    pdb_dir = DATA_PATH + "/pdbs/"
     os.makedirs(pdb_dir, exist_ok=True)
     df = pd.read_csv(
         csv_path, header=None, names=["equivalence_class", "represent", "class_members"]
@@ -193,7 +193,9 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
 
     if pdb_name is not None:
+        log.info(f"Processing PDB: {pdb_name}")
         pdb_name_path = os.path.join(pdb_dir, str(pdb_name) + ".cif")
+        pdbs = [pdb_name_path]
         if not os.path.exists(pdb_name_path):
             log.error(f"The provided PDB '{pdb_name}' doesn't exist.")
             log.error("Make sure to run DSSR and SNAP first before generating motifs.")
@@ -201,10 +203,12 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
             exit(1)
 
     # Define directories for output
-    motif_dir = os.path.join(LIB_PATH, "data", "motifs")
-    csv_dir = os.path.join(LIB_PATH, "data", "out_csvs")
+    motif_dir = os.path.join(DATA_PATH, "motifs")
+    csv_dir = os.path.join(DATA_PATH, "out_csvs")
+    out_json_dir = os.path.join(DATA_PATH, "out_json")
     os.makedirs(motif_dir, exist_ok=True)
     os.makedirs(csv_dir, exist_ok=True)
+    os.makedirs(out_json_dir, exist_ok=True)
 
     count = 0
     motifs_per_pdb = []
@@ -223,8 +227,6 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
         # we can keep this as is it's not too big a CSV I think
         motifs_per_pdb.append(built_motifs)
         break
-    exit()
-
     dssr_hbonds.print_residues_in_motif_to_csv(motifs_per_pdb, csv_dir)
 
     # Dump motifs to JSON
@@ -252,11 +254,11 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
             # Once all the strands are updated, load into JSON
             motif_dict = motif.to_dict()
             motif_dicts.append(motif_dict)
-            json_out_path = os.path.join(
-                LIB_PATH, "data", "out_json", f"{str(motif.pdb)}_result.json"
-            )
-            with open(json_out_path, "w") as file:
-                json.dump(motif_dicts, file)  # Use indent for pretty-printing
+        json_out_path = os.path.join(
+            DATA_PATH, "out_json", f"{str(motif.pdb)}_motifs.json"
+        )
+        with open(json_out_path, "w") as file:
+            json.dump(motif_dicts, file)  # Use indent for pretty-printing
 
     motif_interaction_data_by_type_to_csv(csv_dir)
 
