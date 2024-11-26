@@ -209,6 +209,7 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
     count = 0
     motifs_per_pdb = []
     for pdb_path in pdbs:
+        print(pdb_path)
         count += 1
         # Keep processed files under the limit if specified
         if limit is not None and count > limit:
@@ -221,6 +222,8 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
         built_motifs = dssr.process_motif_interaction_out_data(count, pdb_path)
         # we can keep this as is it's not too big a CSV I think
         motifs_per_pdb.append(built_motifs)
+        break
+    exit()
 
     dssr_hbonds.print_residues_in_motif_to_csv(motifs_per_pdb, csv_dir)
 
@@ -235,13 +238,24 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
                 # print(strand) # list of residues
                 for residue in strand:
                     pdb_df = residue.pdb
-                    new_pdb = pdb_df[["group_PDB", "id", "auth_atom_id", "Cartn_x", "Cartn_y", "Cartn_z"]]
+                    new_pdb = pdb_df[
+                        [
+                            "group_PDB",
+                            "id",
+                            "auth_atom_id",
+                            "Cartn_x",
+                            "Cartn_y",
+                            "Cartn_z",
+                        ]
+                    ]
                     residue.pdb = new_pdb
             # Once all the strands are updated, load into JSON
             motif_dict = motif.to_dict()
             motif_dicts.append(motif_dict)
-            json_out_path = os.path.join(LIB_PATH, "data", "out_json", f"{str(motif.pdb)}_result.json")
-            with open(json_out_path, 'w') as file:
+            json_out_path = os.path.join(
+                LIB_PATH, "data", "out_json", f"{str(motif.pdb)}_result.json"
+            )
+            with open(json_out_path, "w") as file:
                 json.dump(motif_dicts, file)  # Use indent for pretty-printing
 
     motif_interaction_data_by_type_to_csv(csv_dir)

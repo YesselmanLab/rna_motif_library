@@ -26,6 +26,10 @@ from rna_motif_library.dssr_hbonds import (
 )
 from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.snap import get_rnp_interactions
+from rna_motif_library.logger import get_logger
+
+log = get_logger("dssr")
+
 
 def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]:
     """
@@ -40,7 +44,7 @@ def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]
 
     """
     name = os.path.basename(pdb_path)[:-4]
-    print(f"{count}, {pdb_path}, {name}")
+    log.debug(f"{count}, {pdb_path}, {name}")
 
     # Get the master PDB data
     pdb_model_df = get_pdb_model_df(pdb_path)
@@ -409,6 +413,9 @@ def find_and_build_motif(
     # First get the type
     motif_type = determine_motif_type(m)
     if motif_type == "UNKNOWN":
+        log.debug(f"Unknown motif type for {pdb_name}")
+        print(f"Unknown motif type for {pdb_name}")
+        print(m)
         return "UNKNOWN"
     # list of long nucleotides (m.nts_long)
     # Extract motif from source PDB
@@ -710,6 +717,8 @@ def extract_residue_list(master_res_df: pd.DataFrame) -> List[Residue]:
         res_id = key[1]
         ins_code = key[2]
         mol_name = key[3]
+        # coords = pdb[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+        # print(coords)
         residue = Residue(chain_id, res_id, ins_code, mol_name, pdb)
         res_list.append(residue)
 

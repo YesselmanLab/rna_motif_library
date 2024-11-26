@@ -21,7 +21,7 @@ import sys
 APP_LOGGER_NAME = "rna-motif-library"
 
 
-def setup_logging(file_name: str = None) -> logging.Logger:
+def setup_logging(file_name: str = None, debug: bool = False) -> logging.Logger:
     """
     Set up logging configuration.
 
@@ -33,11 +33,15 @@ def setup_logging(file_name: str = None) -> logging.Logger:
         None
     """
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)  # Set the root logger level
+    root_logger.setLevel(
+        logging.DEBUG if debug else logging.INFO
+    )  # Set the root logger level
 
     # Create a stream handler for output to console
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)  # Set the desired level for console output
+    console_handler.setLevel(
+        logging.DEBUG if debug else logging.INFO
+    )  # Set the desired level for console output
     formatter = logging.Formatter("%(levelname)s - %(name)s - %(message)s")
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
