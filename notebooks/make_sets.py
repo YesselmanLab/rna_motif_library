@@ -38,7 +38,7 @@ def main():
     print(target_directory)
     os.makedirs(target_directory, exist_ok=True)
 
-    num_of_sets = 100
+    num_of_sets = 500
 
     for file_name in os.listdir(source_directory):
         if file_name.endswith('.cif'):

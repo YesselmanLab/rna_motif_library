@@ -191,6 +191,7 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
     else:
         pdb_dir = os.path.join(LIB_PATH, "data/pdbs/")
     pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
+    log.info(f"there are {len(pdbs)} files in directory {pdb_dir}")
 
     if pdb_name is not None:
         log.info(f"Processing PDB: {pdb_name}")
@@ -226,7 +227,6 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
         built_motifs = dssr.process_motif_interaction_out_data(count, pdb_path)
         # we can keep this as is it's not too big a CSV I think
         motifs_per_pdb.append(built_motifs)
-        break
     dssr_hbonds.print_residues_in_motif_to_csv(motifs_per_pdb, csv_dir)
 
     # Dump motifs to JSON
