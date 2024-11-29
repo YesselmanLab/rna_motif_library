@@ -15,10 +15,10 @@ from rna_motif_library.dssr_hbonds import (
     merge_hbond_interaction_data,
     calc_distance,
     find_closest_atom,
-    calculate_bond_angle,
+    calculate_dihedral_angle,
 )
 from rna_motif_library.settings import LIB_PATH
-from rna_motif_library.snap import get_rnp_interactions
+from rna_motif_library.snap import parse_snap_output
 
 
 def test_assign_res_type() -> None:
@@ -71,7 +71,7 @@ def test_build_complete_hbond_interaction() -> None:
     rnp_path = os.path.join(LIB_PATH, "resources", "1gid.out")
 
     unique_interaction_data = merge_hbond_interaction_data(
-        get_rnp_interactions(out_file=rnp_path), hbonds
+        parse_snap_output(out_file=rnp_path), hbonds
     )
     pre_assembled_interaction_data = assemble_interaction_data(unique_interaction_data)
     assembled_interaction_data = build_complete_hbond_interaction(
@@ -99,7 +99,9 @@ def test_build_complete_hbond_interaction() -> None:
 
     third_atom = find_closest_atom(first_atom, pdb_model_df)
     fourth_atom = find_closest_atom(second_atom, pdb_model_df)
-    bond_angle = calculate_bond_angle(first_atom, second_atom, third_atom, fourth_atom)
+    bond_angle = calculate_dihedral_angle(
+        first_atom, second_atom, third_atom, fourth_atom
+    )
     expected_angle = 7.10
     assert abs(bond_angle - expected_angle) < 0.1
 

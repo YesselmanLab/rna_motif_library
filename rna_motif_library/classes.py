@@ -96,26 +96,6 @@ class PandasMmcifOverride(PandasMmcif):
         return combined_df  # Return the combined DataFrame
 
 
-class RNPInteraction:
-    """
-    Class to represent an RNA-Protein interaction.
-
-    Args:
-        nt_atom (str): atom of nucleotide in interaction
-        aa_atom (str): atom of amino acid in interaction
-        dist (float): distance between atoms in interaction (angstroms)
-        interaction_type (str): type of interaction (base:sidechain/base:aa/etc)
-
-    """
-
-    def __init__(self, nt_atom: str, aa_atom: str, dist: float, interaction_type: str):
-        self.nt_atom = nt_atom
-        self.aa_atom = aa_atom
-        self.dist = dist
-        self.type = interaction_type
-        self.nt_res = nt_atom.split("@")[1]
-
-
 class PotentialTertiaryContact:
     def __init__(
         self,

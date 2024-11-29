@@ -1,4 +1,9 @@
 from setuptools import setup, find_packages
+import os
+
+# Read requirements from requirements.txt
+with open("requirements.txt") as f:
+    requirements = [line.strip() for line in f.readlines()]
 
 setup(
     name="rna_motif_library",
@@ -23,8 +28,7 @@ setup(
         "rna_motif_library/logger",
     ],
     include_package_data=True,
-    install_requires=[
-    ],
+    # install_requires=requirements,
     zip_safe=False,
     keywords="RNA motif library",
     classifiers=[

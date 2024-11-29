@@ -1,31 +1,44 @@
 import os
 import subprocess
+from dataclasses import dataclass
 from typing import List, Optional
 
-from rna_motif_library.classes import RNPInteraction
 from rna_motif_library.settings import DSSR_EXE
 
 
-def get_rnp_interactions(
-    pdb_path: Optional[str] = None, out_file: Optional[str] = None
-) -> List[RNPInteraction]:
+@dataclass(frozen=True, order=True)
+class RNPInteraction:
+    """
+    Class to represent an RNA-Protein interaction.
+
+    Args:
+        nt_atom (str): atom of nucleotide in interaction
+        aa_atom (str): atom of amino acid in interaction
+        dist (float): distance between atoms in interaction (angstroms)
+        interaction_type (str): type of interaction (base:sidechain/base:aa/etc)
+    """
+
+    nt_atom: str
+    aa_atom: str
+    dist: float
+    interaction_type: str
+
+    def __post_init__(self):
+        object.__setattr__(self, "type", self.interaction_type)
+        object.__setattr__(self, "nt_res", self.nt_atom.split("@")[1])
+
+
+def parse_snap_output(out_file: str) -> List[RNPInteraction]:
     """
     Retrieves RNA-Protein (RNP) interactions from an output file or a PDB file.
 
     Args:
-        pdb_path (str): Optional; the file path to the PDB file if available.
-        out_file (str): Optional; the file path to the output file where interactions are recorded.
+        out_file (str): the file path to the output file where interactions are recorded.
 
     Returns:
         interactions (list): A list of RNPInteraction instances capturing the details of each interaction.
 
-    Raises:
-        ValueError: If neither a pdb_path nor an out_file is provided.
-
     """
-    if pdb_path is None and out_file is None:
-        raise ValueError("Must supply either a pdb or out file")
-
     # Open and read the .out file containing RNPs
     with open(out_file, "r") as file:
         lines = file.readlines()

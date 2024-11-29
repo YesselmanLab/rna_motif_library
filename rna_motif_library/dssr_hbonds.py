@@ -96,10 +96,10 @@ def build_complete_hbond_interaction(
         # filter out protein-protein interactions
         if type_1 == "aa" and type_2 == "aa":
             continue
-        dihedral_angle = calculate_bond_angle(
+        dihedral_angle = calculate_dihedral_angle(
             first_atom, second_atom, third_atom, fourth_atom
         )
-
+        # TODO need to add regular angle
         built_interaction = HBondInteraction(
             interaction.res_1,
             interaction.res_2,
@@ -419,7 +419,7 @@ def calc_distance(atom_df1: pd.DataFrame, atom_df2: pd.DataFrame) -> float:
     return distance
 
 
-def calculate_bond_angle(
+def calculate_dihedral_angle(
     center_atom: pd.DataFrame,
     second_atom: pd.DataFrame,
     carbon_atom: pd.DataFrame,

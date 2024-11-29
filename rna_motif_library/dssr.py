@@ -25,7 +25,7 @@ from rna_motif_library.dssr_hbonds import (
     save_interactions_to_disk,
 )
 from rna_motif_library.settings import LIB_PATH
-from rna_motif_library.snap import get_rnp_interactions
+from rna_motif_library.snap import parse_snap_output
 from rna_motif_library.logger import get_logger
 
 log = get_logger("dssr")
@@ -56,7 +56,7 @@ def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]
     # Get RNP interactions from SNAP and merge with DSSR data
     rnp_out_path = os.path.join(LIB_PATH, "data/snap_output", f"{name}.out")
     unique_interaction_data = merge_hbond_interaction_data(
-        get_rnp_interactions(out_file=rnp_out_path), hbonds
+        parse_snap_output(out_file=rnp_out_path), hbonds
     )
     # This is the final interaction data in the temp class to assemble into the big H-Bond class
     pre_assembled_interaction_data = assemble_interaction_data(unique_interaction_data)
