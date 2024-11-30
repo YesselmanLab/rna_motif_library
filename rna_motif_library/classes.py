@@ -98,18 +98,109 @@ class PandasMmcifOverride(PandasMmcif):
 
 
 @dataclass(frozen=True, order=True)
+class X3DNAResidue:
+    chain_id: str
+    res_id: str
+    num: int
+    rtype: str
+
+    def get_str(self):
+        return f"{self.chain_id}.{self.res_id}{self.num}"
+
+    def __str__(self):
+        return self.get_str()
+
+
+class X3DNAResidueFactory:
+    """Factory class for creating X3DNAResidue objects from X3DNA notation strings."""
+
+    @classmethod
+    def create_from_string(cls, s: str) -> X3DNAResidue:
+        """
+        Creates a X3DNAResidue object from a X3DNA residue notation string.
+
+        Args:
+            s (str): Given residue (something like "C.G1515")
+
+        Returns:
+            X3DNAResidue: A X3DNAResidue object containing the parsed chain ID, residue ID and number
+        """
+        s = s.split("^")[0]
+        spl = s.split(".")
+        res_id, num = cls._split_at_trailing_numbers(spl[1])
+        chain_id = spl[0]
+        rtype = cls._get_residue_type(res_id)
+        return X3DNAResidue(chain_id, res_id, num, rtype)
+
+    @staticmethod
+    def _split_at_trailing_numbers(s: str) -> tuple[str, int]:
+        """
+        Splits a string at the longest sequence of numbers at the end.
+
+        Args:
+            s (str): Input string to split
+
+        Returns:
+            tuple[str, int]: A tuple containing (non-numeric prefix, numeric suffix).
+                            If no trailing numbers found, returns (original string, 0)
+        """
+        # Find the longest numeric sequence at the end
+        numeric_suffix = ""
+        prefix = s
+
+        # Work backwards from end of string
+        i = len(s) - 1
+        while i >= 0 and s[i].isdigit():
+            numeric_suffix = s[i] + numeric_suffix
+            prefix = s[:i]
+            i -= 1
+
+        return prefix, int(numeric_suffix)
+
+    @staticmethod
+    def _get_residue_type(res_id: str) -> str:
+        """
+        Determines the type of residue from its ID.
+
+        Args:
+            res_id (str): Residue identifier (e.g. "A", "DA", "GLY")
+
+        Returns:
+            str: Type of residue ("rna", "dna", "aa", or "unknown")
+        """
+        if res_id in ["A", "C", "G", "U"]:
+            return "rna"
+        elif res_id in ["DA", "DC", "DG", "DT"]:
+            return "dna"
+        elif res_id in canon_amino_acid_list:
+            return "aa"
+        else:
+            return "unknown"
+
+
+@dataclass(frozen=True, order=True)
 class X3DNAInteraction:
     """
     Class to represent an X3DNA interaction.
     """
 
     atom_1: str
-    res_1: str
+    res_1: X3DNAResidue
     atom_2: str
+    res_2: X3DNAResidue
+    distance: float
+    atom_type_1: str
+    atom_type_2: str
+
+
+@dataclass(frozen=True, order=True)
+class Hbond:
+    res_1: str
     res_2: str
-    dist: float
-    type_1: str
-    type_2: str
+    atom_1: str
+    atom_2: str
+    distance: float
+    angle: float
 
 
 class PotentialTertiaryContact:
@@ -276,43 +367,6 @@ class HBondInteractionFactory:
         self.distance = distance
         self.residue_pair = residue_pair
         self.quality = quality
-
-
-class DSSRRes:
-    """
-    Class that takes DSSR residue notation.
-    Stores and dissects information from DSSR residue notation.
-    """
-
-    def __init__(self, s: str) -> None:
-        """
-        Initialize a DSSRRes object.
-
-        Args:
-            s (str): Given residue (something like "C.G1515")
-
-        Returns:
-            None
-
-        """
-        s = s.split("^")[0]
-        spl = s.split(".")
-        cur_num = None
-        i_num = 0
-        for i, c in enumerate(spl[1]):
-            if c.isdigit():
-                cur_num = spl[1][i:]
-                cur_num = extract_longest_numeric_sequence(cur_num)
-                i_num = i
-                break
-        self.num = None
-        try:
-            if cur_num is not None:
-                self.num = int(cur_num)
-        except ValueError:
-            pass
-        self.chain_id = spl[0]
-        self.res_id = spl[1][0:i_num]
 
 
 class Motif:

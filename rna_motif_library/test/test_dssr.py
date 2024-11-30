@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 
-from rna_motif_library.classes import DSSRRes, extract_longest_numeric_sequence
+from rna_motif_library.classes import X3DNAResidue, extract_longest_numeric_sequence
 from rna_motif_library.dssr import (
     find_strands,
     get_data_from_dssr,
@@ -36,11 +36,11 @@ def test_dssr_res() -> None:
     """
     s1 = "H.A9"
     s2 = "B.ARG270"
-    r1 = DSSRRes(s1)
+    r1 = X3DNAResidue(s1)
     assert r1.res_id == "A"
     assert r1.chain_id == "H"
     assert r1.num == 9
-    r2 = DSSRRes(s2)
+    r2 = X3DNAResidue(s2)
     assert r2.res_id == "ARG"
     assert r2.num == 270
 

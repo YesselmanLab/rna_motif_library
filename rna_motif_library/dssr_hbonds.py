@@ -8,7 +8,7 @@ from typing import List, Tuple
 
 from pydssr.dssr_classes import DSSR_HBOND
 from rna_motif_library.classes import (
-    DSSRRes,
+    X3DNAResidue,
     HBondInteraction,
     canon_amino_acid_list,
     SingleMotifInteraction,
@@ -49,7 +49,7 @@ def save_interactions_to_disk(
         folder_path = os.path.join(
             LIB_PATH,
             "data/interactions",
-            f"{DSSRRes(interaction.res_1).res_id}-{DSSRRes(interaction.res_2).res_id}",
+            f"{X3DNAResidue(interaction.res_1).res_id}-{X3DNAResidue(interaction.res_2).res_id}",
         )
         os.makedirs(folder_path, exist_ok=True)
         file_path = os.path.join(folder_path, f"{interaction_name}.cif")
@@ -78,8 +78,8 @@ def build_complete_hbond_interaction(
     built_interactions = []
     for interaction in pre_assembled_interaction_data:
         print(interaction)
-        res_1 = DSSRRes(interaction.res_1)
-        res_2 = DSSRRes(interaction.res_2)
+        res_1 = X3DNAResidue(interaction.res_1)
+        res_2 = X3DNAResidue(interaction.res_2)
         atom_1 = interaction.atom_1
         atom_2 = interaction.atom_2
         type_1 = interaction.residue_pair.split(":")[0]
@@ -123,7 +123,7 @@ def build_complete_hbond_interaction(
 
 
 def get_interaction_pdb(
-    res_1: DSSRRes, res_2: DSSRRes, pdb_model_df: pd.DataFrame
+    res_1: X3DNAResidue, res_2: X3DNAResidue, pdb_model_df: pd.DataFrame
 ) -> pd.DataFrame:
     """
     Obtains PDB of combined interaction (not individual residues)
@@ -268,14 +268,14 @@ def extract_interacting_atoms(interaction: HBondInteractionFactory, pdb: pd.Data
     atom_1 = interaction.atom_1
     atom_2 = interaction.atom_2
 
-    res_1 = DSSRRes(interaction.res_1).res_id
-    res_2 = DSSRRes(interaction.res_2).res_id
+    res_1 = X3DNAResidue(interaction.res_1).res_id
+    res_2 = X3DNAResidue(interaction.res_2).res_id
 
-    chain_id_1 = DSSRRes(interaction.res_1).chain_id
-    chain_id_2 = DSSRRes(interaction.res_2).chain_id
+    chain_id_1 = X3DNAResidue(interaction.res_1).chain_id
+    chain_id_2 = X3DNAResidue(interaction.res_2).chain_id
 
-    res_id_1 = DSSRRes(interaction.res_1).num
-    res_id_2 = DSSRRes(interaction.res_2).num
+    res_id_1 = X3DNAResidue(interaction.res_1).num
+    res_id_2 = X3DNAResidue(interaction.res_2).num
 
     first_atom = pdb[
         (pdb["auth_atom_id"] == atom_1)
@@ -370,7 +370,7 @@ def find_closest_atom(
         atom_A (pd.DataFrame): A DataFrame representing the atom to which distance is measured.
         whole_interaction (pd.DataFrame): A DataFrame containing multiple atoms with which the distance will be compared.
 
-    Returns:
+    Returns
         min_distance_row_df (pd.DataFrame): A DataFrame representing the atom closest to `atom_A` from `whole_interaction`.
 
     """

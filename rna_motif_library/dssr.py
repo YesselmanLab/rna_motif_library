@@ -14,7 +14,7 @@ from rna_motif_library.classes import (
     PandasMmcifOverride,
     Residue,
     HBondInteraction,
-    DSSRRes,
+    X3DNAResidueFactory,
 )
 from rna_motif_library.dssr_hbonds import (
     dataframe_to_cif,
@@ -296,8 +296,8 @@ def append_data_to_existing_csvs(
         distance = interaction.distance
         angle = interaction.angle
         pdb_name = interaction.pdb_name
-        mol_1 = DSSRRes(res_1).res_id
-        mol_2 = DSSRRes(res_2).res_id
+        mol_1 = X3DNAResidueFactory.create_from_string(res_1).res_id
+        mol_2 = X3DNAResidueFactory.create_from_string(res_2).res_id
         # filter out ligands
         if type_1 == "ligand" or type_2 == "ligand":
             continue
@@ -348,8 +348,8 @@ def append_data_to_existing_csvs(
         distance = interaction.distance
         angle = interaction.angle
         motif_name = interaction.motif_name
-        mol_1 = DSSRRes(res_1).res_id
-        mol_2 = DSSRRes(res_2).res_id
+        mol_1 = X3DNAResidueFactory.create_from_string(res_1).res_id
+        mol_2 = X3DNAResidueFactory.create_from_string(res_2).res_id
         # filter out ligands
         if type_1 == "ligand" or type_2 == "ligand":
             continue

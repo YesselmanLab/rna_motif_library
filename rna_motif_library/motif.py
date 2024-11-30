@@ -14,7 +14,7 @@ from rna_motif_library.classes import (
     PandasMmcifOverride,
     Residue,
     HBondInteraction,
-    DSSRRes,
+    X3DNAResidue,
 )
 from rna_motif_library.dssr_hbonds import (
     dataframe_to_cif,
@@ -40,7 +40,7 @@ def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]
     d_out = DSSROutput(json_path=json_path)
     motifs = d_out.get_motifs()
     hbonds = d_out.get_hbonds()
-    # get_interactions(name, hbonds)
+    get_interactions(name, hbonds)
     exit()
 
     processor = MotifProcessor(count, pdb_path)
