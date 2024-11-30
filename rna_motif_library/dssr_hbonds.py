@@ -15,13 +15,13 @@ from rna_motif_library.classes import (
     PotentialTertiaryContact,
     Motif,
     HBondInteractionFactory,
-    RNPInteraction,
+    X3DNAInteraction,
 )
 from rna_motif_library.settings import LIB_PATH
 
 
 def save_interactions_to_disk(
-    assembled_interaction_data: List[HBondInteraction], pdb: str
+    assembled_interaction_data: List[X3DNAInteraction], pdb: str
 ) -> None:
     """
     Saves HBondInteraction objects to the disk.
@@ -77,6 +77,7 @@ def build_complete_hbond_interaction(
 
     built_interactions = []
     for interaction in pre_assembled_interaction_data:
+        print(interaction)
         res_1 = DSSRRes(interaction.res_1)
         res_2 = DSSRRes(interaction.res_2)
         atom_1 = interaction.atom_1
@@ -208,7 +209,7 @@ def assemble_interaction_data(
 
 
 def merge_hbond_interaction_data(
-    rnp_interactions: List[RNPInteraction], hbonds: List[DSSR_HBOND]
+    rnp_interactions: List[X3DNAInteraction], hbonds: List[DSSR_HBOND]
 ) -> List[Tuple[str, str, str, str, str, str, str]]:
     """
     Merges H-bond interaction data from DSSR and SNAP into one common data set.

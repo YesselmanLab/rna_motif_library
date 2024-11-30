@@ -1,5 +1,6 @@
 import pandas as pd
 import json
+from dataclasses import dataclass
 
 from biopandas.mmcif.pandas_mmcif import PandasMmcif
 from biopandas.mmcif.mmcif_parser import load_cif_data
@@ -94,6 +95,21 @@ class PandasMmcifOverride(PandasMmcif):
             df["ANISOU"] = pd.DataFrame(columns=ANISOU_DF_COLUMNS)
 
         return combined_df  # Return the combined DataFrame
+
+
+@dataclass(frozen=True, order=True)
+class X3DNAInteraction:
+    """
+    Class to represent an X3DNA interaction.
+    """
+
+    atom_1: str
+    res_1: str
+    atom_2: str
+    res_2: str
+    dist: float
+    type_1: str
+    type_2: str
 
 
 class PotentialTertiaryContact:

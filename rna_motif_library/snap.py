@@ -1,34 +1,17 @@
+"""
+Module for parsing SNAP output files.
+"""
+
 import os
 import subprocess
 from dataclasses import dataclass
 from typing import List, Optional
 
+from rna_motif_library.classes import X3DNAInteraction
 from rna_motif_library.settings import DSSR_EXE
 
 
-@dataclass(frozen=True, order=True)
-class RNPInteraction:
-    """
-    Class to represent an RNA-Protein interaction.
-
-    Args:
-        nt_atom (str): atom of nucleotide in interaction
-        aa_atom (str): atom of amino acid in interaction
-        dist (float): distance between atoms in interaction (angstroms)
-        interaction_type (str): type of interaction (base:sidechain/base:aa/etc)
-    """
-
-    nt_atom: str
-    aa_atom: str
-    dist: float
-    interaction_type: str
-
-    def __post_init__(self):
-        object.__setattr__(self, "type", self.interaction_type)
-        object.__setattr__(self, "nt_res", self.nt_atom.split("@")[1])
-
-
-def parse_snap_output(out_file: str) -> List[RNPInteraction]:
+def parse_snap_output(out_file: str) -> List[X3DNAInteraction]:
     """
     Retrieves RNA-Protein (RNP) interactions from an output file or a PDB file.
 
@@ -45,7 +28,6 @@ def parse_snap_output(out_file: str) -> List[RNPInteraction]:
 
     s = "".join(lines)
     spl = s.split("List")
-
     interactions = []
     for section in spl:
         if "H-bonds" not in section:
@@ -57,16 +39,15 @@ def parse_snap_output(out_file: str) -> List[RNPInteraction]:
             i_spl = line.split()
             if len(i_spl) < 4:
                 continue
-
             # Process interaction type
             inter_type = i_spl[5].split(":")[0]
             nt_part = {"po4": "phos", "sugar": "sugar", "base": "base"}.get(
                 inter_type, inter_type
             )
-            inter_type_new = f"{nt_part}:aa"
-
+            atom_1, res_1 = i_spl[2].split("@")
+            atom_2, res_2 = i_spl[3].split("@")
             interactions.append(
-                RNPInteraction(i_spl[2], i_spl[3], float(i_spl[4]), inter_type_new)
+                X3DNAInteraction(atom_1, res_1, atom_2, res_2, i_spl[4], nt_part, "aa")
             )
 
     return interactions
