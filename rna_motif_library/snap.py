@@ -7,7 +7,11 @@ import subprocess
 from dataclasses import dataclass
 from typing import List, Optional
 
-from rna_motif_library.classes import X3DNAInteraction, X3DNAResidueFactory
+from rna_motif_library.classes import (
+    X3DNAInteraction,
+    X3DNAResidueFactory,
+    sanitize_x3dna_atom_name,
+)
 from rna_motif_library.settings import DSSR_EXE
 
 
@@ -46,6 +50,15 @@ def parse_snap_output(out_file: str) -> List[X3DNAInteraction]:
             )
             atom_1, res_1 = i_spl[2].split("@")
             atom_2, res_2 = i_spl[3].split("@")
+            type_1, type_2 = nt_part, "aa"
+            atom_1 = sanitize_x3dna_atom_name(atom_1)
+            atom_2 = sanitize_x3dna_atom_name(atom_2)
+
+            if res_1 > res_2:
+                atom_1, atom_2 = atom_2, atom_1
+                res_1, res_2 = res_2, res_1
+                type_1, type_2 = type_2, type_1
+
             interactions.append(
                 X3DNAInteraction(
                     atom_1,

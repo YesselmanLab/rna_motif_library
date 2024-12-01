@@ -6,7 +6,7 @@ from biopandas.mmcif.pandas_mmcif import PandasMmcif
 from biopandas.mmcif.mmcif_parser import load_cif_data
 from biopandas.mmcif.engines import mmcif_col_types
 from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 
 canon_res_list = [
     "A",
@@ -58,6 +58,22 @@ canon_amino_acid_list = [
 ]
 
 
+atom_renames = {
+    "OP1": "O1P",
+    "OP2": "O2P",
+    "OP3": "O3P",
+}
+
+
+def sanitize_x3dna_atom_name(atom_name: str) -> str:
+    if "." in atom_name:
+        atom_name = atom_name.split(".")[0]
+    if atom_name in atom_renames:
+        atom_name = atom_renames[atom_name]
+
+    return atom_name
+
+
 class PandasMmcifOverride(PandasMmcif):
     """
     Class to override standard behavior for handling mmCIF files in Pandas,
@@ -102,10 +118,17 @@ class X3DNAResidue:
     chain_id: str
     res_id: str
     num: int
+    ins_code: str
     rtype: str
 
     def get_str(self):
-        return f"{self.chain_id}.{self.res_id}{self.num}"
+        res_id = self.res_id
+        if self.res_id[-1].isdigit():
+            res_id = res_id[:-1]
+        if self.ins_code != "":
+            return f"{self.chain_id}.{res_id}{self.num}^{self.ins_code}"
+        else:
+            return f"{self.chain_id}.{res_id}{self.num}"
 
     def __str__(self):
         return self.get_str()
@@ -120,20 +143,28 @@ class X3DNAResidueFactory:
         Creates a X3DNAResidue object from a X3DNA residue notation string.
 
         Args:
-            s (str): Given residue (something like "C.G1515")
+            s (str): Given residue (something like "C.G1515" or "C.G1515^A")
 
         Returns:
-            X3DNAResidue: A X3DNAResidue object containing the parsed chain ID, residue ID and number
+            X3DNAResidue: A X3DNAResidue object containing the parsed chain ID, residue ID, number and insertion code
         """
-        s = s.split("^")[0]
+        # Handle insertion code if present
+        ins_code = ""
+        if "^" in s:
+            s, ins_code = s.split("^")
+
         spl = s.split(".")
         res_id, num = cls._split_at_trailing_numbers(spl[1])
+        # this is a negative number
+        if res_id.endswith("-"):
+            num = -num
+            res_id = res_id[:-1]
         chain_id = spl[0]
         rtype = cls._get_residue_type(res_id)
-        return X3DNAResidue(chain_id, res_id, num, rtype)
+        return X3DNAResidue(chain_id, res_id, num, ins_code, rtype)
 
     @staticmethod
-    def _split_at_trailing_numbers(s: str) -> tuple[str, int]:
+    def _split_at_trailing_numbers(s: str) -> Tuple[str, int]:
         """
         Splits a string at the longest sequence of numbers at the end.
 
@@ -194,13 +225,48 @@ class X3DNAInteraction:
 
 
 @dataclass(frozen=True, order=True)
-class Hbond:
+class X3DNAPair:
+    res_1: str
+    res_2: str
+    interactions: List[X3DNAInteraction]
+    bp_type: str
+    bp_name: str
+
+
+@dataclass(frozen=True, order=True)
+class HbondInfo:
     res_1: str
     res_2: str
     atom_1: str
     atom_2: str
+    atom_type_1: str
+    atom_type_2: str
     distance: float
     angle: float
+    pdb_name: str
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "HbondInfo":
+        """
+        Creates a HbondInfo instance from a dictionary.
+
+        Args:
+            data (Dict[str, Any]): Dictionary containing HbondInfo attributes
+
+        Returns:
+            HbondInfo: New HbondInfo instance
+        """
+        # Convert coordinate lists to tuples
+        return cls(**data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Converts HbondInfo instance to a dictionary.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing HbondInfo attributes
+        """
+        return vars(self).copy()
 
 
 class PotentialTertiaryContact:
