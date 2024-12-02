@@ -116,7 +116,8 @@ python cli.py generate-motifs --pdb 3R9X
 # Replace "3R9X" with your desired PDB
 ```
 
-## Quick regeneration/analysis
+## Quick regeneration/analysis (TODO)
+### /// TODO update this section accordingly to specifications
 
 Once `generate-motifs` is run and completed, it will create a number of JSON files in `data/out_json`, each containing motif data.
 These files will contain properties of the motif as well as the CIF data and coordinates of the atoms.
@@ -143,4 +144,23 @@ I have added automated error handling for this, but if it doesn't work (ends up 
 When running is finished you may see a number of new CSVs with data inside the package directory.<br>
 Here we will describe the most important CSVs.
 
-TODO update this section post-refactor
+### Essential output CSVs
+
+#### unique_tert_contacts.csv
+Headers: motif_1,motif_2,res_1,res_2,atom_1,atom_2,type_1,type_2,seq_1,seq_2 <br>
+motif_1 and 2: motifs in tertiary contact <br>
+res_1 and 2: residues from motif_1 and 2 in the tertiary contact <br>
+atom_1 and 2: atoms from res_1 and 2 in the tertiary contact <br>
+type_1 and 2: residue components from res_1 and 2 in the tertiary contact (base/sugar/phos) <br>
+seq_1 and 2: RNA sequences of motif_1 and 2; motif names without duplicate indicator <br>
+
+#### interactions_detailed.csv
+Headers: pdb_name,res_1,res_2,mol_1,mol_2,atom_1,atom_2,type_1,type_2,distance,angle <br>
+pdb_name: name of PDB the interaction was found in <br>
+res_1 and 2: residues of PDB the interaction was found in (format "A.LYS251"; auth_asym_id.auth_comp_id,auth_seq_id) <br>
+atom_1 and 2: atoms from res_1 and 2 in the interaction <br>
+type_1 and 2: residue components in which the interaction is located (base/sugar/phos) <br>
+distance: distance between atom_1 and 2 <br>
+angle: dihedral angle between res_1 and 2 <br>
+
+### / TODO update this section post-refactor

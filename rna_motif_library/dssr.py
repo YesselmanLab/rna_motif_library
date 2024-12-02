@@ -126,7 +126,8 @@ def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]
                 type_2 = assign_res_type(atom_2, type_2)
 
             distance = float(interaction.distance)
-            angle = float(interaction.angle)
+            angle = float(interaction.angle) # dihedral angle
+            hbond_angle = float(interaction.hbond_angle)
             single_motif_interaction = SingleMotifInteraction(
                 motif_name,
                 res_1,
@@ -137,6 +138,7 @@ def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]
                 type_2,
                 distance,
                 angle,
+                hbond_angle
             )
             single_motif_interactions.append(single_motif_interaction)
 
@@ -151,7 +153,8 @@ def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]
             type_1 = interaction.type_1
             type_2 = interaction.type_2
             distance = float(interaction.distance)
-            angle = float(interaction.angle)
+            angle = float(interaction.angle) # dihedral angle
+            hbond_angle = float(interaction.hbond_angle)
             potential_tert_contact_m1 = PotentialTertiaryContact(
                 motif_1,
                 motif_2,
@@ -163,6 +166,7 @@ def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]
                 type_2,
                 distance,
                 angle,
+                hbond_angle
             )
             potential_tert_contacts.append(potential_tert_contact_m1)
 
@@ -178,6 +182,7 @@ def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]
             type_2 = interaction.type_2
             distance = float(interaction.distance)
             angle = float(interaction.angle)
+            hbond_angle = float(interaction.hbond_angle)
             potential_tert_contact_m2 = PotentialTertiaryContact(
                 motif_1,
                 motif_2,
@@ -189,6 +194,7 @@ def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]
                 type_2,
                 distance,
                 angle,
+                hbond_angle
             )
             potential_tert_contacts.append(potential_tert_contact_m2)
 
@@ -290,7 +296,8 @@ def append_data_to_existing_csvs(
         type_1 = interaction.type_1
         type_2 = interaction.type_2
         distance = interaction.distance
-        angle = interaction.angle
+        angle = interaction.angle # dihedral angle
+        hbond_angle = interaction.hbond_angle
         pdb_name = interaction.pdb_name
         mol_1 = DSSRRes(res_1).res_id
         mol_2 = DSSRRes(res_2).res_id
@@ -310,7 +317,8 @@ def append_data_to_existing_csvs(
                 "type_1": type_1,
                 "type_2": type_2,
                 "distance": distance,
-                "angle": angle,
+                "dihedral_angle": angle,
+                "hbond_angle": hbond_angle
             }
         )
     # Create a DataFrame from the list of dictionaries
@@ -342,7 +350,8 @@ def append_data_to_existing_csvs(
         type_1 = interaction.type_1
         type_2 = interaction.type_2
         distance = interaction.distance
-        angle = interaction.angle
+        angle = interaction.angle # dihedral angle
+        hbond_angle = interaction.hbond_angle
         motif_name = interaction.motif_name
         mol_1 = DSSRRes(res_1).res_id
         mol_2 = DSSRRes(res_2).res_id
@@ -362,7 +371,8 @@ def append_data_to_existing_csvs(
                 "type_1": type_1,
                 "type_2": type_2,
                 "distance": distance,
-                "angle": angle,
+                "dihedral_angle": angle,
+                "hbond_angle": hbond_angle
             }
         )
     single_motif_interaction_data_df = pd.DataFrame(single_motif_interaction_data)

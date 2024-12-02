@@ -22,17 +22,16 @@ from update_library import (
 # also, take another look at threading because it shouldn't be so damn slow
 # figure out how to use github release
 # have a docker image to run on a virtual machine
+
 # we don't have the rights to DSSR or SNAP so we need to add a way to install these things
+# (are you sure about that last one?)
 
 ####
 # check for pseudoknot:
 # does a strand of a helix exist within another motif (hairpin/sstrand)? (easy check to write)
 
-#### TODO look at this stoff - 10/25/2024 and week or so after and build it out
+#### TODO look at this stoff - build it out
 # if 2 or more strands are within motif A that exist in motif B, then motif A should be rejected
-
-# write a function to generate PDB from residue/motif
-
 
 log = get_logger("cli")
 
@@ -201,6 +200,7 @@ def reload_from_json():
     """
     Reloads motifs from JSON output data stored in 'data/out_json/' directory.
     Processes strands into a new DataFrame structure and generates .cif files.
+    Effectively regerenates the dataframe.
     """
     directory_path = 'data/out_json/'
     output_dir = "data/out_motifs_json"
@@ -216,6 +216,7 @@ def reload_from_json():
                 for entry in data:
                     df_motif = process_strands(entry['strands'])
                     generate_cif_file(df_motif, entry['motif_name'], output_dir)
+
 
 
 def process_strands(strands):

@@ -128,6 +128,7 @@ class PotentialTertiaryContact:
             type_2: str,
             distance: float,
             angle: float,
+            hbond_angle: float
     ):
         """
         Holds data about potential tertiary contacts.
@@ -148,6 +149,7 @@ class PotentialTertiaryContact:
         self.type_2 = type_2
         self.distance = distance
         self.angle = angle
+        self.hbond_angle = hbond_angle
 
 
 class SingleMotifInteraction:
@@ -163,6 +165,7 @@ class SingleMotifInteraction:
             type_2: str,
             distance: float,
             angle: float,
+            hbond_angle: float
     ) -> None:
         """
         Holds data for H-bond interactions within a single motif.
@@ -179,6 +182,7 @@ class SingleMotifInteraction:
             type_2 (str): component of residue 2 in interaction (base/sugar/phos/aa)
             distance (float): distance of interaction, in angstroms
             angle (float): dihedral angle of interaction, in degrees
+            hbond_angle (float): hydrogen bond angle, in degrees
 
         """
         self.motif_name = motif_name
@@ -190,6 +194,7 @@ class SingleMotifInteraction:
         self.type_2 = type_2
         self.distance = distance
         self.angle = angle
+        self.hbond_angle = hbond_angle
 
 
 class HBondInteraction:
@@ -209,6 +214,7 @@ class HBondInteraction:
             third_atom_df: pd.DataFrame,
             fourth_atom_df: pd.DataFrame,
             pdb_name: str,
+            hbond_angle: float
     ) -> None:
         """
         Holds data for H-bond interaction.
@@ -229,6 +235,7 @@ class HBondInteraction:
             third_atom_df (pd.DataFrame): PDB of the third atom connected to the first atom
             fourth_atom_df (pd.DataFrame): PDB of the fourth atom connected to the second atom
             pdb_name (str): name of PDB interaction comes from
+            hbond_angle (float): hydrogen bond angle
 
         """
         self.res_1 = res_1
@@ -245,6 +252,7 @@ class HBondInteraction:
         self.third_atom_df = third_atom_df
         self.fourth_atom_df = fourth_atom_df
         self.pdb_name = pdb_name
+        self.hbond_angle = hbond_angle
 
 
 class HBondInteractionFactory:

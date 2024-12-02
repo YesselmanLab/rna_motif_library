@@ -21,7 +21,7 @@ from rna_motif_library.settings import LIB_PATH
 
 
 def save_interactions_to_disk(
-    assembled_interaction_data: List[HBondInteraction], pdb: str
+        assembled_interaction_data: List[HBondInteraction], pdb: str
 ) -> None:
     """
     Saves HBondInteraction objects to the disk.
@@ -36,15 +36,15 @@ def save_interactions_to_disk(
 
     for interaction in assembled_interaction_data:
         interaction_name = (
-            str(pdb)
-            + "."
-            + interaction.res_1
-            + "."
-            + interaction.atom_1
-            + "."
-            + interaction.res_2
-            + "."
-            + interaction.atom_2
+                str(pdb)
+                + "."
+                + interaction.res_1
+                + "."
+                + interaction.atom_1
+                + "."
+                + interaction.res_2
+                + "."
+                + interaction.atom_2
         )
         folder_path = os.path.join(
             LIB_PATH,
@@ -59,9 +59,9 @@ def save_interactions_to_disk(
 
 
 def build_complete_hbond_interaction(
-    pre_assembled_interaction_data: List[HBondInteractionFactory],
-    pdb_model_df: pd.DataFrame,
-    pdb_name: str,
+        pre_assembled_interaction_data: List[HBondInteractionFactory],
+        pdb_model_df: pd.DataFrame,
+        pdb_name: str,
 ) -> List[HBondInteraction]:
     """
     Builds a complete HBondInteraction object from HBondInteractionFactory preliminary data
@@ -99,6 +99,7 @@ def build_complete_hbond_interaction(
         dihedral_angle = calculate_bond_angle(
             first_atom, second_atom, third_atom, fourth_atom
         )
+        hydrogen_bond_angle = calculate_hydrogen_bond_angle(first_atom, second_atom, pdb)
 
         built_interaction = HBondInteraction(
             interaction.res_1,
@@ -115,6 +116,7 @@ def build_complete_hbond_interaction(
             third_atom,
             fourth_atom,
             pdb_name,
+            hydrogen_bond_angle
         )
         built_interactions.append(built_interaction)
 
@@ -122,7 +124,7 @@ def build_complete_hbond_interaction(
 
 
 def get_interaction_pdb(
-    res_1: DSSRRes, res_2: DSSRRes, pdb_model_df: pd.DataFrame
+        res_1: DSSRRes, res_2: DSSRRes, pdb_model_df: pd.DataFrame
 ) -> pd.DataFrame:
     """
     Obtains PDB of combined interaction (not individual residues)
@@ -148,16 +150,16 @@ def get_interaction_pdb(
     )
     res_1_inter_chain = pdb_model_df[
         pdb_model_df["auth_asym_id"].astype(str) == str(res_1_chain_id)
-    ]
+        ]
     res_2_inter_chain = pdb_model_df[
         pdb_model_df["auth_asym_id"].astype(str) == str(res_2_chain_id)
-    ]
+        ]
     res_1_inter_res = res_1_inter_chain[
         res_1_inter_chain["auth_seq_id"].astype(str) == str(res_1_res_id)
-    ]
+        ]
     res_2_inter_res = res_2_inter_chain[
         res_2_inter_chain["auth_seq_id"].astype(str) == str(res_2_res_id)
-    ]
+        ]
     res_1_res_2_result_df = pd.concat(
         [res_1_inter_res, res_2_inter_res], axis=0, ignore_index=True
     )
@@ -166,7 +168,7 @@ def get_interaction_pdb(
 
 
 def assemble_interaction_data(
-    unique_interaction_data: List[Tuple[str, str, str, str, str, str, str]]
+        unique_interaction_data: List[Tuple[str, str, str, str, str, str, str]]
 ) -> List[HBondInteractionFactory]:
     """
     Loads data into intermediate HBondInteractionFactory from DSSR/SNAP output data.
@@ -208,7 +210,7 @@ def assemble_interaction_data(
 
 
 def merge_hbond_interaction_data(
-    rnp_interactions: List[RNPInteraction], hbonds: List[DSSR_HBOND]
+        rnp_interactions: List[RNPInteraction], hbonds: List[DSSR_HBOND]
 ) -> List[Tuple[str, str, str, str, str, str, str]]:
     """
     Merges H-bond interaction data from DSSR and SNAP into one common data set.
@@ -281,13 +283,13 @@ def extract_interacting_atoms(interaction: HBondInteractionFactory, pdb: pd.Data
         & (pdb["auth_comp_id"] == res_1)
         & (pdb["auth_asym_id"] == chain_id_1)
         & (pdb["auth_seq_id"] == res_id_1)
-    ]
+        ]
     second_atom = pdb[
         (pdb["auth_atom_id"] == atom_2)
         & (pdb["auth_comp_id"] == res_2)
         & (pdb["auth_asym_id"] == chain_id_2)
         & (pdb["auth_seq_id"] == res_id_2)
-    ]
+        ]
 
     if first_atom.empty:
         # Check for common prefixes or alternate namings
@@ -296,10 +298,10 @@ def extract_interacting_atoms(interaction: HBondInteractionFactory, pdb: pd.Data
             if prefix in atom_1:
                 first_atom = pdb[
                     (
-                        pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
-                        & (pdb["auth_comp_id"] == res_1)
-                        & (pdb["auth_asym_id"] == chain_id_1)
-                        & (pdb["auth_seq_id"] == res_id_1)
+                            pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
+                            & (pdb["auth_comp_id"] == res_1)
+                            & (pdb["auth_asym_id"] == chain_id_1)
+                            & (pdb["auth_seq_id"] == res_id_1)
                     )
                 ]
                 if not first_atom.empty:
@@ -312,10 +314,10 @@ def extract_interacting_atoms(interaction: HBondInteractionFactory, pdb: pd.Data
             if prefix in atom_2:
                 second_atom = pdb[
                     (
-                        pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
-                        & (pdb["auth_comp_id"] == res_2)
-                        & (pdb["auth_asym_id"] == chain_id_2)
-                        & (pdb["auth_seq_id"] == res_id_2)
+                            pdb["auth_atom_id"].str.contains(prefix.replace("P", ""))
+                            & (pdb["auth_comp_id"] == res_2)
+                            & (pdb["auth_asym_id"] == chain_id_2)
+                            & (pdb["auth_seq_id"] == res_id_2)
                     )
                 ]
                 if not first_atom.empty:
@@ -325,7 +327,7 @@ def extract_interacting_atoms(interaction: HBondInteractionFactory, pdb: pd.Data
 
 
 def print_residues_in_motif_to_csv(
-    motifs_per_pdb: List[List[Motif]], csv_dir: str
+        motifs_per_pdb: List[List[Motif]], csv_dir: str
 ) -> None:
     """
     Prints all obtained motif/interaction data to a CSV.
@@ -358,7 +360,7 @@ def print_residues_in_motif_to_csv(
 
 
 def find_closest_atom(
-    atom_A: pd.DataFrame, whole_interaction: pd.DataFrame
+        atom_A: pd.DataFrame, whole_interaction: pd.DataFrame
 ) -> pd.DataFrame:
     """
     Finds the closest atom to a given atom within a set of interactions based on Euclidean distance.
@@ -387,6 +389,49 @@ def find_closest_atom(
         else pd.DataFrame()
     )
     return min_distance_row_df
+
+
+def find_second_closest_atom(
+        atom_A: pd.DataFrame, whole_interaction: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Finds the second closest atom to a given atom within a set of interactions based on Euclidean distance.
+    This function iterates through each atom in `whole_interaction`, calculates the distance to `atom_A`,
+    and keeps track of the closest and second closest atoms. Returns a DataFrame containing the second closest atom.
+
+    Args:
+        atom_A (pd.DataFrame): A DataFrame representing the atom to which distance is measured.
+        whole_interaction (pd.DataFrame): A DataFrame containing multiple atoms with which the distance will be compared.
+
+    Returns:
+        second_min_distance_row_df (pd.DataFrame): A DataFrame representing the second closest atom to `atom_A` from `whole_interaction`.
+
+    """
+    min_distance = float("inf")
+    second_min_distance = float("inf")
+    min_distance_row = None
+    second_min_distance_row = None
+
+    for _, row in whole_interaction.iterrows():
+        row_df = row.to_frame().T
+        current_distance = calc_distance(atom_A, row_df)
+        if 0 < current_distance < min_distance:
+            second_min_distance = min_distance
+            second_min_distance_row = min_distance_row
+            min_distance = current_distance
+            min_distance_row = row
+        elif min_distance < current_distance < second_min_distance:
+            second_min_distance = current_distance
+            second_min_distance_row = row
+
+    second_min_distance_row_df = (
+        second_min_distance_row.to_frame().T
+        if second_min_distance_row is not None
+        else pd.DataFrame()
+    )
+    return second_min_distance_row_df
+
+
 
 
 def calc_distance(atom_df1: pd.DataFrame, atom_df2: pd.DataFrame) -> float:
@@ -419,14 +464,113 @@ def calc_distance(atom_df1: pd.DataFrame, atom_df2: pd.DataFrame) -> float:
     return distance
 
 
+
+def calculate_hydrogen_bond_angle(first_atom: pd.DataFrame, second_atom: pd.DataFrame, pdb: pd.DataFrame):
+    """
+    Calculates the hydrogen bond angle of the hydrogen bond interaction.
+
+    Args:
+        first_atom (pd.DataFrame): DataFrame containing the Cartesian coordinates for the first atom in the interaction.
+        second_atom (pd.DataFrame): DataFrame containing the Cartesian coordinates for the second atom in the interaction.
+        pdb (pd.DataFrame): DataFrame containing whole interaction
+
+    Returns:
+        idk yet
+
+    Notes:
+        - First atom is the one which the hydrogen atom is attached to.
+
+    """
+    # Calculate two closest atoms to atom_1 that aren't atom_1 or atom_2
+    # First find the atom closest to atom_1
+    atom_closest = find_closest_atom(first_atom, pdb)
+    # Now find the closest atom that's not atom_1, atom_2, atom_closest
+    atom_2nd_closest = find_second_closest_atom(first_atom, pdb)
+    # Extract coordinates
+    x1, y1, z1 = (
+        first_atom["Cartn_x"].to_list()[0],
+        first_atom["Cartn_y"].to_list()[0],
+        first_atom["Cartn_z"].to_list()[0],
+    )
+    x2, y2, z2 = (
+        second_atom["Cartn_x"].to_list()[0],
+        second_atom["Cartn_y"].to_list()[0],
+        second_atom["Cartn_z"].to_list()[0],
+    )
+    x_closest, y_closest, z_closest = (
+        atom_closest["Cartn_x"].to_list()[0],
+        atom_closest["Cartn_y"].to_list()[0],
+        atom_closest["Cartn_z"].to_list()[0],
+    )
+    x_2nd_closest, y_2nd_closest, z_2nd_closest = (
+        atom_2nd_closest["Cartn_x"].to_list()[0],
+        atom_2nd_closest["Cartn_y"].to_list()[0],
+        atom_2nd_closest["Cartn_z"].to_list()[0],
+    )
+
+    # Tuples passed as points
+    atom_1 = (x1, y1, z1)
+    atom_2 = (x2, y2, z2)
+    atom_a = (x_closest, y_closest, z_closest)
+    atom_b = (x_2nd_closest, y_2nd_closest, z_2nd_closest)
+    # Calculate vectors
+    vector_12 = np.array(atom_2) - np.array(atom_1)
+    vector_1a = np.array(atom_a) - np.array(atom_1)
+    vector_1b = np.array(atom_b) - np.array(atom_1)
+
+    angle_a_n1_n2 = calculate_angle_between_vectors(vector_1a, vector_12)
+    angle_b_n1_n2 = calculate_angle_between_vectors(vector_1b, vector_12)
+
+    hydrogen_bond_angle = 120 - angle_a_n1_n2
+    #if hydrogen_bond_angle < 0:
+    #    hydrogen_bond_angle = angle_b_n1_n2 - 120
+    #    return hydrogen_bond_angle
+    #else:
+    #    return hydrogen_bond_angle
+    return hydrogen_bond_angle
+
+
+def calculate_angle_between_vectors(v1, v2):
+    """
+    Calculates the angle between two vectors in radians.
+
+    Args:
+        v1 (np.ndarray): The first vector.
+        v2 (np.ndarray): The second vector.
+
+    Returns:
+        float: The angle between the vectors in degrees.
+    """
+    # Compute the dot product
+    dot_product = np.dot(v1, v2)
+
+    # Compute the magnitudes
+    magnitude_v1 = np.linalg.norm(v1)
+    magnitude_v2 = np.linalg.norm(v2)
+
+    # Calculate the cosine of the angle
+    cos_theta = dot_product / (magnitude_v1 * magnitude_v2)
+
+    # Ensure the value is within the valid range for arccos (to avoid numerical errors)
+    cos_theta = np.clip(cos_theta, -1.0, 1.0)
+
+    # Calculate the angle in radians
+    angle_radians = np.arccos(cos_theta)
+
+    # Convert to degrees
+    angle_degrees = np.degrees(angle_radians)
+
+    return angle_degrees
+
+
 def calculate_bond_angle(
-    center_atom: pd.DataFrame,
-    second_atom: pd.DataFrame,
-    carbon_atom: pd.DataFrame,
-    fourth_atom: pd.DataFrame,
+        center_atom: pd.DataFrame,
+        second_atom: pd.DataFrame,
+        carbon_atom: pd.DataFrame,
+        fourth_atom: pd.DataFrame,
 ) -> float:
     """
-    Calculates the bond angle and returns the angle with the atoms used in the calculation.
+    Calculates the bond torsion angle and returns the angle with the atoms used in the calculation.
 
     Args:
         center_atom (pd.DataFrame): DataFrame containing the Cartesian coordinates for the center atom.

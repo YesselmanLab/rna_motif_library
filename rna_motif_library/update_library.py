@@ -181,6 +181,7 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
     Args:
         limit (int): number of PDBs to process
         pdb_name (str): which specific PDB to process (both are entered via command line)
+        directory (str): which folder to run?
 
     Returns:
         None
