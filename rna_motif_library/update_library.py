@@ -13,9 +13,7 @@ from tqdm import tqdm
 
 from pydssr.dssr import write_dssr_json_output_to_file
 
-from rna_motif_library import dssr_hbonds
 from rna_motif_library.snap import generate_out_file
-from rna_motif_library import dssr
 from rna_motif_library.settings import LIB_PATH, DSSR_EXE, DATA_PATH
 from rna_motif_library.tert_contacts import (
     import_tert_contact_csv,
@@ -228,7 +226,7 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
         built_motifs = process_motif_interaction_out_data(count, pdb_path)
         # we can keep this as is it's not too big a CSV I think
         motifs_per_pdb.append(built_motifs)
-    dssr_hbonds.print_residues_in_motif_to_csv(motifs_per_pdb, csv_dir)
+    # dssr_hbonds.print_residues_in_motif_to_csv(motifs_per_pdb, csv_dir)
 
     # Dump motifs to JSON
     for motif_list in motifs_per_pdb:

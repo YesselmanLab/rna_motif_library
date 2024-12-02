@@ -19,6 +19,7 @@ from rna_motif_library.classes import (
     X3DNAResidueFactory,
     X3DNAInteraction,
     X3DNAPair,
+    sanitize_x3dna_atom_name,
 )
 from rna_motif_library.dssr_hbonds import (
     dataframe_to_cif,
@@ -28,9 +29,13 @@ from rna_motif_library.dssr_hbonds import (
     build_complete_hbond_interaction,
     save_interactions_to_disk,
 )
-from rna_motif_library.settings import LIB_PATH
+from rna_motif_library.settings import LIB_PATH, DATA_PATH
 from rna_motif_library.snap import parse_snap_output
-from rna_motif_library.interactions import get_x3dna_interactions
+from rna_motif_library.interactions import (
+    get_x3dna_interactions,
+    get_x3dna_pairs,
+    get_hbonds,
+)
 from rna_motif_library.logger import get_logger
 
 log = get_logger("motif")
@@ -42,37 +47,17 @@ def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]
     name = os.path.basename(pdb_path)[:-4]
     json_path = os.path.join(LIB_PATH, "data/dssr_output", f"{name}.json")
     d_out = DSSROutput(json_path=json_path)
-    motifs = d_out.get_motifs()
-    hbonds = d_out.get_hbonds()
-    interactions = get_x3dna_interactions(name, hbonds)
-    pairs = get_x3dna_pairs(d_out.get_pairs(), interactions)
+    # get and process x3dna data
+    x3dna_hbonds = d_out.get_hbonds()
+    x3dna_interactions = get_x3dna_interactions(name, x3dna_hbonds)
+    x3dna_pairs = get_x3dna_pairs(d_out.get_pairs(), x3dna_interactions)
+    print(len(x3dna_interactions), len(x3dna_pairs))
+    # build final interaction data
+    df_atoms = pd.read_parquet(os.path.join(DATA_PATH, "pdbs_dfs", f"{name}.parquet"))
+    hbonds = get_hbonds(name, df_atoms, x3dna_interactions, x3dna_pairs)
     exit()
-
     processor = MotifProcessor(count, pdb_path)
     return processor.process()
-
-
-def get_x3dna_pairs(pairs: Dict[str, DSSR_PAIR], interactions: List[X3DNAInteraction]):
-    """Get X3DNA pairs from DSSR pairs"""
-    x3dna_pairs = []
-    for pair in pairs.values():
-        res_1 = X3DNAResidueFactory.create_from_string(pair.nt1.nt_id)
-        res_2 = X3DNAResidueFactory.create_from_string(pair.nt2.nt_id)
-        hbond_num = pair.hbonds_num
-        pair_interactions = []
-        for interaction in interactions:
-            if interaction.res_1 == res_1 and interaction.res_2 == res_2:
-                pair_interactions.append(interaction)
-            elif interaction.res_1 == res_2 and interaction.res_2 == res_1:
-                pair_interactions.append(interaction)
-        if len(pair_interactions) != hbond_num:
-            log.warning(
-                f"Mismatch in number of interactions for {pair.nt1.nt_id} and {pair.nt2.nt_id}"
-            )
-        x3dna_pairs.append(
-            X3DNAPair(res_1, res_2, pair_interactions, pair.name, pair.LW)
-        )
-    return x3dna_pairs
 
 
 class MotifProcessor:

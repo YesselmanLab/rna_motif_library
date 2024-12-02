@@ -65,7 +65,7 @@ def parse_snap_output(out_file: str) -> List[X3DNAInteraction]:
                     X3DNAResidueFactory.create_from_string(res_1),
                     atom_2,
                     X3DNAResidueFactory.create_from_string(res_2),
-                    i_spl[4],
+                    float(i_spl[4]),
                     nt_part,
                     "aa",
                 )

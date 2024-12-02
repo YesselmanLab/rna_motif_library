@@ -121,6 +121,15 @@ class X3DNAResidue:
     ins_code: str
     rtype: str
 
+    @classmethod
+    def from_dict(cls, d):
+        """Create X3DNAResidue from dictionary"""
+        return cls(**d)
+
+    def to_dict(self):
+        """Convert X3DNAResidue to dictionary"""
+        return vars(self)
+
     def get_str(self):
         res_id = self.res_id
         if self.res_id[-1].isdigit():
@@ -234,19 +243,20 @@ class X3DNAPair:
 
 
 @dataclass(frozen=True, order=True)
-class HbondInfo:
-    res_1: str
-    res_2: str
+class Hbond:
+    res_1: X3DNAResidue
+    res_2: X3DNAResidue
     atom_1: str
     atom_2: str
     atom_type_1: str
     atom_type_2: str
     distance: float
     angle: float
+    hbond_type: str
     pdb_name: str
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "HbondInfo":
+    def from_dict(cls, data: Dict[str, Any]) -> "Hbond":
         """
         Creates a HbondInfo instance from a dictionary.
 
@@ -256,7 +266,9 @@ class HbondInfo:
         Returns:
             HbondInfo: New HbondInfo instance
         """
-        # Convert coordinate lists to tuples
+        # Convert X3DNAResidue objects
+        data["res_1"] = X3DNAResidue.from_dict(data["res_1"])
+        data["res_2"] = X3DNAResidue.from_dict(data["res_2"])
         return cls(**data)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -266,7 +278,16 @@ class HbondInfo:
         Returns:
             Dict[str, Any]: Dictionary containing HbondInfo attributes
         """
-        return vars(self).copy()
+        data = vars(self).copy()
+        # Convert X3DNAResidue objects to dicts
+        data["res_1"] = self.res_1.to_dict()
+        data["res_2"] = self.res_2.to_dict()
+        return data
+
+
+@dataclass(frozen=True, order=True)
+class Pair:
+    pass
 
 
 class PotentialTertiaryContact:
