@@ -4,10 +4,12 @@ import pandas as pd
 import numpy as np
 
 from pydssr.dssr_classes import DSSR_HBOND, DSSR_PAIR
+from pydssr.dssr import DSSROutput
 
 from rna_motif_library.classes import (
     X3DNAInteraction,
     Hbond,
+    Basepair,
     X3DNAResidue,
     X3DNAResidueFactory,
     X3DNAPair,
@@ -16,11 +18,12 @@ from rna_motif_library.classes import (
 )
 from rna_motif_library.logger import get_logger
 from rna_motif_library.snap import parse_snap_output
-from rna_motif_library.settings import LIB_PATH
+from rna_motif_library.settings import LIB_PATH, DATA_PATH
 
 log = get_logger("interactions")
 
 
+# TODO move somewhere else
 def dataframe_to_cif(df: pd.DataFrame, file_path: str) -> None:
     with open(file_path, "w") as f:
         # Write the CIF header section
@@ -54,6 +57,24 @@ def dataframe_to_cif(df: pd.DataFrame, file_path: str) -> None:
             )
 
 
+# top level function ###################################################################
+
+
+def get_hbonds_and_basepairs(pdb_name: str) -> Tuple[List[Hbond], List[Basepair]]:
+    json_path = os.path.join(DATA_PATH, "dssr_output", f"{pdb_name}.json")
+    df_atoms = pd.read_parquet(
+        os.path.join(DATA_PATH, "pdbs_dfs", f"{pdb_name}.parquet")
+    )
+    dssr_output = DSSROutput(json_path=json_path)
+    hbonds = dssr_output.get_hbonds()
+    pairs = dssr_output.get_pairs()
+    x3dna_interactions = get_x3dna_interactions(pdb_name, hbonds)
+    x3dna_pairs = get_x3dna_pairs(pairs, x3dna_interactions)
+    hbonds = get_hbonds(pdb_name, df_atoms, x3dna_interactions, x3dna_pairs)
+    basepairs = get_pairs(pdb_name, hbonds, x3dna_pairs)
+    return hbonds, basepairs
+
+
 # handles converting X3DNA to current objects ##########################################
 
 
@@ -63,9 +84,6 @@ def get_x3dna_interactions(pdb_name: str, hbonds: List[DSSR_HBOND]):
     rna_interactions = convert_x3dna_hbonds_to_interactions(hbonds)
     all_interactions = merge_hbond_interaction_data(rnp_interactions, rna_interactions)
     return all_interactions
-    # df_atoms = pd.read_parquet(pdb_df_path)
-    # hbond_infos = build_complete_hbond_interaction(all_interactions, pdb_name, df_atoms)
-    # return all_interactions
 
 
 def convert_x3dna_hbonds_to_interactions(
@@ -389,3 +407,36 @@ def get_hbonds(
         )
         hbonds.append(hbond_info)
     return hbonds
+
+
+def get_pairs(
+    pdb_name: str,
+    hbonds: List[Hbond],
+    x3dna_pairs: List[X3DNAPair],
+) -> List[Basepair]:
+    pairs = []
+    for pair in x3dna_pairs:
+        pair_hbonds = []
+        for interaction in pair.interactions:
+            for hbond in hbonds:
+                if (
+                    hbond.res_1 == interaction.res_1
+                    and hbond.res_2 == interaction.res_2
+                    and hbond.atom_1 == interaction.atom_1
+                    and hbond.atom_2 == interaction.atom_2
+                ):
+                    pair_hbonds.append(hbond)
+        if len(pair_hbonds) != len(pair.interactions):
+            print("Mismatch in number of hbonds and interactions")
+            print(len(pair_hbonds), len(pair.interactions))
+        pairs.append(
+            Basepair(
+                pair.res_1,
+                pair.res_2,
+                pair_hbonds,
+                pair.bp_type,
+                pair.bp_name,
+                pdb_name,
+            )
+        )
+    return pairs

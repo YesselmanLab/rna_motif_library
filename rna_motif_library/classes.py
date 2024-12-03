@@ -286,8 +286,44 @@ class Hbond:
 
 
 @dataclass(frozen=True, order=True)
-class Pair:
-    pass
+class Basepair:
+    res_1: X3DNAInteraction
+    res_2: X3DNAInteraction
+    hbonds: List[Hbond]
+    bp_type: str
+    bp_name: str
+    pdb_name: str
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Basepair":
+        """
+        Creates a Basepair instance from a dictionary.
+
+        Args:
+            data (Dict[str, Any]): Dictionary containing Basepair attributes
+
+        Returns:
+            Basepair: New Basepair instance
+        """
+        # Convert X3DNAInteraction objects
+        data["res_1"] = X3DNAInteraction.from_dict(data["res_1"])
+        data["res_2"] = X3DNAInteraction.from_dict(data["res_2"])
+        # Convert list of Hbond objects
+        data["hbonds"] = [Hbond.from_dict(hbond) for hbond in data["hbonds"]]
+        return cls(**data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Converts Pair instance to a dictionary.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing Basepair attributes
+        """
+        data = vars(self).copy()
+        data["res_1"] = self.res_1.to_dict()
+        data["res_2"] = self.res_2.to_dict()
+        data["hbonds"] = [hbond.to_dict() for hbond in self.hbonds]
+        return data
 
 
 class PotentialTertiaryContact:

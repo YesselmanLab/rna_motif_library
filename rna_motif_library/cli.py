@@ -5,8 +5,9 @@ import click
 import sys
 import functools
 import json
+import glob
 import pandas as pd
-from rna_motif_library.settings import LIB_PATH
+from rna_motif_library.settings import LIB_PATH, DATA_PATH
 from rna_motif_library.logger import setup_logging, get_logger
 from update_library import (
     get_dssr_files,
@@ -15,6 +16,7 @@ from update_library import (
     find_tertiary_contacts,
     generate_motif_files,
 )
+from rna_motif_library.interactions import get_hbonds_and_basepairs
 
 # TODO look at this stuff for the next week or so
 # we want the angle not the dihedral angle
@@ -139,6 +141,61 @@ def process_snap(threads, directory):
     """
     warnings.filterwarnings("ignore")
     get_snap_files(threads, directory)
+
+
+@cli.command()
+@click.option(
+    "--pdb",
+    default=None,
+    type=str,
+    help="Process a specific PDB within the set (defaults to all).",
+)
+@click.option(
+    "--directory",
+    default=None,
+    type=str,
+    help="The directory where the PDBs are located",
+)
+@click.option("--debug", is_flag=True, help="Run in debug mode")
+@log_and_setup
+def process_interactions(pdb, directory, debug):
+    """
+    Processes interactions from source PDB using data from DSSR and interactions using data from SNAP.
+    """
+    warnings.filterwarnings("ignore")
+    os.makedirs(os.path.join(DATA_PATH, "jsons", "hbonds"), exist_ok=True)
+    os.makedirs(os.path.join(DATA_PATH, "jsons", "basepairs"), exist_ok=True)
+    pdb_codes = []
+    if pdb is not None:
+        pdb_codes.append(pdb)
+    elif directory is not None:
+        pdb_codes = [os.path.basename(file)[:-4] for file in os.listdir(directory)]
+    else:
+        pdb_codes = [
+            os.path.basename(file)[:-4]
+            for file in glob.glob(os.path.join(DATA_PATH, "pdbs", "*.cif"))
+        ]
+    log.info(f"Processing {len(pdb_codes)} PDBs")
+    for pdb_code in pdb_codes:
+        hbonds, basepairs = get_hbonds_and_basepairs(pdb_code)
+        log.info(
+            f"Processed {pdb_code} with {len(hbonds)} hbonds and {len(basepairs)} basepairs"
+        )
+        # Save hbonds to json file
+        hbonds_json_path = os.path.join(
+            DATA_PATH, "jsons", "hbonds", f"{pdb_code}.json"
+        )
+        os.makedirs(os.path.dirname(hbonds_json_path), exist_ok=True)
+        with open(hbonds_json_path, "w") as f:
+            json.dump([hbond.to_dict() for hbond in hbonds], f)
+
+        # Save basepairs to json file
+        basepairs_json_path = os.path.join(
+            DATA_PATH, "jsons", "basepairs", f"{pdb_code}.json"
+        )
+        os.makedirs(os.path.dirname(basepairs_json_path), exist_ok=True)
+        with open(basepairs_json_path, "w") as f:
+            json.dump([bp.to_dict() for bp in basepairs], f)
 
 
 @cli.command()

@@ -31,39 +31,26 @@ from rna_motif_library.dssr_hbonds import (
 )
 from rna_motif_library.settings import LIB_PATH, DATA_PATH
 from rna_motif_library.snap import parse_snap_output
-from rna_motif_library.interactions import (
-    get_x3dna_interactions,
-    get_x3dna_pairs,
-    get_hbonds,
-)
+from rna_motif_library.interactions import get_hbonds_and_basepairs
 from rna_motif_library.logger import get_logger
 
 log = get_logger("motif")
 
 
 # TODO check other types of DSSR classes like kissing loops
-def process_motif_interaction_out_data(count: int, pdb_path: str) -> List[Motif]:
+def process_motif_interaction_out_data(pdb_name: str) -> List[Motif]:
     """Process motifs and interactions from a PDB file"""
-    name = os.path.basename(pdb_path)[:-4]
-    json_path = os.path.join(LIB_PATH, "data/dssr_output", f"{name}.json")
-    d_out = DSSROutput(json_path=json_path)
-    # get and process x3dna data
-    x3dna_hbonds = d_out.get_hbonds()
-    x3dna_interactions = get_x3dna_interactions(name, x3dna_hbonds)
-    x3dna_pairs = get_x3dna_pairs(d_out.get_pairs(), x3dna_interactions)
-    print(len(x3dna_interactions), len(x3dna_pairs))
-    # build final interaction data
-    df_atoms = pd.read_parquet(os.path.join(DATA_PATH, "pdbs_dfs", f"{name}.parquet"))
-    hbonds = get_hbonds(name, df_atoms, x3dna_interactions, x3dna_pairs)
+    hbonds, basepairs = get_hbonds_and_basepairs(pdb_name)
+    print(len(hbonds), len(basepairs))
     exit()
-    processor = MotifProcessor(count, pdb_path)
-    return processor.process()
+
+    MotifProcessor(pdb_name).process()
 
 
 class MotifProcessor:
     """Class for processing motifs and interactions from PDB files"""
 
-    def __init__(self, count: int, pdb_path: str):
+    def __init__(self, pdb_name: str):
         """
         Initialize the MotifProcessor
 
@@ -71,9 +58,7 @@ class MotifProcessor:
             count (int): # of PDBs processed (loaded from outside)
             pdb_path (str): path to the source PDB
         """
-        self.count = count
-        self.pdb_path = pdb_path
-        self.name = os.path.basename(pdb_path)[:-4]
+        self.pdb_name = pdb_name
         self.pdb_model_df = None
         self.assembled_interaction_data = None
         self.discovered = []
@@ -684,17 +669,6 @@ class MotifProcessor:
             sorted_chain_ids.append(chain_id)
 
         return sorted_chain_residues, sorted_chain_ids
-
-    def _get_data_from_dssr(self, json_path: str) -> Tuple[List, List]:
-        """Get motifs and hbonds from DSSR"""
-        d_out = DSSROutput(json_path=json_path)
-        motifs = d_out.get_motifs()
-        hbonds = d_out.get_hbonds()
-        motifs = self._merge_singlet_separated(motifs)
-        motifs = self._remove_duplicate_motifs(motifs)
-        motifs = self._remove_large_motifs(motifs)
-
-        return motifs, hbonds
 
     def _remove_duplicate_motifs(self, motifs: List[Any]) -> List[Any]:
         """Remove duplicate motifs from a list of motifs"""

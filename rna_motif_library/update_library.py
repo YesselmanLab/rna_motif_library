@@ -223,7 +223,7 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
         if (pdb_name != None) and (name != pdb_name):
             break
 
-        built_motifs = process_motif_interaction_out_data(count, pdb_path)
+        built_motifs = process_motif_interaction_out_data(name)
         # we can keep this as is it's not too big a CSV I think
         motifs_per_pdb.append(built_motifs)
     # dssr_hbonds.print_residues_in_motif_to_csv(motifs_per_pdb, csv_dir)
