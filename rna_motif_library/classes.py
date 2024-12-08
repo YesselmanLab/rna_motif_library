@@ -791,21 +791,13 @@ class ResidueNew:
             and self.num == other.num
             and self.ins_code == other.ins_code
             and self.rtype == other.rtype
+            and self.atom_names == other.atom_names
+            and np.array_equal(self.coords, other.coords)
         )
 
     def to_dict(self) -> dict:
         """
         Converts residue information to a dictionary.
-
-        Returns:
-            dict: Dictionary containing residue attributes including:
-                - chain_id: Chain identifier
-                - res_id: Residue identifier
-                - num: Residue number
-                - ins_code: Insertion code
-                - rtype: Residue type
-                - atom_names: List of atom names
-                - coords: List of atom coordinates
         """
         return {
             "chain_id": self.chain_id,
