@@ -728,6 +728,8 @@ class ResidueNew:
         atom_names: List[str],
         coords: List[Tuple[float, float, float]],
     ) -> None:
+        if ins_code is None:
+            ins_code = ""
         self.chain_id = chain_id
         self.res_id = res_id
         self.num = num

@@ -188,6 +188,56 @@ def process_snap(threads, directory):
 )
 @click.option("--debug", is_flag=True, help="Run in debug mode")
 @log_and_setup
+def process_residues(pdb, directory, debug):
+    """
+    Processes residues from source PDB using data from DSSR.
+    """
+    warnings.filterwarnings("ignore")
+    os.makedirs(os.path.join(DATA_PATH, "jsons", "residues"), exist_ok=True)
+    pdb_codes = get_pdb_codes(pdb, directory)
+    log.info(f"Processing {len(pdb_codes)} PDBs")
+    for pdb_code in pdb_codes:
+        df_atoms = pd.read_parquet(
+            os.path.join(DATA_PATH, "pdbs_dfs", f"{pdb_code}.parquet")
+        )
+        residues = {}
+        for i, g in df_atoms.groupby(
+            ["auth_asym_id", "auth_seq_id", "auth_comp_id", "pdbx_PDB_ins_code"]
+        ):
+            coords = g[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+            atom_names = g["auth_atom_id"].tolist()
+            atom_names = [sanitize_x3dna_atom_name(name) for name in atom_names]
+            chain_id, res_num, res_name, ins_code = i
+            if ins_code == "None" or ins_code is None:
+                ins_code = ""
+            x3dna_res_id = get_x3dna_res_id(chain_id, res_num, res_name, ins_code)
+            x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
+            residues[x3dna_res_id] = ResidueNew.from_x3dna_residue(
+                x3dna_res, atom_names, coords
+            )
+        # Save residues to json file
+        residues_json_path = os.path.join(
+            DATA_PATH, "jsons", "residues", f"{pdb_code}.json"
+        )
+        with open(residues_json_path, "w") as f:
+            json.dump({k: v.to_dict() for k, v in residues.items()}, f)
+
+
+@cli.command()
+@click.option(
+    "--pdb",
+    default=None,
+    type=str,
+    help="Process a specific PDB within the set (defaults to all).",
+)
+@click.option(
+    "--directory",
+    default=None,
+    type=str,
+    help="The directory where the PDBs are located",
+)
+@click.option("--debug", is_flag=True, help="Run in debug mode")
+@log_and_setup
 def process_interactions(pdb, directory, debug):
     """
     Processes interactions from source PDB using data from DSSR and interactions using data from SNAP.
@@ -195,16 +245,7 @@ def process_interactions(pdb, directory, debug):
     warnings.filterwarnings("ignore")
     os.makedirs(os.path.join(DATA_PATH, "jsons", "hbonds"), exist_ok=True)
     os.makedirs(os.path.join(DATA_PATH, "jsons", "basepairs"), exist_ok=True)
-    pdb_codes = []
-    if pdb is not None:
-        pdb_codes.append(pdb)
-    elif directory is not None:
-        pdb_codes = [os.path.basename(file)[:-4] for file in os.listdir(directory)]
-    else:
-        pdb_codes = [
-            os.path.basename(file)[:-4]
-            for file in glob.glob(os.path.join(DATA_PATH, "pdbs", "*.cif"))
-        ]
+    pdb_codes = get_pdb_codes(pdb, directory)
     log.info(f"Processing {len(pdb_codes)} PDBs")
     for pdb_code in pdb_codes:
         hbonds, basepairs = get_hbonds_and_basepairs(pdb_code)
@@ -226,54 +267,6 @@ def process_interactions(pdb, directory, debug):
         os.makedirs(os.path.dirname(basepairs_json_path), exist_ok=True)
         with open(basepairs_json_path, "w") as f:
             json.dump([bp.to_dict() for bp in basepairs], f)
-
-
-@cli.command()
-@click.option(
-    "--pdb",
-    default=None,
-    type=str,
-    help="Process a specific PDB within the set (defaults to all).",
-)
-@click.option(
-    "--directory",
-    default=None,
-    type=str,
-    help="The directory where the PDBs are located",
-)
-@click.option("--debug", is_flag=True, help="Run in debug mode")
-@log_and_setup
-def process_residues(pdb, directory, debug):
-    """
-    Processes residues from source PDB using data from DSSR.
-    """
-    warnings.filterwarnings("ignore")
-    os.makedirs(os.path.join(DATA_PATH, "jsons", "residues"), exist_ok=True)
-    pdb_codes = get_pdb_codes(pdb, directory)
-    log.info(f"Processing {len(pdb_codes)} PDBs")
-    for pdb_code in pdb_codes:
-        df_atoms = pd.read_parquet(
-            os.path.join(DATA_PATH, "pdbs_dfs", f"{pdb_code}.parquet")
-        )
-        residues = {}
-        for i, g in df_atoms.groupby(
-            ["auth_asym_id", "auth_seq_id", "auth_comp_id", "pdbx_PDB_ins_code"]
-        ):
-            coords = g[["Cartn_x", "Cartn_y", "Cartn_z"]].values
-            atom_names = g["auth_atom_id"].tolist()
-            atom_names = [sanitize_x3dna_atom_name(name) for name in atom_names]
-            chain_id, res_num, res_name, ins_code = i
-            x3dna_res_id = get_x3dna_res_id(chain_id, res_num, res_name, ins_code)
-            x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
-            residues[x3dna_res_id] = ResidueNew.from_x3dna_residue(
-                x3dna_res, atom_names, coords
-            )
-        # Save residues to json file
-        residues_json_path = os.path.join(
-            DATA_PATH, "jsons", "residues", f"{pdb_code}.json"
-        )
-        with open(residues_json_path, "w") as f:
-            json.dump({k: v.to_dict() for k, v in residues.items()}, f)
 
 
 @cli.command()

@@ -14,6 +14,7 @@ from rna_motif_library.classes import (
     X3DNAResidue,
     X3DNAResidueFactory,
     X3DNAPair,
+    ResidueNew,
     canon_amino_acid_list,
     sanitize_x3dna_atom_name,
 )
@@ -89,6 +90,12 @@ def get_hbonds_and_basepairs(
     df_atoms = pd.read_parquet(
         os.path.join(DATA_PATH, "pdbs_dfs", f"{pdb_name}.parquet")
     )
+    residue_data = json.loads(
+        open(os.path.join(DATA_PATH, "jsons", "residues", f"{pdb_name}.json")).read()
+    )
+    residues = {k: ResidueNew.from_dict(v) for k, v in residue_data.items()}
+    print(residues)
+    exit()
     dssr_output = DSSROutput(json_path=json_path)
     hbonds = dssr_output.get_hbonds()
     pairs = dssr_output.get_pairs()
