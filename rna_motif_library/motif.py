@@ -12,14 +12,14 @@ from rna_motif_library.classes import (
     PotentialTertiaryContact,
     Motif,
     extract_longest_numeric_sequence,
+    sanitize_x3dna_atom_name,
     PandasMmcifOverride,
-    Residue,
-    HBondInteraction,
     X3DNAResidue,
     X3DNAResidueFactory,
-    X3DNAInteraction,
-    X3DNAPair,
-    sanitize_x3dna_atom_name,
+    Residue,
+    ResidueNew,  # TODO rename back to Residue when done
+    Hbond,
+    Basepair,
 )
 from rna_motif_library.dssr_hbonds import (
     dataframe_to_cif,
@@ -41,16 +41,15 @@ log = get_logger("motif")
 def process_motif_interaction_out_data(pdb_name: str) -> List[Motif]:
     """Process motifs and interactions from a PDB file"""
     hbonds, basepairs = get_hbonds_and_basepairs(pdb_name)
-    print(len(hbonds), len(basepairs))
-    exit()
 
-    MotifProcessor(pdb_name).process()
+    mp = MotifProcessor(pdb_name, hbonds, basepairs)
+    mp.process()
 
 
 class MotifProcessor:
     """Class for processing motifs and interactions from PDB files"""
 
-    def __init__(self, pdb_name: str):
+    def __init__(self, pdb_name: str, hbonds: List[Hbond], basepairs: List[Basepair]):
         """
         Initialize the MotifProcessor
 
@@ -59,6 +58,9 @@ class MotifProcessor:
             pdb_path (str): path to the source PDB
         """
         self.pdb_name = pdb_name
+        self.hbonds = hbonds
+        self.basepairs = basepairs
+
         self.pdb_model_df = None
         self.assembled_interaction_data = None
         self.discovered = []
@@ -74,155 +76,46 @@ class MotifProcessor:
         Returns:
             motif_list (list): list of motif names
         """
-        log.debug(f"{self.count}, {self.pdb_path}, {self.name}")
+        log.debug(f"{self.pdb_name}")
 
         # Get the master PDB data
-        self.pdb_model_df = self._get_pdb_model_df()
-        json_path = os.path.join(LIB_PATH, "data/dssr_output", f"{self.name}.json")
-
-        # Get motifs, interactions, etc from DSSR
-        motifs, hbonds = self._get_data_from_dssr(json_path)
-        motif_out_path = os.path.join(LIB_PATH, "data/motifs")
-        os.makedirs(motif_out_path, exist_ok=True)
-
-        # Get RNP interactions from SNAP and merge with DSSR data
-        rnp_out_path = os.path.join(LIB_PATH, "data/snap_output", f"{self.name}.out")
-        unique_interaction_data = merge_hbond_interaction_data(
-            parse_snap_output(out_file=rnp_out_path), hbonds
+        df_atoms = pd.read_parquet(
+            os.path.join(DATA_PATH, "pdbs_dfs", f"{self.pdb_name}.parquet")
         )
-
-        # This is the final interaction data in the temp class to assemble into the big H-Bond class
-        pre_assembled_interaction_data = assemble_interaction_data(
-            unique_interaction_data
-        )
-
-        # Assembly into big HBondInteraction class; this returns a big list of them
-        self.assembled_interaction_data = build_complete_hbond_interaction(
-            pre_assembled_interaction_data, self.pdb_model_df, self.name
-        )
-
+        json_path = os.path.join(DATA_PATH, "dssr_output", f"{self.pdb_name}.json")
+        dssr_output = DSSROutput(json_path=json_path)
+        dssr_motifs = dssr_output.get_motifs()
+        dssr_tertiary_contacts = dssr_output.get_tertiary_contacts()
         # Process each motif
-        for m in motifs:
-            self._process_single_motif(m)
+        for m in dssr_motifs:
+            mtype = self._determine_motif_type(m)
+            residues = self._generate_residues_for_motif(m, df_atoms)
+            # strands = self._generate_strands(residues)
+            # sequence = self._find_sequence(strands)
+            # print(sequence)
 
-        return self.motif_list
+        return []
 
-    def _process_single_motif(self, m):
-        """Process a single motif and its interactions"""
-        built_motif = self._find_and_build_motif(m)
-        if built_motif == "UNKNOWN":
-            print("UNKNOWN")
-            return
-
-        self.motif_list.append(built_motif)
-        print(built_motif.motif_name)
-
-        # Process interactions for this motif
-        residues_in_motif = built_motif.res_list
-        interactions_in_motif = []
-        potential_tert_contact_motif_1 = []
-        potential_tert_contact_motif_2 = []
-
-        self._categorize_interactions(
-            residues_in_motif,
-            interactions_in_motif,
-            potential_tert_contact_motif_1,
-            potential_tert_contact_motif_2,
-        )
-
-        self._process_motif_interactions(built_motif, interactions_in_motif)
-        self._process_tertiary_contacts(
-            built_motif, potential_tert_contact_motif_1, potential_tert_contact_motif_2
-        )
-
-    def _categorize_interactions(
-        self,
-        residues_in_motif,
-        interactions_in_motif,
-        potential_tert_contact_motif_1,
-        potential_tert_contact_motif_2,
-    ):
-        """Categorize interactions based on their relationship to the motif"""
-        for interaction in self.assembled_interaction_data:
-            if (
-                (
-                    interaction.res_1 in residues_in_motif
-                    and interaction.res_2 in residues_in_motif
-                )
-                or (
-                    interaction.type_1 == "aa"
-                    and interaction.res_2 in residues_in_motif
-                )
-                or (
-                    interaction.type_2 == "aa"
-                    and interaction.res_1 in residues_in_motif
-                )
-            ):
-                interactions_in_motif.append(interaction)
-            elif interaction.res_1 in residues_in_motif:
-                potential_tert_contact_motif_1.append(interaction)
-            elif interaction.res_2 in residues_in_motif:
-                potential_tert_contact_motif_2.append(interaction)
-
-    def _process_motif_interactions(self, built_motif, interactions_in_motif):
-        """Process interactions within a motif"""
-        for interaction in interactions_in_motif:
-            type_1 = interaction.type_1
-            type_2 = interaction.type_2
-            if type_1 == "nt":
-                type_1 = assign_res_type(interaction.atom_1, type_1)
-            if type_2 == "nt":
-                type_2 = assign_res_type(interaction.atom_2, type_2)
-
-            single_motif_interaction = SingleMotifInteraction(
-                built_motif.motif_name,
-                interaction.res_1,
-                interaction.res_2,
-                interaction.atom_1,
-                interaction.atom_2,
-                type_1,
-                type_2,
-                float(interaction.distance),
-                float(interaction.angle),
+    def _generate_residues_for_motif(
+        self, m: Any, df_atoms: pd.DataFrame
+    ) -> List[ResidueNew]:
+        residues = []
+        for nt in m.nts_long:
+            x3dna_res = X3DNAResidueFactory.create_from_string(nt)
+            df_res = df_atoms[
+                (df_atoms["auth_comp_id"] == x3dna_res.res_id)
+                & (df_atoms["auth_asym_id"] == x3dna_res.chain_id)
+                & (df_atoms["auth_seq_id"] == x3dna_res.num)
+            ]
+            coords = df_res[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+            atom_names = df_res["auth_atom_id"].tolist()
+            atom_names = [sanitize_x3dna_atom_name(name) for name in atom_names]
+            residues.append(
+                ResidueNew.from_x3dna_residue(x3dna_res, atom_names, coords)
             )
-            self.single_motif_interactions.append(single_motif_interaction)
+        return residues
 
-    def _process_tertiary_contacts(
-        self,
-        built_motif,
-        potential_tert_contact_motif_1,
-        potential_tert_contact_motif_2,
-    ):
-        """Process potential tertiary contacts"""
-        for interaction in potential_tert_contact_motif_1:
-            contact = PotentialTertiaryContact(
-                built_motif.motif_name,
-                "unknown",
-                interaction.res_1,
-                interaction.res_2,
-                interaction.atom_1,
-                interaction.atom_2,
-                interaction.type_1,
-                interaction.type_2,
-                float(interaction.distance),
-                float(interaction.angle),
-            )
-            self.potential_tert_contacts.append(contact)
-
-        for interaction in potential_tert_contact_motif_2:
-            contact = PotentialTertiaryContact(
-                "unknown",
-                built_motif.motif_name,
-                interaction.res_1,
-                interaction.res_2,
-                interaction.atom_1,
-                interaction.atom_2,
-                interaction.type_1,
-                interaction.type_2,
-                float(interaction.distance),
-                float(interaction.angle),
-            )
-            self.potential_tert_contacts.append(contact)
+        # return self.motif_list
 
     def _find_and_build_motif(self, m: Any) -> Union[Motif, str]:
         """
@@ -248,7 +141,7 @@ class MotifProcessor:
         motif_pdb = self._extract_motif_from_pdb(m.nts_long)
 
         # Now find the list of strands and sequence
-        list_of_strands, sequence = self._find_strands(motif_pdb)
+        list_of_strands, sequence = self._generate_strands(motif_pdb)
         if list_of_strands == "UNKNOWN" or sequence == "UNKNOWN":
             return "UNKNOWN"
 
@@ -348,87 +241,6 @@ class MotifProcessor:
             size = len(strands[0])
             return str(size)
 
-    def _extract_motif_from_pdb(self, nts):
-        """Extract motif data from PDB"""
-        nt_list = []
-        res = []
-
-        # Extract identification data from nucleotide list
-        for nt in nts:
-            nt_spl = nt.split(".")
-            chain_id = nt_spl[0]
-            if "--" in nt_spl[1] and len(nt_spl) > 2:
-                residue_id = extract_longest_numeric_sequence(nt_spl[2])
-            else:
-                residue_id = extract_longest_numeric_sequence(nt_spl[1])
-            if "/" in nt_spl[1]:
-                residue_id = nt_spl[1].split("/")[1]
-            nt_list.append(chain_id + "." + residue_id)
-
-        nucleotide_list_sorted, chain_list_sorted = self._group_residues_by_chain(
-            nt_list
-        )
-        list_of_chains = []
-
-        for chain_number, residue_list in zip(
-            chain_list_sorted, nucleotide_list_sorted
-        ):
-            for residue in residue_list:
-                chain_res = self.pdb_model_df[
-                    self.pdb_model_df["auth_asym_id"].astype(str) == str(chain_number)
-                ]
-                res_subset = chain_res[
-                    chain_res["auth_seq_id"].astype(str) == str(residue)
-                ]
-                res.append(res_subset)
-            list_of_chains.append(res)
-
-        df_list = [
-            pd.DataFrame([line.split()], columns=self.pdb_model_df.columns)
-            for r in self._remove_empty_dataframes(res)
-            for line in r.to_string(index=False, header=False).split("\n")
-        ]
-
-        result_df = pd.concat(df_list, axis=0, ignore_index=True)
-
-        return result_df
-
-    def _get_pdb_model_df(self) -> pd.DataFrame:
-        """
-        Loads PDB model into a dataframe
-
-        Returns:
-            model_df (pd.DataFrame): PDB file as DataFrame
-        """
-        pdb_model = PandasMmcifOverride().read_mmcif(path=self.pdb_path)
-        model_df = pdb_model.df[
-            [
-                "group_PDB",
-                "id",
-                "type_symbol",
-                "label_atom_id",
-                "label_alt_id",
-                "label_comp_id",
-                "label_asym_id",
-                "label_entity_id",
-                "label_seq_id",
-                "pdbx_PDB_ins_code",
-                "Cartn_x",
-                "Cartn_y",
-                "Cartn_z",
-                "occupancy",
-                "B_iso_or_equiv",
-                "pdbx_formal_charge",
-                "auth_seq_id",
-                "auth_comp_id",
-                "auth_asym_id",
-                "auth_atom_id",
-                "pdbx_PDB_model_num",
-            ]
-        ]
-
-        return model_df
-
     def _determine_motif_type(self, motif):
         """Determine the type of motif"""
         motif_type_beta = motif.mtype
@@ -441,35 +253,23 @@ class MotifProcessor:
         elif motif_type_beta in ["HAIRPIN"]:
             return "HAIRPIN"
         else:
+            log.info(f"Unknown motif type: {motif_type_beta} for {self.pdb_name}")
             return "UNKNOWN"
 
-    def _find_strands(self, master_res_df: pd.DataFrame) -> Tuple[List[Any], str]:
+    def _generate_strands(self, residues: List[ResidueNew]) -> List[List[ResidueNew]]:
         """
-        Counts the number of strands in a motif and updates its name accordingly to better reflect structure.
+        Generates ordered strands of RNA residues by finding root residues and building 5' to 3'.
 
         Args:
-            master_res_df (pd.DataFrame): DataFrame containing motif data from PDB.
+            residues (List[ResidueNew]): List of RNA residues to analyze
 
         Returns:
-            strands_of_rna (list): list of strands of residues
-            sequence (str): string containing sequence of the motif (AUCG-AUCG-AUCG)
+            List[List[ResidueNew]]: List of RNA strands, where each strand is a list of residues ordered 5' to 3'
         """
-        # step 1: make a list of all known residues
-        list_of_residues = self._extract_residue_list(master_res_df)
-
-        # step 2: find the roots of the residues
-        residue_roots, res_list_modified = self._find_residue_roots(list_of_residues)
-
-        if residue_roots == "UNKNOWN":
-            return "UNKNOWN", "UNKNOWN"
-
-        # step 3: given the residue roots, build strands of RNA
+        residue_roots, res_list_modified = self._find_residue_roots(residues)
         strands_of_rna = self._build_strands_5to3(residue_roots, res_list_modified)
 
-        # step 4: find the sequence of the strands
-        sequence = self._find_sequence(strands_of_rna)
-
-        return strands_of_rna, sequence
+        return strands_of_rna
 
     def _find_sequence(self, strands_of_rna: List[List[Residue]]) -> str:
         """Find sequences from found strands of RNA"""
@@ -477,126 +277,80 @@ class MotifProcessor:
         for strand in strands_of_rna:
             res_strand = []
             for residue in strand:
-                mol_name = residue.mol_name
+                mol_name = residue.res_id
                 res_strand.append(mol_name)
             strand_sequence = "".join(res_strand)
             res_strands.append(strand_sequence)
         sequence = "-".join(res_strands)
         return sequence
 
-    def _extract_residue_list(self, master_res_df: pd.DataFrame) -> List[Residue]:
-        """Extract PDB data per residue and put it in a list of Residue objects"""
-        unique_ins_code_values = master_res_df["pdbx_PDB_ins_code"]
-        unique_model_num_values = master_res_df["pdbx_PDB_model_num"]
-
-        unique_ins_code_values_list = unique_ins_code_values.astype(str).tolist()
-        unique_model_num_values_list = unique_model_num_values.astype(str).tolist()
-
-        ins_code_set_list = sorted(set(unique_ins_code_values_list))
-        model_num_set_list = sorted(set(unique_model_num_values_list))
-
-        if len(ins_code_set_list) > 1:
-            grouped_res_dfs = master_res_df.groupby(
-                ["auth_asym_id", "auth_seq_id", "pdbx_PDB_ins_code", "auth_comp_id"]
-            )
-        elif len(model_num_set_list) > 1:
-            filtered_master_df = master_res_df[
-                master_res_df["pdbx_PDB_model_num"] == "1"
-            ]
-            grouped_res_dfs = filtered_master_df.groupby(
-                ["auth_asym_id", "auth_seq_id", "pdbx_PDB_model_num", "auth_comp_id"]
-            )
-        else:
-            grouped_res_dfs = master_res_df.groupby(
-                ["auth_asym_id", "auth_seq_id", "pdbx_PDB_ins_code", "auth_comp_id"]
-            )
-
-        res_list = []
-        for group in grouped_res_dfs:
-            key = group[0]
-            pdb = group[1]
-            chain_id = key[0]
-            res_id = key[1]
-            ins_code = key[2]
-            mol_name = key[3]
-            residue = Residue(chain_id, res_id, ins_code, mol_name, pdb)
-            res_list.append(residue)
-
-        return res_list
-
     def _find_residue_roots(
-        self, res_list: List[Residue]
-    ) -> Tuple[List[Residue], List[Residue]]:
-        """Find the roots of chains of RNA"""
+        self, res_list: List[ResidueNew]
+    ) -> Tuple[List[ResidueNew], List[ResidueNew]]:
+        """
+        Find the root residues that start each RNA chain.
+
+        A root residue is one that has a 5' to 3' connection to another residue
+        but no 3' to 5' connection from another residue (i.e. it's at the 5' end).
+
+        Args:
+            res_list: List of ResidueNew objects to analyze
+
+        Returns:
+            Tuple containing:
+            - List of root residues found
+            - Modified list with roots removed
+        """
         roots = []
 
+        # Check each residue to see if it's a root
         for source_res in res_list:
-            has_5to3_connection = False
-            has_3to5_connection = False
+            has_outgoing = False  # 5' to 3' connection
+            has_incoming = False  # 3' to 5' connection
 
-            for res_in_question in res_list:
-                if source_res != res_in_question:
-                    is_connected = self._connected_to(source_res, res_in_question)
-                    if is_connected == 1:
-                        has_5to3_connection = True
-                    elif is_connected == -1:
-                        has_3to5_connection = True
-                    elif is_connected == 2:
-                        return "UNKNOWN", "UNKNOWN"
+            # Compare against all other residues
+            for target_res in res_list:
+                if source_res == target_res:
+                    continue
 
-                if has_3to5_connection:
-                    break
+                connection = self._are_residues_connected(source_res, target_res)
 
-            if has_5to3_connection and not has_3to5_connection:
+                if connection == 1:  # 5' to 3'
+                    has_outgoing = True
+                elif connection == -1:  # 3' to 5'
+                    has_incoming = True
+                    break  # Can stop checking once we find an incoming connection
+            # Root residues have outgoing but no incoming connections
+            if has_outgoing and not has_incoming:
                 roots.append(source_res)
 
-        res_list_modified = [res for res in res_list if res not in roots]
+        # Return roots and remaining residues
+        remaining = [res for res in res_list if res not in roots]
+        return roots, remaining
 
-        return roots, res_list_modified
-
-    def _connected_to(
+    def _are_residues_connected(
         self,
-        source_residue: Residue,
-        residue_in_question: Residue,
+        source_residue: ResidueNew,
+        residue_in_question: ResidueNew,
         cutoff: float = 2.75,
     ) -> int:
         """Determine if another residue is connected to this residue"""
-        residue_1 = source_residue.pdb
-        residue_2 = residue_in_question.pdb
+        # Get O3' coordinates from source residue
+        o3_coords_1 = source_residue.get_atom_coords("O3'")
+        p_coords_2 = residue_in_question.get_atom_coords("P")
 
-        residue_1[["Cartn_x", "Cartn_y", "Cartn_z"]] = residue_1[
-            ["Cartn_x", "Cartn_y", "Cartn_z"]
-        ].apply(pd.to_numeric)
-        residue_2[["Cartn_x", "Cartn_y", "Cartn_z"]] = residue_2[
-            ["Cartn_x", "Cartn_y", "Cartn_z"]
-        ].apply(pd.to_numeric)
-
-        o3_atom_1 = residue_1[residue_1["auth_atom_id"].str.contains("O3'", regex=True)]
-        o3_atom_1 = o3_atom_1[~o3_atom_1["auth_atom_id"].str.contains("H", regex=False)]
-
-        p_atom_2 = residue_2[residue_2["auth_atom_id"].isin(["P"])]
-
-        if not o3_atom_1.empty and not p_atom_2.empty:
-            try:
-                distance = np.linalg.norm(
-                    p_atom_2[["Cartn_x", "Cartn_y", "Cartn_z"]].values
-                    - o3_atom_1[["Cartn_x", "Cartn_y", "Cartn_z"]].values
-                )
-            except ValueError:
-                return 2
+        # Check 5' to 3' connection
+        if o3_coords_1 is not None and p_coords_2 is not None:
+            distance = np.linalg.norm(np.array(p_coords_2) - np.array(o3_coords_1))
             if distance < cutoff:
                 return 1
 
-        o3_atom_2 = residue_2[residue_2["auth_atom_id"].str.contains("O3'", regex=True)]
-        o3_atom_2 = o3_atom_2[~o3_atom_2["auth_atom_id"].str.contains("H", regex=False)]
+        # Check 3' to 5' connection
+        o3_coords_2 = residue_in_question.get_atom_coords("O3'")
+        p_coords_1 = source_residue.get_atom_coords("P")
 
-        p_atom_1 = residue_1[residue_1["auth_atom_id"].isin(["P"])]
-
-        if not o3_atom_2.empty and not p_atom_1.empty:
-            distance = np.linalg.norm(
-                o3_atom_2[["Cartn_x", "Cartn_y", "Cartn_z"]].values
-                - p_atom_1[["Cartn_x", "Cartn_y", "Cartn_z"]].values
-            )
+        if o3_coords_2 is not None and p_coords_1 is not None:
+            distance = np.linalg.norm(np.array(o3_coords_2) - np.array(p_coords_1))
             if distance < cutoff:
                 return -1
 
@@ -615,7 +369,7 @@ class MotifProcessor:
             while True:
                 next_residue = None
                 for res in res_list:
-                    if self._connected_to(current_residue, res) == 1:
+                    if self._are_residues_connected(current_residue, res) == 1:
                         next_residue = res
                         break
 
@@ -630,46 +384,7 @@ class MotifProcessor:
 
         return built_strands
 
-    def _remove_empty_dataframes(
-        self, dataframes_list: List[pd.DataFrame]
-    ) -> List[pd.DataFrame]:
-        """Remove empty DataFrames from a list"""
-        return [df for df in dataframes_list if not df.empty]
-
-    def _group_residues_by_chain(
-        self, input_list: List[str]
-    ) -> Tuple[List[List[int]], List[str]]:
-        """Group residues into their own chains for counting"""
-        chain_residues = {}
-        chain_ids_for_residues = {}
-
-        for item in input_list:
-            chain_id, residue_id = item.split(".")
-            if residue_id != "None":
-                residue_id = int(residue_id)
-
-            if chain_id not in chain_residues:
-                chain_residues[chain_id] = []
-
-            chain_residues[chain_id].append(residue_id)
-
-            if residue_id not in chain_ids_for_residues:
-                chain_ids_for_residues[residue_id] = []
-            chain_ids_for_residues[residue_id].append(chain_id)
-
-        sorted_chain_residues = []
-        sorted_chain_ids = []
-
-        unique_chain_ids = list(chain_residues.keys())
-        sorted_unique_chain_ids = unique_chain_ids
-
-        for chain_id in sorted_unique_chain_ids:
-            sorted_residues = sorted(set(chain_residues[chain_id]))
-            sorted_chain_residues.append(sorted_residues)
-            sorted_chain_ids.append(chain_id)
-
-        return sorted_chain_residues, sorted_chain_ids
-
+    # TODO come back to this after other processing
     def _remove_duplicate_motifs(self, motifs: List[Any]) -> List[Any]:
         """Remove duplicate motifs from a list of motifs"""
         duplicates = []

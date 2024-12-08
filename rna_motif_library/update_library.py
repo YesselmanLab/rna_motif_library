@@ -226,6 +226,7 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
         built_motifs = process_motif_interaction_out_data(name)
         # we can keep this as is it's not too big a CSV I think
         motifs_per_pdb.append(built_motifs)
+    exit()
     # dssr_hbonds.print_residues_in_motif_to_csv(motifs_per_pdb, csv_dir)
 
     # Dump motifs to JSON

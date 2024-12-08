@@ -9,6 +9,12 @@ import glob
 import pandas as pd
 from rna_motif_library.settings import LIB_PATH, DATA_PATH
 from rna_motif_library.logger import setup_logging, get_logger
+from rna_motif_library.classes import (
+    ResidueNew,
+    sanitize_x3dna_atom_name,
+    X3DNAResidueFactory,
+    get_x3dna_res_id,
+)
 from update_library import (
     get_dssr_files,
     get_snap_files,
@@ -37,6 +43,30 @@ from rna_motif_library.interactions import get_hbonds_and_basepairs
 
 
 log = get_logger("cli")
+
+
+def get_pdb_codes(pdb: str = None, directory: str = None) -> list:
+    """
+    Get list of PDB codes based on input parameters.
+
+    Args:
+        pdb (str, optional): Single PDB code to process. Defaults to None.
+        directory (str, optional): Directory containing PDB files. Defaults to None.
+
+    Returns:
+        list: List of PDB codes to process
+    """
+    pdb_codes = []
+    if pdb is not None:
+        pdb_codes.append(pdb)
+    elif directory is not None:
+        pdb_codes = [os.path.basename(file)[:-4] for file in os.listdir(directory)]
+    else:
+        files = glob.glob(os.path.join(DATA_PATH, "pdbs", "*.cif"))
+        for file in files:
+            pdb_code = os.path.basename(file)[:-4]
+            pdb_codes.append(pdb_code)
+    return pdb_codes
 
 
 def log_and_setup(func):
@@ -200,6 +230,54 @@ def process_interactions(pdb, directory, debug):
 
 @cli.command()
 @click.option(
+    "--pdb",
+    default=None,
+    type=str,
+    help="Process a specific PDB within the set (defaults to all).",
+)
+@click.option(
+    "--directory",
+    default=None,
+    type=str,
+    help="The directory where the PDBs are located",
+)
+@click.option("--debug", is_flag=True, help="Run in debug mode")
+@log_and_setup
+def process_residues(pdb, directory, debug):
+    """
+    Processes residues from source PDB using data from DSSR.
+    """
+    warnings.filterwarnings("ignore")
+    os.makedirs(os.path.join(DATA_PATH, "jsons", "residues"), exist_ok=True)
+    pdb_codes = get_pdb_codes(pdb, directory)
+    log.info(f"Processing {len(pdb_codes)} PDBs")
+    for pdb_code in pdb_codes:
+        df_atoms = pd.read_parquet(
+            os.path.join(DATA_PATH, "pdbs_dfs", f"{pdb_code}.parquet")
+        )
+        residues = {}
+        for i, g in df_atoms.groupby(
+            ["auth_asym_id", "auth_seq_id", "auth_comp_id", "pdbx_PDB_ins_code"]
+        ):
+            coords = g[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+            atom_names = g["auth_atom_id"].tolist()
+            atom_names = [sanitize_x3dna_atom_name(name) for name in atom_names]
+            chain_id, res_num, res_name, ins_code = i
+            x3dna_res_id = get_x3dna_res_id(chain_id, res_num, res_name, ins_code)
+            x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
+            residues[x3dna_res_id] = ResidueNew.from_x3dna_residue(
+                x3dna_res, atom_names, coords
+            )
+        # Save residues to json file
+        residues_json_path = os.path.join(
+            DATA_PATH, "jsons", "residues", f"{pdb_code}.json"
+        )
+        with open(residues_json_path, "w") as f:
+            json.dump({k: v.to_dict() for k, v in residues.items()}, f)
+
+
+@cli.command()
+@click.option(
     "--limit",
     default=None,
     type=int,
@@ -237,130 +315,6 @@ def generate_motifs(limit, pdb, directory, debug):
     json_out_directory = os.path.join(LIB_PATH, "data", "out_json")
     os.makedirs(json_out_directory, exist_ok=True)
     generate_motif_files(limit=limit, pdb_name=pdb, directory=directory)
-
-
-@cli.command()
-@log_and_setup
-def load_tertiary_contacts():
-    """
-    Finds tertiary contacts using hydrogen bonding data.
-
-    Args:
-        None
-
-    Returns:
-        None
-
-    """
-    warnings.filterwarnings("ignore")
-    find_tertiary_contacts()
-
-
-@cli.command()
-@log_and_setup
-def reload_from_json():
-    """
-    Reloads motifs from JSON output data stored in 'data/out_json/' directory.
-    Processes strands into a new DataFrame structure and generates .cif files.
-    """
-    directory_path = "data/out_json/"
-    output_dir = "data/out_motifs_json"
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Iterate over each file in the directory
-    for filename in os.listdir(directory_path):
-        if filename.endswith(".json"):
-            full_path = os.path.join(directory_path, filename)
-            with open(full_path, "r") as file:
-                data = json.load(file)
-                # Process each motif entry individually
-                for entry in data:
-                    df_motif = process_strands(entry["strands"])
-                    generate_cif_file(df_motif, entry["motif_name"], output_dir)
-
-
-def process_strands(strands):
-    """
-    Converts strands data into a DataFrame with appropriate column names and returns it.
-    Handles both single and multiple atom formats within 'pdb' data.
-    """
-    processed_strands = []
-    for strand in strands:
-        for residue in strand:
-            # Check if 'pdb' data is a single dictionary and convert to list of dictionaries if so
-            pdb_data = residue["pdb"]
-            if isinstance(pdb_data, dict):  # It's a single atom
-                pdb_data = [pdb_data]  # Make it a list of one dictionary
-
-            # Now process pdb_data assuming it's always a list of dictionaries
-            pdb_df = pd.DataFrame(pdb_data)
-            pdb_df.rename(
-                columns={
-                    "id": "id",
-                    "Cartn_x": "Cartn_x",
-                    "Cartn_y": "Cartn_y",
-                    "Cartn_z": "Cartn_z",
-                },
-                inplace=True,
-            )
-            pdb_df["auth_asym_id"] = residue["chain_id"]
-            pdb_df["auth_seq_id"] = residue["res_id"]
-            pdb_df["pdbx_PDB_ins_code"] = residue["ins_code"]
-            pdb_df["auth_comp_id"] = residue["mol_name"]
-            processed_strands.append(pdb_df)
-
-    return pd.concat(processed_strands, ignore_index=True)
-
-
-def generate_cif_file(df, motif_name, base_dir):
-    """
-    Generates a .cif file from the DataFrame and saves it into structured directories based on motif properties.
-    """
-
-    pre_parts = motif_name.split()
-    parts = pre_parts[0].split(".")
-    type_of_motif = parts[0]
-    size_of_motif = parts[2]
-    sequence_of_motif = parts[3]
-
-    # Build directory path
-    path = os.path.join(base_dir, type_of_motif, size_of_motif, sequence_of_motif)
-    os.makedirs(path, exist_ok=True)
-
-    # File path
-    file_path = os.path.join(path, f"{motif_name}.cif")
-
-    # Write CIF
-    with open(file_path, "w") as file:
-        file.write("data_" + motif_name + "\n")
-        file.write(
-            "_audit_creation_method 'Generated by DataFrame to CIF conversion'\n"
-        )
-        file.write("\n")
-        file.write("loop_\n")
-        file.write("_atom_site.group_PDB\n")
-        file.write("_atom_site.id\n")
-        file.write("_atom_site.auth_atom_id\n")
-        file.write("_atom_site.auth_asym_id\n")
-        file.write("_atom_site.auth_seq_id\n")
-        file.write("_atom_site.pdbx_PDB_ins_code\n")
-        file.write("_atom_site.Cartn_x\n")
-        file.write("_atom_site.Cartn_y\n")
-        file.write("_atom_site.Cartn_z\n")
-        for index, row in df.iterrows():
-            file.write(
-                "{:<6}{:<6}{:<6}{:<6}{:<6}{:<6}{:<12}{:<12}{:<12}\n".format(
-                    row["group_PDB"],
-                    row["id"],
-                    row["auth_atom_id"],
-                    row["auth_asym_id"],
-                    row["auth_seq_id"],
-                    row["pdbx_PDB_ins_code"],
-                    row["Cartn_x"],
-                    row["Cartn_y"],
-                    row["Cartn_z"],
-                )
-            )
 
 
 if __name__ == "__main__":

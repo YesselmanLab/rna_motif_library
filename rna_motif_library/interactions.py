@@ -1,5 +1,6 @@
 import os
 from typing import List, Tuple, Dict
+import json
 import pandas as pd
 import numpy as np
 
@@ -60,7 +61,30 @@ def dataframe_to_cif(df: pd.DataFrame, file_path: str) -> None:
 # top level function ###################################################################
 
 
-def get_hbonds_and_basepairs(pdb_name: str) -> Tuple[List[Hbond], List[Basepair]]:
+def get_hbonds_and_basepairs(
+    pdb_name: str, overwrite: bool = False
+) -> Tuple[List[Hbond], List[Basepair]]:
+    # Check if hbonds and basepairs json files already exist
+    hbonds_json_path = os.path.join(DATA_PATH, "jsons", "hbonds", f"{pdb_name}.json")
+    basepairs_json_path = os.path.join(
+        DATA_PATH, "jsons", "basepairs", f"{pdb_name}.json"
+    )
+
+    if (
+        os.path.exists(hbonds_json_path)
+        and os.path.exists(basepairs_json_path)
+        and not overwrite
+    ):
+        log.info(f"Loading existing hbonds and basepairs for {pdb_name}")
+        # Load existing json files
+        with open(hbonds_json_path) as f:
+            hbonds_data = json.load(f)
+            hbonds = [Hbond.from_dict(h) for h in hbonds_data]
+        with open(basepairs_json_path) as f:
+            basepairs_data = json.load(f)
+            basepairs = [Basepair.from_dict(bp) for bp in basepairs_data]
+        return hbonds, basepairs
+    log.info(f"Generating hbonds and basepairs for {pdb_name}")
     json_path = os.path.join(DATA_PATH, "dssr_output", f"{pdb_name}.json")
     df_atoms = pd.read_parquet(
         os.path.join(DATA_PATH, "pdbs_dfs", f"{pdb_name}.parquet")

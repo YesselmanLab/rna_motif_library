@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import json
 from dataclasses import dataclass
 
@@ -63,6 +64,15 @@ atom_renames = {
     "OP2": "O2P",
     "OP3": "O3P",
 }
+
+
+def get_x3dna_res_id(res_id: str, num: int, chain_id: str, ins_code: str) -> str:
+    if res_id[-1].isdigit():
+        res_id = res_id[:-1]
+    if ins_code != "":
+        return f"{chain_id}.{res_id}{num}^{ins_code}"
+    else:
+        return f"{chain_id}.{res_id}{num}"
 
 
 def sanitize_x3dna_atom_name(atom_name: str) -> str:
@@ -306,8 +316,8 @@ class Basepair:
             Basepair: New Basepair instance
         """
         # Convert X3DNAInteraction objects
-        data["res_1"] = X3DNAInteraction.from_dict(data["res_1"])
-        data["res_2"] = X3DNAInteraction.from_dict(data["res_2"])
+        data["res_1"] = X3DNAResidue.from_dict(data["res_1"])
+        data["res_2"] = X3DNAResidue.from_dict(data["res_2"])
         # Convert list of Hbond objects
         data["hbonds"] = [Hbond.from_dict(hbond) for hbond in data["hbonds"]]
         return cls(**data)
@@ -704,6 +714,111 @@ class Residue:
 
     def to_pdb_str(self):
         return "PDB_STR"
+
+
+class ResidueNew:
+
+    def __init__(
+        self,
+        chain_id: str,
+        res_id: str,
+        num: int,
+        ins_code: str,
+        rtype: str,
+        atom_names: List[str],
+        coords: List[Tuple[float, float, float]],
+    ) -> None:
+        self.chain_id = chain_id
+        self.res_id = res_id
+        self.num = num
+        self.ins_code = ins_code
+        self.rtype = rtype
+        self.atom_names = atom_names
+        self.coords = coords
+
+    @classmethod
+    def from_x3dna_residue(
+        cls,
+        x3dna_res: X3DNAResidue,
+        atom_names: List[str],
+        coords: List[Tuple[float, float, float]],
+    ):
+        return cls(
+            x3dna_res.chain_id,
+            x3dna_res.res_id,
+            x3dna_res.num,
+            x3dna_res.ins_code,
+            x3dna_res.rtype,
+            atom_names,
+            coords,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        data["coords"] = np.array(data["coords"])
+        return cls(**data)
+
+    def get_atom_coords(self, atom_name: str) -> Tuple[float, float, float]:
+        if atom_name not in self.atom_names:
+            return None
+        return self.coords[self.atom_names.index(atom_name)]
+
+    def get_x3dna_str(self):
+        res_id = self.res_id
+        if self.res_id[-1].isdigit():
+            res_id = res_id[:-1]
+        if self.ins_code != "":
+            return f"{self.chain_id}.{res_id}{self.num}^{self.ins_code}"
+        else:
+            return f"{self.chain_id}.{res_id}{self.num}"
+
+    def __eq__(self, other):
+        """
+        Checks if two Residue objects are equal by comparing all their attributes.
+
+        Args:
+            other: Another Residue object to compare with
+
+        Returns:
+            bool: True if the residues are equal, False otherwise
+        """
+        if not isinstance(other, ResidueNew):
+            return False
+
+        return (
+            self.chain_id == other.chain_id
+            and self.res_id == other.res_id
+            and self.num == other.num
+            and self.ins_code == other.ins_code
+            and self.rtype == other.rtype
+        )
+
+    def to_dict(self) -> dict:
+        """
+        Converts residue information to a dictionary.
+
+        Returns:
+            dict: Dictionary containing residue attributes including:
+                - chain_id: Chain identifier
+                - res_id: Residue identifier
+                - num: Residue number
+                - ins_code: Insertion code
+                - rtype: Residue type
+                - atom_names: List of atom names
+                - coords: List of atom coordinates
+        """
+        return {
+            "chain_id": self.chain_id,
+            "res_id": self.res_id,
+            "num": self.num,
+            "ins_code": self.ins_code,
+            "rtype": self.rtype,
+            "atom_names": self.atom_names,
+            "coords": self.coords.tolist(),
+        }
+
+    def to_cif_str(self):
+        pass
 
 
 def extract_longest_numeric_sequence(input_string: str) -> str:
