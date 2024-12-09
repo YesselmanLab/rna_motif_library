@@ -11,10 +11,10 @@ from rna_motif_library.classes import (
     X3DNAInteraction,
     Hbond,
     Basepair,
+    Residue,
     X3DNAResidue,
     X3DNAResidueFactory,
     X3DNAPair,
-    ResidueNew,
     canon_amino_acid_list,
     sanitize_x3dna_atom_name,
 )
@@ -90,7 +90,7 @@ def get_hbonds_and_basepairs(
     residue_data = json.loads(
         open(os.path.join(DATA_PATH, "jsons", "residues", f"{pdb_name}.json")).read()
     )
-    residues = {k: ResidueNew.from_dict(v) for k, v in residue_data.items()}
+    residues = {k: Residue.from_dict(v) for k, v in residue_data.items()}
     dssr_output = DSSROutput(json_path=json_path)
     hbonds = dssr_output.get_hbonds()
     pairs = dssr_output.get_pairs()
@@ -255,7 +255,7 @@ def get_closest_atoms():
 
 
 def get_atom_coords(
-    atom_name: str, residue: X3DNAResidue, residues: Dict[str, ResidueNew]
+    atom_name: str, residue: X3DNAResidue, residues: Dict[str, Residue]
 ) -> Tuple[float, float, float]:
     res = residues.get(residue.get_str())
     if res is None:
@@ -266,7 +266,7 @@ def get_atom_coords(
 def find_closest_atom(
     atom_name: str,
     residue: X3DNAResidue,
-    residues: Dict[str, ResidueNew],
+    residues: Dict[str, Residue],
     closest_atoms: Dict[str, str],
 ) -> str:
     # First try looking up in dictionary
@@ -335,7 +335,7 @@ def calculate_dihedral_angle(
 
 def get_hbonds(
     pdb_name: str,
-    residues: Dict[str, ResidueNew],
+    residues: Dict[str, Residue],
     x3dna_interactions: List[X3DNAInteraction],
     x3dna_pairs: List[X3DNAPair],
 ) -> List[Hbond]:

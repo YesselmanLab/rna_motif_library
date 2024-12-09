@@ -8,27 +8,14 @@ from pydssr.dssr import DSSROutput
 from pydssr.dssr_classes import DSSR_PAIR
 
 from rna_motif_library.classes import (
-    SingleMotifInteraction,
-    PotentialTertiaryContact,
-    Motif,
     extract_longest_numeric_sequence,
     sanitize_x3dna_atom_name,
-    PandasMmcifOverride,
     X3DNAResidue,
-    X3DNAResidueFactory,
     Residue,
-    ResidueNew,  # TODO rename back to Residue when done
     Hbond,
     Basepair,
 )
-from rna_motif_library.dssr_hbonds import (
-    dataframe_to_cif,
-    assign_res_type,
-    merge_hbond_interaction_data,
-    assemble_interaction_data,
-    build_complete_hbond_interaction,
-    save_interactions_to_disk,
-)
+
 from rna_motif_library.settings import LIB_PATH, DATA_PATH
 from rna_motif_library.snap import parse_snap_output
 from rna_motif_library.interactions import get_hbonds_and_basepairs
@@ -38,15 +25,71 @@ log = get_logger("motif")
 
 
 # TODO check other types of DSSR classes like kissing loops
-def process_motif_interaction_out_data(pdb_name: str) -> List[Motif]:
+def process_motif_interaction_out_data(pdb_name: str) -> list:
     """Process motifs and interactions from a PDB file"""
     hbonds, basepairs = get_hbonds_and_basepairs(pdb_name)
 
-    mp = MotifProcessor(pdb_name, hbonds, basepairs)
+    mp = MotifFactory(pdb_name, hbonds, basepairs)
     mp.process()
 
 
-class MotifProcessor:
+class Motif:
+    def __init__(
+        self,
+        name: str,
+        mtype: str,
+        pdb: str,
+        size: str,
+        sequence: str,
+        strands: List[List[Residue]],
+        basepairs: List[Basepair],
+        basepair_ends: List[Tuple[str, str]],
+        hbonds: List[Hbond],
+    ):
+        self.name = name
+        self.mtype = mtype
+        self.pdb = pdb
+        self.size = size
+        self.sequence = sequence
+        self.strands = strands
+        self.basepairs = basepairs
+        self.basepair_ends = basepair_ends
+        self.hbonds = hbonds
+
+    def num_strands(self):
+        return len(self.strands)
+
+    def num_residues(self):
+        return sum(len(strand) for strand in self.strands)
+
+    def num_basepairs(self):
+        return len(self.basepairs)
+
+    def num_hbonds(self):
+        return len(self.hbonds)
+
+    def num_basepair_ends(self):
+        return len(self.basepair_ends)
+
+    def contains_residue(self, residue: Residue) -> bool:
+        for strand in self.strands:
+            for res in strand:
+                if res.get_x3dna_str() == residue.get_x3dna_str():
+                    return True
+        return False
+
+    def contains_basepair(self, basepair: Basepair) -> bool:
+        if basepair in self.basepairs:
+            return True
+        return False
+
+    def contains_hbond(self, hbond: Hbond) -> bool:
+        if hbond in self.hbonds:
+            return True
+        return False
+
+
+class MotifFactory:
     """Class for processing motifs and interactions from PDB files"""
 
     def __init__(self, pdb_name: str, hbonds: List[Hbond], basepairs: List[Basepair]):
@@ -83,7 +126,7 @@ class MotifProcessor:
                 os.path.join(DATA_PATH, "jsons", "residues", f"{self.pdb_name}.json")
             ).read()
         )
-        all_residues = {k: ResidueNew.from_dict(v) for k, v in residue_data.items()}
+        all_residues = {k: Residue.from_dict(v) for k, v in residue_data.items()}
         json_path = os.path.join(DATA_PATH, "dssr_output", f"{self.pdb_name}.json")
         dssr_output = DSSROutput(json_path=json_path)
         dssr_motifs = dssr_output.get_motifs()
@@ -91,30 +134,22 @@ class MotifProcessor:
         # Process each motif
         for m in dssr_motifs:
             mtype = self._determine_motif_type(m)
-            residues = self._generate_residues_for_motif(m, df_atoms)
-            # strands = self._generate_strands(residues)
-            # sequence = self._find_sequence(strands)
-            # print(sequence)
+            residues = self._get_residues_for_motif(m, all_residues)
+            strands = self._generate_strands(residues)
+            sequence = self._find_sequence(strands)
 
         return []
 
-    def _generate_residues_for_motif(
-        self, m: Any, df_atoms: pd.DataFrame
-    ) -> List[ResidueNew]:
+    def _get_residues_for_motif(
+        self, m: Any, all_residues: Dict[str, Residue]
+    ) -> List[Residue]:
         residues = []
         for nt in m.nts_long:
-            x3dna_res = X3DNAResidueFactory.create_from_string(nt)
-            df_res = df_atoms[
-                (df_atoms["auth_comp_id"] == x3dna_res.res_id)
-                & (df_atoms["auth_asym_id"] == x3dna_res.chain_id)
-                & (df_atoms["auth_seq_id"] == x3dna_res.num)
-            ]
-            coords = df_res[["Cartn_x", "Cartn_y", "Cartn_z"]].values
-            atom_names = df_res["auth_atom_id"].tolist()
-            atom_names = [sanitize_x3dna_atom_name(name) for name in atom_names]
-            residues.append(
-                ResidueNew.from_x3dna_residue(x3dna_res, atom_names, coords)
-            )
+            if nt in all_residues:
+                residues.append(all_residues[nt])
+            else:
+                log.warning(f"Residue {nt} not found in {self.pdb_name}")
+                continue
         return residues
 
         # return self.motif_list
@@ -258,7 +293,7 @@ class MotifProcessor:
             log.info(f"Unknown motif type: {motif_type_beta} for {self.pdb_name}")
             return "UNKNOWN"
 
-    def _generate_strands(self, residues: List[ResidueNew]) -> List[List[ResidueNew]]:
+    def _generate_strands(self, residues: List[Residue]) -> List[List[Residue]]:
         """
         Generates ordered strands of RNA residues by finding root residues and building 5' to 3'.
 
@@ -287,8 +322,8 @@ class MotifProcessor:
         return sequence
 
     def _find_residue_roots(
-        self, res_list: List[ResidueNew]
-    ) -> Tuple[List[ResidueNew], List[ResidueNew]]:
+        self, res_list: List[Residue]
+    ) -> Tuple[List[Residue], List[Residue]]:
         """
         Find the root residues that start each RNA chain.
 
@@ -332,8 +367,8 @@ class MotifProcessor:
 
     def _are_residues_connected(
         self,
-        source_residue: ResidueNew,
-        residue_in_question: ResidueNew,
+        source_residue: Residue,
+        residue_in_question: Residue,
         cutoff: float = 2.75,
     ) -> int:
         """Determine if another residue is connected to this residue"""

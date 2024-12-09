@@ -10,19 +10,19 @@ import pandas as pd
 from rna_motif_library.settings import LIB_PATH, DATA_PATH
 from rna_motif_library.logger import setup_logging, get_logger
 from rna_motif_library.classes import (
-    ResidueNew,
+    Residue,
     sanitize_x3dna_atom_name,
     X3DNAResidueFactory,
     get_x3dna_res_id,
 )
-from update_library import (
+from rna_motif_library.update_library import (
     get_dssr_files,
     get_snap_files,
     download_cif_files,
-    find_tertiary_contacts,
     generate_motif_files,
 )
 from rna_motif_library.interactions import get_hbonds_and_basepairs
+from rna_motif_library.motif import Motif
 
 # TODO look at this stuff for the next week or so
 # we want the angle not the dihedral angle
@@ -210,9 +210,9 @@ def process_residues(pdb, directory, debug):
             chain_id, res_num, res_name, ins_code = i
             if ins_code == "None" or ins_code is None:
                 ins_code = ""
-            x3dna_res_id = get_x3dna_res_id(chain_id, res_num, res_name, ins_code)
+            x3dna_res_id = get_x3dna_res_id(res_name, res_num, chain_id, ins_code)
             x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
-            residues[x3dna_res_id] = ResidueNew.from_x3dna_residue(
+            residues[x3dna_res_id] = Residue.from_x3dna_residue(
                 x3dna_res, atom_names, coords
             )
         # Save residues to json file

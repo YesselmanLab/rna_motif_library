@@ -3,10 +3,6 @@ import numpy as np
 import json
 from dataclasses import dataclass
 
-from biopandas.mmcif.pandas_mmcif import PandasMmcif
-from biopandas.mmcif.mmcif_parser import load_cif_data
-from biopandas.mmcif.engines import mmcif_col_types
-from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
 from typing import Dict, List, Any, Tuple
 
 canon_res_list = [
@@ -82,45 +78,6 @@ def sanitize_x3dna_atom_name(atom_name: str) -> str:
         atom_name = atom_renames[atom_name]
 
     return atom_name
-
-
-class PandasMmcifOverride(PandasMmcif):
-    """
-    Class to override standard behavior for handling mmCIF files in Pandas,
-    particularly to address inconsistencies between ATOM and HETATM records.
-
-    """
-
-    def _construct_df(self, text: str) -> pd.DataFrame:
-        """
-        Constructs a DataFrame from mmCIF text.
-
-        Args:
-            text (str): The mmCIF file content as a string.
-
-        Returns:
-            combined_df (pd.DataFrame): A combined DataFrame of ATOM and HETATM records.
-
-        """
-        data = load_cif_data(text)
-        data = data[list(data.keys())[0]]
-        self.data = data
-
-        df: Dict[str, pd.DataFrame] = {}
-        full_df = pd.DataFrame.from_dict(data["atom_site"], orient="index").transpose()
-        full_df = full_df.astype(mmcif_col_types, errors="ignore")
-
-        # Combine ATOM and HETATM records into a single DataFrame
-        combined_df = pd.DataFrame(
-            full_df[(full_df.group_PDB == "ATOM") | (full_df.group_PDB == "HETATM")]
-        )
-
-        try:
-            df["ANISOU"] = pd.DataFrame(data["atom_site_anisotrop"])
-        except KeyError:
-            df["ANISOU"] = pd.DataFrame(columns=ANISOU_DF_COLUMNS)
-
-        return combined_df  # Return the combined DataFrame
 
 
 @dataclass(frozen=True, order=True)
@@ -336,170 +293,102 @@ class Basepair:
         return data
 
 
-class PotentialTertiaryContact:
+class Residue:
     def __init__(
         self,
-        motif_1: str,
-        motif_2: str,
-        res_1: str,
-        res_2: str,
-        atom_1: str,
-        atom_2: str,
-        type_1: str,
-        type_2: str,
-        distance: float,
-        angle: float,
+        chain_id: str,
+        res_id: str,
+        num: int,
+        ins_code: str,
+        rtype: str,
+        atom_names: List[str],
+        coords: List[Tuple[float, float, float]],
+    ) -> None:
+        if ins_code is None:
+            ins_code = ""
+        self.chain_id = chain_id
+        self.res_id = res_id
+        self.num = num
+        self.ins_code = ins_code
+        self.rtype = rtype
+        self.atom_names = atom_names
+        self.coords = coords
+
+    @classmethod
+    def from_x3dna_residue(
+        cls,
+        x3dna_res: X3DNAResidue,
+        atom_names: List[str],
+        coords: List[Tuple[float, float, float]],
     ):
+        return cls(
+            x3dna_res.chain_id,
+            x3dna_res.res_id,
+            x3dna_res.num,
+            x3dna_res.ins_code,
+            x3dna_res.rtype,
+            atom_names,
+            coords,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        data["coords"] = np.array(data["coords"])
+        return cls(**data)
+
+    def get_atom_coords(self, atom_name: str) -> Tuple[float, float, float]:
+        if atom_name not in self.atom_names:
+            return None
+        return self.coords[self.atom_names.index(atom_name)]
+
+    def get_x3dna_str(self):
+        res_id = self.res_id
+        if self.res_id[-1].isdigit():
+            res_id = res_id[:-1]
+        if self.ins_code != "":
+            return f"{self.chain_id}.{res_id}{self.num}^{self.ins_code}"
+        else:
+            return f"{self.chain_id}.{res_id}{self.num}"
+
+    def __eq__(self, other):
         """
-        Holds data about potential tertiary contacts.
-        Purpose is to get data ready for export to CSV and tertiary contacts.
-        Some data will be left out.
+        Checks if two Residue objects are equal by comparing all their attributes.
 
         Args:
+            other: Another Residue object to compare with
 
-
+        Returns:
+            bool: True if the residues are equal, False otherwise
         """
-        self.motif_1 = motif_1
-        self.motif_2 = motif_2
-        self.res_1 = res_1
-        self.res_2 = res_2
-        self.atom_1 = atom_1
-        self.atom_2 = atom_2
-        self.type_1 = type_1
-        self.type_2 = type_2
-        self.distance = distance
-        self.angle = angle
+        if not isinstance(other, Residue):
+            return False
 
+        return (
+            self.chain_id == other.chain_id
+            and self.res_id == other.res_id
+            and self.num == other.num
+            and self.ins_code == other.ins_code
+            and self.rtype == other.rtype
+            and self.atom_names == other.atom_names
+            and np.array_equal(self.coords, other.coords)
+        )
 
-class SingleMotifInteraction:
-
-    def __init__(
-        self,
-        motif_name: str,
-        res_1: str,
-        res_2: str,
-        atom_1: str,
-        atom_2: str,
-        type_1: str,
-        type_2: str,
-        distance: float,
-        angle: float,
-    ) -> None:
+    def to_dict(self) -> dict:
         """
-        Holds data for H-bond interactions within a single motif.
-        Purpose is to get data ready for export to CSV.
-        Therefore, some data from the HBondInteraction class will be left out.
-
-        Args:
-            motif_name (str): name of motif the interaction comes from
-            res_1 (str): residue 1 in the interaction
-            res_2 (str): residue 2 in the interaction
-            atom_1 (str): atom 1 in the interaction
-            atom_2 (str): atom 2 in the interaction
-            type_1 (str): component of residue 1 in interaction (base/sugar/phos/aa)
-            type_2 (str): component of residue 2 in interaction (base/sugar/phos/aa)
-            distance (float): distance of interaction, in angstroms
-            angle (float): dihedral angle of interaction, in degrees
-
+        Converts residue information to a dictionary.
         """
-        self.motif_name = motif_name
-        self.res_1 = res_1
-        self.res_2 = res_2
-        self.atom_1 = atom_1
-        self.atom_2 = atom_2
-        self.type_1 = type_1
-        self.type_2 = type_2
-        self.distance = distance
-        self.angle = angle
+        return {
+            "chain_id": self.chain_id,
+            "res_id": self.res_id,
+            "num": self.num,
+            "ins_code": self.ins_code,
+            "rtype": self.rtype,
+            "atom_names": self.atom_names,
+            "coords": self.coords.tolist(),
+        }
 
-
-class HBondInteraction:
-    def __init__(
-        self,
-        res_1: str,
-        res_2: str,
-        atom_1: str,
-        atom_2: str,
-        type_1: str,
-        type_2: str,
-        distance: float,
-        angle: float,
-        pdb: pd.DataFrame,
-        first_atom_df: pd.DataFrame,
-        second_atom_df: pd.DataFrame,
-        third_atom_df: pd.DataFrame,
-        fourth_atom_df: pd.DataFrame,
-        pdb_name: str,
-    ) -> None:
-        """
-        Holds data for H-bond interaction.
-        Used to store all the data about interactions.
-
-        Args:
-            res_1 (str): residue 1 in the interaction
-            res_2 (str): residue 2 in the interaction
-            atom_1 (str): atom 1 in the interaction
-            atom_2 (str): atom 2 in the interaction
-            type_1 (str): residue type 1 in the interaction
-            type_2 (str): residue type 2 in the interaction
-            distance (float): distance between atoms in interaction
-            angle (float): dihedral angle between two residues
-            pdb (pd.DataFrame): interaction PDB
-            first_atom_df (pd.DataFrame): PDB of the first atom in the interaction
-            second_atom_df (pd.DataFrame): PDB of the second atom in the interaction
-            third_atom_df (pd.DataFrame): PDB of the third atom connected to the first atom
-            fourth_atom_df (pd.DataFrame): PDB of the fourth atom connected to the second atom
-            pdb_name (str): name of PDB interaction comes from
-
-        """
-        self.res_1 = res_1
-        self.res_2 = res_2
-        self.atom_1 = atom_1
-        self.atom_2 = atom_2
-        self.type_1 = type_1
-        self.type_2 = type_2
-        self.distance = distance
-        self.angle = angle
-        self.pdb = pdb
-        self.first_atom_df = first_atom_df
-        self.second_atom_df = second_atom_df
-        self.third_atom_df = third_atom_df
-        self.fourth_atom_df = fourth_atom_df
-        self.pdb_name = pdb_name
-
-
-class HBondInteractionFactory:
-    """
-    Intermediate class to assist in building complete HBondInteraction data.
-
-    Args:
-        res_1 (str): residue 1 ID
-        res_2 (str): residue 2 ID
-        atom_1 (str): atom 1 ID
-        atom_2 (str): atom 2 ID
-        distance (float): distance between interacting atoms (in angstroms)
-        residue_pair (str): pair comparing the types as returned by DSSR
-        quality (str): quality of h-bond
-
-    """
-
-    def __init__(
-        self,
-        res_1: str,
-        res_2: str,
-        atom_1: str,
-        atom_2: str,
-        distance: float,
-        residue_pair: str,
-        quality: str,
-    ) -> None:
-        self.res_1 = res_1
-        self.res_2 = res_2
-        self.atom_1 = atom_1
-        self.atom_2 = atom_2
-        self.distance = distance
-        self.residue_pair = residue_pair
-        self.quality = quality
+    def to_cif_str(self):
+        pass
 
 
 class Motif:
@@ -634,185 +523,6 @@ def get_motifs_from_json(json_path: str) -> List[Motif]:
     with open(json_path, "r") as f:
         data = json.load(f)
     return [Motif.from_dict(d) for d in data]
-
-
-class Residue:
-    """
-    Class to hold data on individual residues, used for building strands and sequences in find_strands
-
-    Args:
-        chain_id (str): chain ID
-        res_id (str): residue ID
-        ins_code (str): ID code, sometimes used instead of residue ID, often is None
-        mol_name (str): molecule name
-        pdb (pd.DataFrame): DataFrame to hold the actual contents of the residue obtained from the .cif file
-    """
-
-    def __init__(
-        self,
-        chain_id: str,
-        res_id: str,
-        ins_code: str,
-        mol_name: str,
-        pdb: pd.DataFrame,
-    ) -> None:
-        self.chain_id = chain_id
-        self.res_id = res_id
-        self.ins_code = ins_code
-        self.mol_name = mol_name
-        self.pdb = pdb
-
-    @classmethod
-    def from_dict(cls, data: dict):
-        data["pdb"] = pd.DataFrame.from_records(data["pdb"])
-        return cls(**data)
-
-    def __eq__(self, other):
-        """
-        Checks if two Residue objects are equal by comparing all their attributes.
-
-        Args:
-            other: Another Residue object to compare with
-
-        Returns:
-            bool: True if the residues are equal, False otherwise
-        """
-        if not isinstance(other, Residue):
-            return False
-
-        return (
-            self.chain_id == other.chain_id
-            and self.res_id == other.res_id
-            and self.ins_code == other.ins_code
-            and self.mol_name == other.mol_name
-            and self.pdb.equals(other.pdb)
-        )
-
-    def to_dict(self) -> dict:
-        """
-        Converts residue information to a dictionary.
-
-        Returns:
-            dict: Dictionary containing residue attributes including:
-                - chain_id: Chain identifier
-                - res_id: Residue identifier
-                - ins_code: Insertion code
-                - mol_name: Molecule name
-                - pdb: PDB data as records or None if empty
-        """
-        return {
-            "chain_id": self.chain_id,
-            "res_id": self.res_id,
-            "ins_code": self.ins_code,
-            "mol_name": self.mol_name,
-            "pdb": self.pdb.to_dict(orient="records"),
-        }
-
-    def to_json(self, filepath: str) -> None:
-        with open(filepath, "w") as f:
-            json.dump(self.to_dict(), f)
-
-    def to_pdb_str(self):
-        return "PDB_STR"
-
-
-class ResidueNew:
-
-    def __init__(
-        self,
-        chain_id: str,
-        res_id: str,
-        num: int,
-        ins_code: str,
-        rtype: str,
-        atom_names: List[str],
-        coords: List[Tuple[float, float, float]],
-    ) -> None:
-        if ins_code is None:
-            ins_code = ""
-        self.chain_id = chain_id
-        self.res_id = res_id
-        self.num = num
-        self.ins_code = ins_code
-        self.rtype = rtype
-        self.atom_names = atom_names
-        self.coords = coords
-
-    @classmethod
-    def from_x3dna_residue(
-        cls,
-        x3dna_res: X3DNAResidue,
-        atom_names: List[str],
-        coords: List[Tuple[float, float, float]],
-    ):
-        return cls(
-            x3dna_res.chain_id,
-            x3dna_res.res_id,
-            x3dna_res.num,
-            x3dna_res.ins_code,
-            x3dna_res.rtype,
-            atom_names,
-            coords,
-        )
-
-    @classmethod
-    def from_dict(cls, data: dict):
-        data["coords"] = np.array(data["coords"])
-        return cls(**data)
-
-    def get_atom_coords(self, atom_name: str) -> Tuple[float, float, float]:
-        if atom_name not in self.atom_names:
-            return None
-        return self.coords[self.atom_names.index(atom_name)]
-
-    def get_x3dna_str(self):
-        res_id = self.res_id
-        if self.res_id[-1].isdigit():
-            res_id = res_id[:-1]
-        if self.ins_code != "":
-            return f"{self.chain_id}.{res_id}{self.num}^{self.ins_code}"
-        else:
-            return f"{self.chain_id}.{res_id}{self.num}"
-
-    def __eq__(self, other):
-        """
-        Checks if two Residue objects are equal by comparing all their attributes.
-
-        Args:
-            other: Another Residue object to compare with
-
-        Returns:
-            bool: True if the residues are equal, False otherwise
-        """
-        if not isinstance(other, ResidueNew):
-            return False
-
-        return (
-            self.chain_id == other.chain_id
-            and self.res_id == other.res_id
-            and self.num == other.num
-            and self.ins_code == other.ins_code
-            and self.rtype == other.rtype
-            and self.atom_names == other.atom_names
-            and np.array_equal(self.coords, other.coords)
-        )
-
-    def to_dict(self) -> dict:
-        """
-        Converts residue information to a dictionary.
-        """
-        return {
-            "chain_id": self.chain_id,
-            "res_id": self.res_id,
-            "num": self.num,
-            "ins_code": self.ins_code,
-            "rtype": self.rtype,
-            "atom_names": self.atom_names,
-            "coords": self.coords.tolist(),
-        }
-
-    def to_cif_str(self):
-        pass
 
 
 def extract_longest_numeric_sequence(input_string: str) -> str:
