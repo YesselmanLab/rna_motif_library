@@ -271,12 +271,6 @@ def process_interactions(pdb, directory, debug):
 
 @cli.command()
 @click.option(
-    "--limit",
-    default=None,
-    type=int,
-    help="Limit the number of PDB files processed (defaults to all).",
-)
-@click.option(
     "--pdb",
     default=None,
     type=str,
@@ -290,7 +284,7 @@ def process_interactions(pdb, directory, debug):
 )
 @click.option("--debug", is_flag=True, help="Run in debug mode")
 @log_and_setup
-def generate_motifs(limit, pdb, directory, debug):
+def generate_motifs(pdb, directory, debug):
     """
     Extracts motifs from source PDB using data from DSSR, and interactions using data from DSSR and SNAP.
 
@@ -304,10 +298,8 @@ def generate_motifs(limit, pdb, directory, debug):
 
     """
     warnings.filterwarnings("ignore")
-    # create a JSON output file for motifs
-    json_out_directory = os.path.join(LIB_PATH, "data", "out_json")
-    os.makedirs(json_out_directory, exist_ok=True)
-    generate_motif_files(limit=limit, pdb_name=pdb, directory=directory)
+    pdb_codes = get_pdb_codes(pdb, directory)
+    generate_motif_files(pdb_codes)
 
 
 if __name__ == "__main__":

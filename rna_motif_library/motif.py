@@ -1,5 +1,6 @@
 import json
 import os
+from dataclasses import dataclass
 from typing import List, Any, Tuple, Union, Dict
 import pandas as pd
 import numpy as np
@@ -56,6 +57,26 @@ class Motif:
         self.basepair_ends = basepair_ends
         self.hbonds = hbonds
 
+    @classmethod
+    def from_dict(cls, d: dict):
+        # Convert nested objects back to their proper classes
+        strands = [[Residue.from_dict(r) for r in strand] for strand in d["strands"]]
+        basepairs = [Basepair.from_dict(bp) for bp in d["basepairs"]]
+        basepair_ends = [Basepair.from_dict(bp) for bp in d["basepair_ends"]]
+        hbonds = [Hbond.from_dict(hb) for hb in d["hbonds"]]
+
+        return cls(
+            name=d["name"],
+            mtype=d["mtype"],
+            pdb=d["pdb"],
+            size=d["size"],
+            sequence=d["sequence"],
+            strands=strands,
+            basepairs=basepairs,
+            basepair_ends=basepair_ends,
+            hbonds=hbonds,
+        )
+
     def num_strands(self):
         return len(self.strands)
 
@@ -70,6 +91,9 @@ class Motif:
 
     def num_basepair_ends(self):
         return len(self.basepair_ends)
+
+    def get_residues(self):
+        return [res for strand in self.strands for res in strand]
 
     def contains_residue(self, residue: Residue) -> bool:
         for strand in self.strands:
@@ -88,6 +112,34 @@ class Motif:
             return True
         return False
 
+    def to_dict(self):
+        return {
+            "name": self.name,
+            "mtype": self.mtype,
+            "pdb": self.pdb,
+            "size": self.size,
+            "sequence": self.sequence,
+            "strands": [res.to_dict() for res in self.get_residues()],
+            "basepairs": [bp.to_dict() for bp in self.basepairs],
+            "basepair_ends": [bp.to_dict() for bp in self.basepair_ends],
+            "hbonds": [hb.to_dict() for hb in self.hbonds],
+        }
+
+
+def get_motifs_from_json(json_path: str) -> List[Motif]:
+    """
+    Get motifs from a JSON file.
+    """
+    with open(json_path, "r") as f:
+        data = json.load(f)
+    return [Motif.from_dict(d) for d in data]
+
+
+def save_motifs_to_json(motifs: List[Motif], json_path: str):
+    """Save motifs to a JSON file"""
+    with open(json_path, "w") as f:
+        json.dump([m.to_dict() for m in motifs], f, indent=4)
+
 
 class MotifFactory:
     """Class for processing motifs and interactions from PDB files"""
@@ -103,14 +155,6 @@ class MotifFactory:
         self.pdb_name = pdb_name
         self.hbonds = hbonds
         self.basepairs = basepairs
-
-        self.pdb_model_df = None
-        self.assembled_interaction_data = None
-        self.discovered = []
-        self.motif_count = 0
-        self.motif_list = []
-        self.single_motif_interactions = []
-        self.potential_tert_contacts = []
 
     def process(self) -> List[Motif]:
         """
@@ -130,15 +174,48 @@ class MotifFactory:
         json_path = os.path.join(DATA_PATH, "dssr_output", f"{self.pdb_name}.json")
         dssr_output = DSSROutput(json_path=json_path)
         dssr_motifs = dssr_output.get_motifs()
-        # dssr_tertiary_contacts = dssr_output.get_tertiary_contacts()
+        dssr_tertiary_contacts = dssr_output.get_tertiary_contacts()
+        for t in dssr_tertiary_contacts:
+            print(t)
         # Process each motif
+        motifs = []
+        log.info(f"Processing {len(dssr_motifs)} motifs")
         for m in dssr_motifs:
-            mtype = self._determine_motif_type(m)
-            residues = self._get_residues_for_motif(m, all_residues)
-            strands = self._generate_strands(residues)
-            sequence = self._find_sequence(strands)
+            mi = self._generate_motif(m, all_residues)
+            motifs.append(mi)
+        """for i, motif1 in enumerate(motifs):
+            for j, motif2 in enumerate(motifs):
+                if i >= j:
+                    continue
+                # Count residue overlap between motifs
+                overlap_count = 0
+                for res1 in motif1.get_residues():
+                    for res2 in motif2.get_residues():
+                        if res1 == res2:
+                            overlap_count += 1
+                if overlap_count > 2:
+                    print(motif1.name, motif2.name, overlap_count)
+        """
+        contained_motifs = []
+        for i, motif1 in enumerate(motifs):
+            for j, motif2 in enumerate(motifs):
+                if i >= j:
+                    continue
+                for strand1 in motif1.strands:
+                    for strand2 in motif2.strands:
+                        if all(res in strand1 for res in strand2):
 
-        return []
+                            contained_motifs.append((motif1, motif2))
+                            break
+                    else:
+                        continue
+        print(len(contained_motifs))
+        for m in contained_motifs:
+            print(m[0].name, m[1].name)
+        # self._merge_singlet_separated(motifs)
+
+        exit()
+        return motifs
 
     def _get_residues_for_motif(
         self, m: Any, all_residues: Dict[str, Residue]
@@ -152,146 +229,90 @@ class MotifFactory:
                 continue
         return residues
 
-        # return self.motif_list
+    def _is_strand_a_loop(
+        self, strand: List[Residue], end_basepairs: List[Basepair]
+    ) -> bool:
+        end_residue_ids = []
+        end_residue_ids.append(strand[0].get_x3dna_str())
+        end_residue_ids.append(strand[-1].get_x3dna_str())
+        for bp in end_basepairs:
+            if (
+                bp.res_1.get_str() in end_residue_ids
+                and bp.res_2.get_str() in end_residue_ids
+            ):
+                return True
+        return False
 
-    def _find_and_build_motif(self, m: Any) -> Union[Motif, str]:
-        """
-        Identifies motif in source PDB by ID and extracts to disk, setting its name and other data.
-
-        Args:
-            m (Any): DSSR_Motif object, contains motif data returned directly from DSSR
-
-        Returns:
-            our_motif (Motif): Motif object with all associated data inside
-            or "UNKNOWN" if motif cannot be built
-        """
+    def _generate_motif(self, m: Any, all_residues: Dict[str, Residue]) -> Motif:
         # We need to determine the data for the motif and build a class
         # First get the type
-        motif_type = self._determine_motif_type(m)
-        if motif_type == "UNKNOWN":
-            log.debug(f"Unknown motif type for {self.name}")
-            print(f"Unknown motif type for {self.name}")
-            print(m)
-            return "UNKNOWN"
-
-        # Extract motif from source PDB
-        motif_pdb = self._extract_motif_from_pdb(m.nts_long)
-
-        # Now find the list of strands and sequence
-        list_of_strands, sequence = self._generate_strands(motif_pdb)
-        if list_of_strands == "UNKNOWN" or sequence == "UNKNOWN":
-            return "UNKNOWN"
-
-        # Get the size of the motif (as string)
-        size = self._set_motif_size(list_of_strands, motif_type)
-        if size == "UNKNOWN":
-            return "UNKNOWN"
-
-        # Real quick, set NWAY/TWOWAY junction based on return of size
-        spl = size.split("-")
-        if motif_type == "JCT":
-            if len(spl) == 2:
-                motif_type = "TWOWAY"
+        residues = self._get_residues_for_motif(m, all_residues)
+        residue_ids = [res.get_x3dna_str() for res in residues]
+        strands = self._generate_strands(residues)
+        end_residue_ids = []
+        for s in strands:
+            end_residue_ids.append(s[0].get_x3dna_str())
+            end_residue_ids.append(s[-1].get_x3dna_str())
+        basepairs = []
+        for bp in self.basepairs:
+            if bp.res_1.get_str() in residue_ids and bp.res_2.get_str() in residue_ids:
+                basepairs.append(bp)
+        end_basepairs = []
+        for bp in basepairs:
+            if (
+                bp.res_1.get_str() in end_residue_ids
+                and bp.res_2.get_str() in end_residue_ids
+            ):
+                end_basepairs.append(bp)
+        hbonds = []
+        for hb in self.hbonds:
+            if hb.res_1.get_str() in residue_ids and hb.res_2.get_str() in residue_ids:
+                hbonds.append(hb)
+        mtype = "UNKNOWN"
+        num_of_loop_strands = 0
+        num_of_wc_pairs = 0
+        for bp in basepairs:
+            if bp.bp_type == "WC":
+                num_of_wc_pairs += 1
+        for s in strands:
+            if self._is_strand_a_loop(s, end_basepairs):
+                num_of_loop_strands += 1
+        if len(end_basepairs) == 0 and num_of_loop_strands == 0:
+            mtype = "SINGLE-STRAND"
+        elif len(end_basepairs) == 1 and num_of_loop_strands == 1:
+            mtype = "HAIRPIN"
+        elif len(end_basepairs) == 2 and len(strands) == 2 and num_of_loop_strands == 0:
+            if num_of_wc_pairs == len(strands[0]):
+                mtype = "HELIX"
             else:
-                motif_type = "NWAY"
-
-        # fix that weird classification issue
-        if motif_type == "NWAY" and len(size.split("-")) < 2:
-            motif_type = "SSTRAND"
-
-        # Pre-set motif name
-        pre_motif_name = motif_type + "." + self.name + "." + str(size) + "." + sequence
-        # Check if discovered; if so, then increment count
-        if pre_motif_name in self.discovered:
-            self.motif_count += 1
+                mtype = "TWOWAY-JUNCTION"
+        elif len(end_basepairs) > 2 and len(strands) == len(end_basepairs):
+            mtype = "NWAY-JUNCTION"
         else:
-            self.discovered.append(pre_motif_name)
-        # Set motif name
-        motif_name = pre_motif_name + "." + str(self.motif_count)
-        # Finally, set our motif
-        our_motif = Motif(
-            motif_name,
-            motif_type,
-            self.name,
-            size,
+            log.debug(
+                f"Unknown motif type in {self.pdb_name} with "
+                f"{len(end_basepairs)} end basepairs and "
+                f"{len(strands)} strands and "
+                f"{num_of_loop_strands} loop strands and "
+                f"{num_of_wc_pairs} wc pairs"
+            )
+            res_str = ""
+            for s in strands:
+                res_str += " ".join([res.get_x3dna_str() for res in s]) + " "
+            log.debug(res_str)
+        sequence = self._find_sequence(strands).replace("&", "-")
+        mname = f"{mtype}-{sequence}"
+        return Motif(
+            mname,
+            mtype,
+            self.pdb_name,
+            "SIZE",
             sequence,
-            m.nts_long,
-            list_of_strands,
-            motif_pdb,
+            strands,
+            basepairs,
+            end_basepairs,
+            hbonds,
         )
-        # And print the motif to the system
-        if motif_type == "NWAY":
-            spl = size.split("-")
-            size_num = len(spl)
-            size_str = str(size_num)
-            size_str_name = size_str + "ways"
-            motif_dir_path = os.path.join(
-                LIB_PATH, "data/motifs", motif_type, size_str_name, size, sequence
-            )
-        else:
-            motif_dir_path = os.path.join(
-                LIB_PATH, "data/motifs", motif_type, size, sequence
-            )
-        os.makedirs(motif_dir_path, exist_ok=True)
-        motif_cif_path = os.path.join(motif_dir_path, f"{motif_name}.cif")
-        dataframe_to_cif(motif_pdb, motif_cif_path, motif_name)
-        # Clear the PDB so it doesn't hog extra RAM
-        our_motif.motif_pdb = None
-        return our_motif
-
-    def _set_motif_size(self, strands: List, motif_type: str) -> str:
-        """
-        Sets the size of the motif according to motif type and strands.
-
-        Args:
-            strands (list): List of all strands in motif (list of lists).
-            motif_type (str): String describing the motif type.
-
-        Returns:
-            size (str): String specifying size.
-        """
-        if motif_type == "JCT":
-            lens = []
-            for strand in strands:
-                len_strand = str(len(strand))
-                lens.append(len_strand)
-            size = "-".join(lens)
-            return size
-        elif motif_type == "HELIX":
-            if len(strands) != 2:
-                return "UNKNOWN"
-            if len(strands[0]) != len(strands[1]):
-                return "UNKNOWN"
-            size = str(len(strands[0]))
-            return size
-        elif motif_type == "HAIRPIN":
-            if len(strands) != 1:
-                return "UNKNOWN"
-            size = len(strands[0]) - 2
-            if size < 3:
-                return "UNKNOWN"
-            else:
-                return str(size)
-        elif motif_type == "SSTRAND":
-            if len(strands) != 1:
-                return "UNKNOWN"
-            size = len(strands[0])
-            return str(size)
-
-    def _determine_motif_type(self, motif):
-        """Determine the type of motif"""
-        motif_type_beta = motif.mtype
-        if motif_type_beta in ["JUNCTION", "BULGE", "ILOOP"]:
-            return "JCT"
-        elif motif_type_beta in ["STEM", "HEXIX"]:
-            return "HELIX"
-        elif motif_type_beta in ["SINGLE_STRAND"]:
-            return "SSTRAND"
-        elif motif_type_beta in ["HAIRPIN"]:
-            return "HAIRPIN"
-        else:
-            log.info(f"Unknown motif type: {motif_type_beta} for {self.pdb_name}")
-            return "UNKNOWN"
 
     def _generate_strands(self, residues: List[Residue]) -> List[List[Residue]]:
         """
@@ -318,7 +339,7 @@ class MotifFactory:
                 res_strand.append(mol_name)
             strand_sequence = "".join(res_strand)
             res_strands.append(strand_sequence)
-        sequence = "-".join(res_strands)
+        sequence = "&".join(res_strands)
         return sequence
 
     def _find_residue_roots(
@@ -443,45 +464,24 @@ class MotifFactory:
         unique_motifs = [m for m in motifs if m not in duplicates]
         return unique_motifs
 
-    def _remove_large_motifs(self, motifs: List[Any]) -> List[Any]:
-        """Remove motifs larger than 35 nucleotides"""
-        return [m for m in motifs if len(m.nts_long) <= 35]
-
-    def _merge_singlet_separated(self, motifs: List[Any]) -> List[Any]:
-        """Merge singlet separated motifs into a unified list"""
-        junctions = []
-        others = []
-
-        for m in motifs:
-            if m.mtype in ["STEM", "HAIRPIN", "SINGLE_STRAND"]:
-                others.append(m)
-            else:
-                junctions.append(m)
-
+    def _merge_singlet_separated(self, motifs: List[Motif]) -> List[Motif]:
+        target_motifs = []
+        for mi in motifs:
+            if len(mi.basepair_ends) > 2:
+                target_motifs.append(mi)
         merged = []
-        used = []
-
-        for m1 in junctions:
-            m1_nts = m1.nts_long
-            if m1 in used:
-                continue
-
-            for m2 in junctions:
-                if m1 == m2:
+        removed = []
+        for i, mi in enumerate(target_motifs):
+            for j, mj in enumerate(target_motifs):
+                if i == j:
                     continue
+                shared_bp = False
+                for bp1 in mi.basepair_ends:
+                    for bp2 in mj.basepair_ends:
+                        if bp1 == bp2:
+                            shared_bp = True
+                            break
+                if shared_bp:
+                    print(mi.mname, mj.mname)
 
-                included = sum(1 for r in m2.nts_long if r in m1_nts)
-
-                if included < 2:
-                    continue
-
-                for nt in m2.nts_long:
-                    if nt not in m1.nts_long:
-                        m1.nts_long.append(nt)
-
-                used.extend([m1, m2])
-                merged.append(m2)
-
-        new_motifs = others + [m for m in junctions if m not in merged]
-
-        return new_motifs
+        return []

@@ -1,5 +1,6 @@
 import csv
 import json
+from typing import List
 from concurrent.futures import ThreadPoolExecutor
 
 import wget
@@ -19,7 +20,7 @@ from rna_motif_library.settings import LIB_PATH, DSSR_EXE, DATA_PATH
 from rna_motif_library.logger import get_logger
 from rna_motif_library.motif import process_motif_interaction_out_data
 
-log = get_logger("update_library")
+log = get_logger("update-library")
 
 
 def download_cif_files(csv_path: str, threads: int) -> None:
@@ -54,17 +55,17 @@ def download_cif_files(csv_path: str, threads: int) -> None:
             Exception: If there is an error while downloading the PDB file.
 
         """
-        pdb_name = row.represent.split("|")[0]
-        out_path = os.path.join(pdb_dir, f"{pdb_name}.cif")
+        pdb_code = row.represent.split("|")[0]
+        out_path = os.path.join(pdb_dir, f"{pdb_code}.cif")
 
         if os.path.isfile(out_path):
             return  # Skip this row because the file is already downloaded
         try:
             wget.download(
-                f"https://files.rcsb.org/download/{pdb_name}.cif", out=out_path
+                f"https://files.rcsb.org/download/{pdb_code}.cif", out=out_path
             )
         except Exception as e:
-            tqdm.write(f"Failed to download {pdb_name}: {e}")
+            tqdm.write(f"Failed to download {pdb_code}: {e}")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
         list(
@@ -119,7 +120,7 @@ def get_dssr_files(threads: int, directory: str) -> None:
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
         executor.map(process_pdb, pdbs)
     # TODO this should be put into the process_pdb function above to speed up with threading
-    validate_and_regenerate_invalid_json_files(out_path, pdb_dir)
+    # validate_and_regenerate_invalid_json_files(out_path, pdb_dir)
 
 
 def get_snap_files(threads: int, directory: str) -> None:
@@ -167,35 +168,10 @@ def get_snap_files(threads: int, directory: str) -> None:
     log.info(f"{generated_count} new .out files generated.")
 
 
-def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
+def generate_motif_files(pdb_codes: List[str]) -> None:
     """
     Processes PDB files to extract and analyze motif interactions, storing detailed outputs.
-
-    Args:
-        limit (int): number of PDBs to process
-        pdb_name (str): which specific PDB to process (both are entered via command line)
-
-    Returns:
-        None
-
     """
-    if directory is not None:
-        pdb_dir = directory
-    else:
-        pdb_dir = os.path.join(LIB_PATH, "data/pdbs/")
-    pdbs = glob.glob(os.path.join(pdb_dir, "*.cif"))
-    log.info(f"there are {len(pdbs)} files in directory {pdb_dir}")
-
-    if pdb_name is not None:
-        log.info(f"Processing PDB: {pdb_name}")
-        pdb_name_path = os.path.join(pdb_dir, str(pdb_name) + ".cif")
-        pdbs = [pdb_name_path]
-        if not os.path.exists(pdb_name_path):
-            log.error(f"The provided PDB '{pdb_name}' doesn't exist.")
-            log.error("Make sure to run DSSR and SNAP first before generating motifs.")
-            log.error("Exiting run.")
-            exit(1)
-
     # Define directories for output
     motif_dir = os.path.join(DATA_PATH, "motifs")
     csv_dir = os.path.join(DATA_PATH, "out_csvs")
@@ -206,52 +182,10 @@ def generate_motif_files(limit=None, pdb_name=None, directory=None) -> None:
 
     count = 0
     motifs_per_pdb = []
-    for pdb_path in pdbs:
-        print(pdb_path)
+    for pdb_code in pdb_codes:
         count += 1
         # Keep processed files under the limit if specified
-        if limit is not None and count > limit:
-            break
-        # Limit processing to specified PDB
-        name = os.path.basename(pdb_path)[:-4]
-        if (pdb_name != None) and (name != pdb_name):
-            break
-
-        built_motifs = process_motif_interaction_out_data(name)
+        built_motifs = process_motif_interaction_out_data(pdb_code)
         # we can keep this as is it's not too big a CSV I think
         motifs_per_pdb.append(built_motifs)
-    exit()
-    # dssr_hbonds.print_residues_in_motif_to_csv(motifs_per_pdb, csv_dir)
-
-    # Dump motifs to JSON
-    for motif_list in motifs_per_pdb:
-        motif_dicts = []
-        for motif in motif_list:
-            # First take the strands; keep auth_atom_id, cartn_xyz, group_PDB, id
-            strands = motif.strands
-            for strand in strands:
-                # print(type(strand)) a list
-                # print(strand) # list of residues
-                for residue in strand:
-                    pdb_df = residue.pdb
-                    new_pdb = pdb_df[
-                        [
-                            "group_PDB",
-                            "id",
-                            "auth_atom_id",
-                            "Cartn_x",
-                            "Cartn_y",
-                            "Cartn_z",
-                        ]
-                    ]
-                    residue.pdb = new_pdb
-            # Once all the strands are updated, load into JSON
-            motif_dict = motif.to_dict()
-            motif_dicts.append(motif_dict)
-        json_out_path = os.path.join(
-            DATA_PATH, "out_json", f"{str(motif.pdb)}_motifs.json"
-        )
-        with open(json_out_path, "w") as file:
-            json.dump(motif_dicts, file)  # Use indent for pretty-printing
-
-    motif_interaction_data_by_type_to_csv(csv_dir)
+    # dssr_hbonds.print_residues_in_motif_to_csv(motifs_per_pdb, csv_dir

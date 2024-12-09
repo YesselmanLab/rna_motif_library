@@ -3,6 +3,10 @@ import numpy as np
 import json
 from dataclasses import dataclass
 
+from biopandas.mmcif.pandas_mmcif import PandasMmcif
+from biopandas.mmcif.mmcif_parser import load_cif_data
+from biopandas.mmcif.engines import mmcif_col_types
+from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
 from typing import Dict, List, Any, Tuple
 
 canon_res_list = [
@@ -369,8 +373,6 @@ class Residue:
             and self.num == other.num
             and self.ins_code == other.ins_code
             and self.rtype == other.rtype
-            and self.atom_names == other.atom_names
-            and np.array_equal(self.coords, other.coords)
         )
 
     def to_dict(self) -> dict:
@@ -387,142 +389,28 @@ class Residue:
             "coords": self.coords.tolist(),
         }
 
-    def to_cif_str(self):
-        pass
+    def to_cif_str(self, acount=0):
+        s = ""
+        # Write the data from the DataFrame
+        ins_code = self.ins_code
+        if ins_code == "":
+            ins_code = "?"
+        for atom_name, coord in zip(self.atom_names, self.coords):
+            s += (
+                f"{'ATOM':<8}"
+                f"{str(acount):<7}"
+                f"{str(atom_name):<6}"
+                f"{str(self.res_id):<6}"
+                f"{str(self.num):<6}"
+                f"{str(self.chain_id):<6}"
+                f"{str(ins_code):<6}"
+                f"{str(coord[0]):<12}"
+                f"{str(coord[1]):<12}"
+                f"{str(coord[2]):<12}\n"
+            )
+            acount += 1
 
-
-class Motif:
-    """
-    Class to hold motif data. This data is final and should not be changed once built.
-    """
-
-    def __init__(
-        self,
-        motif_name: str,
-        motif_type: str,
-        pdb: str,
-        size: str,
-        sequence: str = None,
-        res_list: List[str] = None,
-        strands: Any = None,
-        motif_pdb: pd.DataFrame = None,
-    ) -> None:
-        """
-        Initialize a Motif object
-
-        Args:
-            motif_name (str): Name of the motif
-            motif_type (str): Motif type
-            pdb (str): PDB where motif is found
-            size (str): Size of motif; reflects the structure and means different things depending on the type of motif
-            sequence (str): Sequence in motif
-            res_list (list): List of residues in the motif
-            strands (list): List of strands in motif
-            motif_pdb (pd.DataFrame): PDB data of the motif
-
-        Returns:
-            None
-        """
-        self.motif_name = motif_name
-        self.motif_type = motif_type
-        self.pdb = pdb
-        self.size = size
-        self.sequence = sequence
-        self.res_list = res_list if res_list is not None else []
-        self.strands = strands if strands is not None else []
-        self.motif_pdb = motif_pdb if motif_pdb is not None else pd.DataFrame()
-
-    @classmethod
-    def from_dict(cls, data: dict):
-        """
-        Creates a Motif object from a dictionary.
-
-        Args:
-            data (dict): Dictionary containing motif data
-
-        Returns:
-            Motif: A new Motif object with the data from the dictionary
-        """
-
-        # Convert motif_pdb back to DataFrame if it exists
-        if data["motif_pdb"] is not None:
-            data["motif_pdb"] = pd.DataFrame.from_records(data["motif_pdb"])
-
-        # Convert strands back to Residue objects if they exist
-        if data["strands"]:
-            data["strands"] = [
-                [Residue.from_dict(res) for res in strand] for strand in data["strands"]
-            ]
-
-        return cls(
-            motif_name=data["motif_name"],
-            motif_type=data["motif_type"],
-            pdb=data["pdb"],
-            size=data["size"],
-            sequence=data["sequence"],
-            res_list=data["res_list"],
-            strands=data["strands"],
-            motif_pdb=data["motif_pdb"],
-        )
-
-    def __eq__(self, other):
-        """
-        Check if two Motif objects are equal by comparing their dictionary representations.
-
-        Args:
-            other: Another Motif object to compare with
-
-        Returns:
-            bool: True if the objects are equal, False otherwise
-        """
-        if not isinstance(other, type(self)):
-            return False
-        return self.to_dict() == other.to_dict()
-
-    def to_dict(self):
-        """
-        Returns the object as a dictionary.
-
-        Returns:
-            The entire instance of a Motif class inside a dictionary.
-            Intended for writing the motif to JSON.
-        """
-        return {
-            "motif_name": self.motif_name,
-            "motif_type": self.motif_type,
-            "pdb": self.pdb,
-            "size": self.size,
-            "sequence": self.sequence,
-            "res_list": self.res_list,
-            "strands": [[res.to_dict() for res in strand] for strand in self.strands],
-            "motif_pdb": (
-                self.motif_pdb.to_dict(orient="records")
-                if isinstance(self.motif_pdb, pd.DataFrame) and not self.motif_pdb.empty
-                else None
-            ),
-        }
-
-    def to_json(self, filepath: str) -> None:
-        """
-        Saves the motif object as a JSON file.
-
-        Args:
-            filepath (str): Path where the JSON file should be saved
-
-        Returns:
-            None
-        """
-        with open(filepath, "w") as f:
-            json.dump(self.to_dict(), f)
-
-
-def get_motifs_from_json(json_path: str) -> List[Motif]:
-    """
-    Get motifs from a JSON file.
-    """
-    with open(json_path, "r") as f:
-        data = json.load(f)
-    return [Motif.from_dict(d) for d in data]
+        return s, acount
 
 
 def extract_longest_numeric_sequence(input_string: str) -> str:
