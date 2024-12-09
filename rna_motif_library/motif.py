@@ -78,14 +78,16 @@ class MotifProcessor:
         """
         log.debug(f"{self.pdb_name}")
 
-        # Get the master PDB data
-        df_atoms = pd.read_parquet(
-            os.path.join(DATA_PATH, "pdbs_dfs", f"{self.pdb_name}.parquet")
+        residue_data = json.loads(
+            open(
+                os.path.join(DATA_PATH, "jsons", "residues", f"{self.pdb_name}.json")
+            ).read()
         )
+        all_residues = {k: ResidueNew.from_dict(v) for k, v in residue_data.items()}
         json_path = os.path.join(DATA_PATH, "dssr_output", f"{self.pdb_name}.json")
         dssr_output = DSSROutput(json_path=json_path)
         dssr_motifs = dssr_output.get_motifs()
-        dssr_tertiary_contacts = dssr_output.get_tertiary_contacts()
+        # dssr_tertiary_contacts = dssr_output.get_tertiary_contacts()
         # Process each motif
         for m in dssr_motifs:
             mtype = self._determine_motif_type(m)

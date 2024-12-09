@@ -87,21 +87,16 @@ def get_hbonds_and_basepairs(
         return hbonds, basepairs
     log.info(f"Generating hbonds and basepairs for {pdb_name}")
     json_path = os.path.join(DATA_PATH, "dssr_output", f"{pdb_name}.json")
-    df_atoms = pd.read_parquet(
-        os.path.join(DATA_PATH, "pdbs_dfs", f"{pdb_name}.parquet")
-    )
     residue_data = json.loads(
         open(os.path.join(DATA_PATH, "jsons", "residues", f"{pdb_name}.json")).read()
     )
     residues = {k: ResidueNew.from_dict(v) for k, v in residue_data.items()}
-    print(residues)
-    exit()
     dssr_output = DSSROutput(json_path=json_path)
     hbonds = dssr_output.get_hbonds()
     pairs = dssr_output.get_pairs()
     x3dna_interactions = get_x3dna_interactions(pdb_name, hbonds)
     x3dna_pairs = get_x3dna_pairs(pairs, x3dna_interactions)
-    hbonds = get_hbonds(pdb_name, df_atoms, x3dna_interactions, x3dna_pairs)
+    hbonds = get_hbonds(pdb_name, residues, x3dna_interactions, x3dna_pairs)
     basepairs = get_pairs(pdb_name, hbonds, x3dna_pairs)
     return hbonds, basepairs
 
@@ -260,70 +255,42 @@ def get_closest_atoms():
 
 
 def get_atom_coords(
-    atom_name: str, residue: X3DNAResidue, df_atoms: pd.DataFrame
+    atom_name: str, residue: X3DNAResidue, residues: Dict[str, ResidueNew]
 ) -> Tuple[float, float, float]:
-    df_atom = df_atoms[
-        (df_atoms["auth_atom_id"] == atom_name)
-        & (df_atoms["auth_comp_id"] == residue.res_id)
-        & (df_atoms["auth_asym_id"] == residue.chain_id)
-        & (df_atoms["auth_seq_id"] == residue.num)
-    ]
-    if df_atom.empty:
+    res = residues.get(residue.get_str())
+    if res is None:
         return None
-    return df_atom[["Cartn_x", "Cartn_y", "Cartn_z"]].values[0]
+    return res.get_atom_coords(atom_name)
 
 
 def find_closest_atom(
     atom_name: str,
     residue: X3DNAResidue,
-    df_atoms: pd.DataFrame,
+    residues: Dict[str, ResidueNew],
     closest_atoms: Dict[str, str],
 ) -> str:
-    """
-    Finds the closest atom to the given atom in a residue, either using a predefined dictionary
-    or by calculating distances to all atoms in the residue.
-
-    Args:
-        atom_name (str): Name of the atom to find closest to
-        residue (X3DNAResidue): Residue containing the atoms
-        df_atoms (pd.DataFrame): DataFrame with atom coordinates
-        closest_atoms (Dict[str, str]): Dictionary mapping residue-atom pairs to closest atoms
-
-    Returns:
-        str: Name of the closest atom found
-    """
     # First try looking up in dictionary
     key = f"{residue.res_id}-{atom_name}"
     if key in closest_atoms:
         return closest_atoms[key]
 
     # If not in dictionary, calculate distances to all atoms in residue
-    target_coords = get_atom_coords(atom_name, residue, df_atoms)
+    target_coords = get_atom_coords(atom_name, residue, residues)
     if target_coords is None:
         return None
 
-    # Get all atoms in the residue
-    residue_atoms = df_atoms[
-        (df_atoms["auth_comp_id"] == residue.res_id)
-        & (df_atoms["auth_asym_id"] == residue.chain_id)
-        & (df_atoms["auth_seq_id"] == residue.num)
-    ]
-
     min_dist = float("inf")
     closest_atom = None
+    res = residues.get(residue.get_str())
 
     # Calculate distance to each atom
-    for _, atom in residue_atoms.iterrows():
-        if atom["auth_atom_id"] == atom_name:
+    for aname, acoords in zip(res.atom_names, res.coords):
+        if aname == atom_name:
             continue
-
-        atom_coords = np.array([atom["Cartn_x"], atom["Cartn_y"], atom["Cartn_z"]])
-        dist = np.linalg.norm(target_coords - atom_coords)
-
+        dist = np.linalg.norm(target_coords - acoords)
         if dist < min_dist:
             min_dist = dist
-            closest_atom = atom["auth_atom_id"]
-
+            closest_atom = aname
     return closest_atom
 
 
@@ -368,7 +335,7 @@ def calculate_dihedral_angle(
 
 def get_hbonds(
     pdb_name: str,
-    df_atoms: pd.DataFrame,
+    residues: Dict[str, ResidueNew],
     x3dna_interactions: List[X3DNAInteraction],
     x3dna_pairs: List[X3DNAPair],
 ) -> List[Hbond]:
@@ -380,19 +347,19 @@ def get_hbonds(
     closest_atoms = get_closest_atoms()
     for interaction in x3dna_interactions:
         closest_atom_1 = find_closest_atom(
-            interaction.atom_1, interaction.res_1, df_atoms, closest_atoms
+            interaction.atom_1, interaction.res_1, residues, closest_atoms
         )
         closest_atom_2 = find_closest_atom(
-            interaction.atom_2, interaction.res_2, df_atoms, closest_atoms
+            interaction.atom_2, interaction.res_2, residues, closest_atoms
         )
         closest_atom_1_coords = get_atom_coords(
-            closest_atom_1, interaction.res_1, df_atoms
+            closest_atom_1, interaction.res_1, residues
         )
         closest_atom_2_coords = get_atom_coords(
-            closest_atom_2, interaction.res_2, df_atoms
+            closest_atom_2, interaction.res_2, residues
         )
-        atom_1_coords = get_atom_coords(interaction.atom_1, interaction.res_1, df_atoms)
-        atom_2_coords = get_atom_coords(interaction.atom_2, interaction.res_2, df_atoms)
+        atom_1_coords = get_atom_coords(interaction.atom_1, interaction.res_1, residues)
+        atom_2_coords = get_atom_coords(interaction.atom_2, interaction.res_2, residues)
         if (
             closest_atom_1_coords is None
             or closest_atom_2_coords is None
