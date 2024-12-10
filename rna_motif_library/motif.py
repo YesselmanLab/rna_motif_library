@@ -25,13 +25,12 @@ from rna_motif_library.logger import get_logger
 log = get_logger("motif")
 
 
-# TODO check other types of DSSR classes like kissing loops
-def process_motif_interaction_out_data(pdb_name: str) -> list:
+def get_motifs(pdb_name: str) -> list:
     """Process motifs and interactions from a PDB file"""
     hbonds, basepairs = get_hbonds_and_basepairs(pdb_name)
 
     mp = MotifFactory(pdb_name, hbonds, basepairs)
-    mp.process()
+    return mp.process()
 
 
 class Motif:
@@ -138,7 +137,7 @@ def get_motifs_from_json(json_path: str) -> List[Motif]:
 def save_motifs_to_json(motifs: List[Motif], json_path: str):
     """Save motifs to a JSON file"""
     with open(json_path, "w") as f:
-        json.dump([m.to_dict() for m in motifs], f, indent=4)
+        json.dump([m.to_dict() for m in motifs], f)
 
 
 class MotifFactory:
@@ -175,6 +174,7 @@ class MotifFactory:
         dssr_output = DSSROutput(json_path=json_path)
         dssr_motifs = dssr_output.get_motifs()
         dssr_tertiary_contacts = dssr_output.get_tertiary_contacts()
+        # TODO check other types of DSSR classes like kissing loops
         for t in dssr_tertiary_contacts:
             print(t)
         # Process each motif
@@ -183,6 +183,7 @@ class MotifFactory:
         for m in dssr_motifs:
             mi = self._generate_motif(m, all_residues)
             motifs.append(mi)
+        return motifs
         """for i, motif1 in enumerate(motifs):
             for j, motif2 in enumerate(motifs):
                 if i >= j:
@@ -209,12 +210,7 @@ class MotifFactory:
                             break
                     else:
                         continue
-        print(len(contained_motifs))
-        for m in contained_motifs:
-            print(m[0].name, m[1].name)
-        # self._merge_singlet_separated(motifs)
 
-        exit()
         return motifs
 
     def _get_residues_for_motif(

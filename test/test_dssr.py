@@ -1,13 +1,13 @@
 import os
 
 from rna_motif_library.classes import Motif, Residue
-from rna_motif_library.motif import process_motif_interaction_out_data
+from rna_motif_library.motif import get_motifs
 
 RESOURCE_PATH = "test/resources"
 
 
 def _test_residue_motif_rebuild_from_dict():
-    motifs = process_motif_interaction_out_data(
+    motifs = get_motifs(
         1,
         os.path.join(RESOURCE_PATH, "1A9N.cif"),
     )
