@@ -59,7 +59,9 @@ class Motif:
     @classmethod
     def from_dict(cls, d: dict):
         # Convert nested objects back to their proper classes
-        strands = [[Residue.from_dict(r) for r in strand] for strand in d["strands"]]
+        strands = []
+        for strand in d["strands"]:
+            strands.append([Residue.from_dict(r) for r in strand])
         basepairs = [Basepair.from_dict(bp) for bp in d["basepairs"]]
         basepair_ends = [Basepair.from_dict(bp) for bp in d["basepair_ends"]]
         hbonds = [Hbond.from_dict(hb) for hb in d["hbonds"]]
@@ -112,13 +114,16 @@ class Motif:
         return False
 
     def to_dict(self):
+        strands = []
+        for strand in self.strands:
+            strands.append([res.to_dict() for res in strand])
         return {
             "name": self.name,
             "mtype": self.mtype,
             "pdb": self.pdb,
             "size": self.size,
             "sequence": self.sequence,
-            "strands": [res.to_dict() for res in self.get_residues()],
+            "strands": strands,
             "basepairs": [bp.to_dict() for bp in self.basepairs],
             "basepair_ends": [bp.to_dict() for bp in self.basepair_ends],
             "hbonds": [hb.to_dict() for hb in self.hbonds],
