@@ -129,6 +129,27 @@ class Motif:
             "hbonds": [hb.to_dict() for hb in self.hbonds],
         }
 
+    def to_cif(self, cif_path: str):
+        f = open(cif_path, "w")
+        f.write("data_\n")
+        f.write("_entry.id test\n")
+        f.write("loop_\n")
+        f.write("_atom_site.group_PDB\n")
+        f.write("_atom_site.id\n")
+        f.write("_atom_site.auth_atom_id\n")
+        f.write("_atom_site.auth_comp_id\n")
+        f.write("_atom_site.auth_asym_id\n")
+        f.write("_atom_site.auth_seq_id\n")
+        f.write("_atom_site.pdbx_PDB_ins_code\n")
+        f.write("_atom_site.Cartn_x\n")
+        f.write("_atom_site.Cartn_y\n")
+        f.write("_atom_site.Cartn_z\n")
+        acount = 1
+        for residue in self.get_residues():
+            s, acount = residue.to_cif_str(acount)
+            f.write(s)
+        f.close()
+
 
 def get_motifs_from_json(json_path: str) -> List[Motif]:
     """
@@ -180,14 +201,15 @@ class MotifFactory:
         dssr_motifs = dssr_output.get_motifs()
         dssr_tertiary_contacts = dssr_output.get_tertiary_contacts()
         # TODO check other types of DSSR classes like kissing loops
-        for t in dssr_tertiary_contacts:
-            print(t)
+        # for t in dssr_tertiary_contacts:
+        #    print(t)
         # Process each motif
         motifs = []
         log.info(f"Processing {len(dssr_motifs)} motifs")
         for m in dssr_motifs:
-            mi = self._generate_motif(m, all_residues)
-            motifs.append(mi)
+            residues = self._get_residues_for_motif(m, all_residues)
+            motifs.append(self._generate_motif(residues))
+        motifs = self._remove_strand_overlap_motifs(motifs)
         return motifs
         """for i, motif1 in enumerate(motifs):
             for j, motif2 in enumerate(motifs):
@@ -202,21 +224,11 @@ class MotifFactory:
                 if overlap_count > 2:
                     print(motif1.name, motif2.name, overlap_count)
         """
-        contained_motifs = []
-        for i, motif1 in enumerate(motifs):
-            for j, motif2 in enumerate(motifs):
-                if i >= j:
-                    continue
-                for strand1 in motif1.strands:
-                    for strand2 in motif2.strands:
-                        if all(res in strand1 for res in strand2):
-
-                            contained_motifs.append((motif1, motif2))
-                            break
-                    else:
-                        continue
 
         return motifs
+
+    def from_residues(self, residues: List[Residue]) -> Motif:
+        return self._generate_motif(residues)
 
     def _get_residues_for_motif(
         self, m: Any, all_residues: Dict[str, Residue]
@@ -244,10 +256,9 @@ class MotifFactory:
                 return True
         return False
 
-    def _generate_motif(self, m: Any, all_residues: Dict[str, Residue]) -> Motif:
+    def _generate_motif(self, residues: List[Residue]) -> Motif:
         # We need to determine the data for the motif and build a class
         # First get the type
-        residues = self._get_residues_for_motif(m, all_residues)
         residue_ids = [res.get_x3dna_str() for res in residues]
         strands = self._generate_strands(residues)
         end_residue_ids = []
@@ -287,7 +298,11 @@ class MotifFactory:
                 mtype = "HELIX"
             else:
                 mtype = "TWOWAY-JUNCTION"
-        elif len(end_basepairs) > 2 and len(strands) == len(end_basepairs):
+        elif (
+            len(end_basepairs) > 2
+            and len(strands) == len(end_basepairs)
+            and num_of_loop_strands == 0
+        ):
             mtype = "NWAY-JUNCTION"
         else:
             log.debug(
@@ -486,3 +501,60 @@ class MotifFactory:
                     print(mi.mname, mj.mname)
 
         return []
+
+    def _extract_hairpin_motif(self, hairpin_motif, other_motif):
+        # Find the hairpin strand in the other motif
+        hairpin_strand = None
+        for strand in other_motif.strands:
+            # Check if this strand is contained within any of the hairpin motif's strands
+            for hairpin_strand_candidate in hairpin_motif.strands:
+                if all(res in hairpin_strand_candidate for res in strand):
+                    hairpin_strand = strand
+                    break
+            if hairpin_strand is not None:
+                break
+
+        residues = []
+        for strand in other_motif.strands:
+            if strand != hairpin_strand:
+                residues.extend(strand)
+
+        new_motif = self.from_residues(residues)
+        return new_motif
+
+    def _remove_strand_overlap_motifs(self, motifs: List[Motif]) -> List[Motif]:
+        """
+        DSSR sometimes thinks hairpin strands are contained in larger motifs but are
+        actually tertiary contacts and need to be seperated.
+        """
+        contained_motifs = []
+        new_motifs = []
+        for i, motif1 in enumerate(motifs):
+            found = False
+            for j, motif2 in enumerate(motifs):
+                if i >= j:
+                    continue
+                for strand1 in motif1.strands:
+                    for strand2 in motif2.strands:
+                        if all(res in strand1 for res in strand2):
+                            contained_motifs.append((motif1, motif2))
+                            found = True
+                            break
+                        else:
+                            continue
+            if not found:
+                new_motifs.append(motif1)
+
+        for motif1, motif2 in contained_motifs:
+            if not ("HAIRPIN" in motif1.name or "HAIRPIN" in motif2.name):
+                continue
+            if "HAIRPIN" in motif1.name:
+                hairpin_motif = motif1
+                other_motif = motif2
+            else:
+                hairpin_motif = motif2
+                other_motif = motif1
+            new_motif = self._extract_hairpin_motif(hairpin_motif, other_motif)
+            new_motifs.append(new_motif)
+            new_motifs.append(hairpin_motif)
+        return new_motifs
