@@ -258,8 +258,8 @@ class Hbond:
 
 @dataclass(frozen=True, order=True)
 class Basepair:
-    res_1: X3DNAInteraction
-    res_2: X3DNAInteraction
+    res_1: X3DNAResidue
+    res_2: X3DNAResidue
     hbonds: List[Hbond]
     bp_type: str
     bp_name: str

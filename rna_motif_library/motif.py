@@ -181,153 +181,8 @@ def save_motifs_to_json(motifs: List[Motif], json_path: str):
         json.dump([m.to_dict() for m in motifs], f)
 
 
-class MotifFactory:
-    """Class for processing motifs and interactions from PDB files"""
-
-    def __init__(self, pdb_name: str, hbonds: List[Hbond], basepairs: List[Basepair]):
-        """
-        Initialize the MotifProcessor
-
-        Args:
-            count (int): # of PDBs processed (loaded from outside)
-            pdb_path (str): path to the source PDB
-        """
-        self.pdb_name = pdb_name
-        self.hbonds = hbonds
-        self.basepairs = basepairs
-
-    def process(self) -> List[Motif]:
-        """
-        Process the PDB file and extract motifs and interactions
-
-        Returns:
-            motif_list (list): list of motif names
-        """
-        log.debug(f"{self.pdb_name}")
-        residue_data = json.loads(
-            open(
-                os.path.join(DATA_PATH, "jsons", "residues", f"{self.pdb_name}.json")
-            ).read()
-        )
-        all_residues = {k: Residue.from_dict(v) for k, v in residue_data.items()}
-        json_path = os.path.join(DATA_PATH, "dssr_output", f"{self.pdb_name}.json")
-        dssr_output = DSSROutput(json_path=json_path)
-        dssr_motifs = dssr_output.get_motifs()
-        motifs = []
-        log.info(f"Processing {len(dssr_motifs)} motifs")
-        for m in dssr_motifs:
-            residues = self._get_residues_for_motif(m, all_residues)
-            m = self._generate_motif(residues)
-            motifs.append(m)
-        motifs = self._remove_strand_overlap_motifs(motifs)
-        motifs = self._remove_duplicate_motifs(motifs)
-        log.info(f"Final number of motifs: {len(motifs)}")
-        return motifs
-
-    def from_residues(self, residues: List[Residue]) -> Motif:
-        return self._generate_motif(residues)
-
-    def _get_residues_for_motif(
-        self, m: Any, all_residues: Dict[str, Residue]
-    ) -> List[Residue]:
-        residues = []
-        for nt in m.nts_long:
-            if nt in all_residues:
-                residues.append(all_residues[nt])
-            else:
-                log.warning(f"Residue {nt} not found in {self.pdb_name}")
-                continue
-        return residues
-
-    def _is_strand_a_loop(
-        self, strand: List[Residue], end_basepairs: List[Basepair]
-    ) -> bool:
-        end_residue_ids = []
-        end_residue_ids.append(strand[0].get_x3dna_str())
-        end_residue_ids.append(strand[-1].get_x3dna_str())
-        for bp in end_basepairs:
-            if (
-                bp.res_1.get_str() in end_residue_ids
-                and bp.res_2.get_str() in end_residue_ids
-            ):
-                return True
-        return False
-
-    def _generate_motif(self, residues: List[Residue]) -> Motif:
-        # We need to determine the data for the motif and build a class
-        # First get the type
-        residue_ids = [res.get_x3dna_str() for res in residues]
-        strands = self._generate_strands(residues)
-        end_residue_ids = []
-        for s in strands:
-            end_residue_ids.append(s[0].get_x3dna_str())
-            end_residue_ids.append(s[-1].get_x3dna_str())
-        basepairs = []
-        for bp in self.basepairs:
-            if bp.res_1.get_str() in residue_ids and bp.res_2.get_str() in residue_ids:
-                basepairs.append(bp)
-        end_basepairs = []
-        for bp in basepairs:
-            if (
-                bp.res_1.get_str() in end_residue_ids
-                and bp.res_2.get_str() in end_residue_ids
-            ):
-                end_basepairs.append(bp)
-        hbonds = []
-        for hb in self.hbonds:
-            if hb.res_1.get_str() in residue_ids and hb.res_2.get_str() in residue_ids:
-                hbonds.append(hb)
-        mtype = "UNKNOWN"
-        num_of_loop_strands = 0
-        num_of_wc_pairs = 0
-        for bp in basepairs:
-            if bp.bp_type == "WC":
-                num_of_wc_pairs += 1
-        for s in strands:
-            if self._is_strand_a_loop(s, end_basepairs):
-                num_of_loop_strands += 1
-        if len(end_basepairs) == 0 and num_of_loop_strands == 0:
-            mtype = "SINGLE-STRAND"
-        elif len(end_basepairs) == 1 and num_of_loop_strands == 1:
-            mtype = "HAIRPIN"
-        elif len(end_basepairs) == 2 and len(strands) == 2 and num_of_loop_strands == 0:
-            if num_of_wc_pairs == len(strands[0]):
-                mtype = "HELIX"
-            else:
-                mtype = "TWOWAY-JUNCTION"
-        elif (
-            len(end_basepairs) > 2
-            and len(strands) == len(end_basepairs)
-            and num_of_loop_strands == 0
-        ):
-            mtype = "NWAY-JUNCTION"
-        else:
-            log.debug(
-                f"Unknown motif type in {self.pdb_name} with "
-                f"{len(end_basepairs)} end basepairs and "
-                f"{len(strands)} strands and "
-                f"{num_of_loop_strands} loop strands and "
-                f"{num_of_wc_pairs} wc pairs"
-            )
-            res_str = ""
-            for s in strands:
-                res_str += " ".join([res.get_x3dna_str() for res in s]) + " "
-            log.debug(res_str)
-        sequence = self._find_sequence(strands).replace("&", "-")
-        mname = f"{mtype}-{sequence}"
-        return Motif(
-            mname,
-            mtype,
-            self.pdb_name,
-            "SIZE",
-            sequence,
-            strands,
-            basepairs,
-            end_basepairs,
-            hbonds,
-        )
-
-    def _generate_strands(self, residues: List[Residue]) -> List[List[Residue]]:
+class ChainGenerator:
+    def generate_chains(self, residues: List[Residue]) -> List[List[Residue]]:
         """
         Generates ordered strands of RNA residues by finding root residues and building 5' to 3'.
 
@@ -341,19 +196,6 @@ class MotifFactory:
         strands_of_rna = self._build_strands_5to3(residue_roots, res_list_modified)
 
         return strands_of_rna
-
-    def _find_sequence(self, strands_of_rna: List[List[Residue]]) -> str:
-        """Find sequences from found strands of RNA"""
-        res_strands = []
-        for strand in strands_of_rna:
-            res_strand = []
-            for residue in strand:
-                mol_name = residue.res_id
-                res_strand.append(mol_name)
-            strand_sequence = "".join(res_strand)
-            res_strands.append(strand_sequence)
-        sequence = "&".join(res_strands)
-        return sequence
 
     def _find_residue_roots(
         self, res_list: List[Residue]
@@ -448,6 +290,177 @@ class MotifFactory:
             built_strands.append(chain)
 
         return built_strands
+
+
+class MotifFactory:
+    """Class for processing motifs and interactions from PDB files"""
+
+    def __init__(self, pdb_name: str, hbonds: List[Hbond], basepairs: List[Basepair]):
+        """
+        Initialize the MotifProcessor
+
+        Args:
+            count (int): # of PDBs processed (loaded from outside)
+            pdb_path (str): path to the source PDB
+        """
+        self.pdb_name = pdb_name
+        self.hbonds = hbonds
+        self.basepairs = basepairs
+        self.chain_generator = ChainGenerator()
+        self.wc_pairs = ["GC", "CG", "GU", "UG", "AU", "UA"]
+
+    def process(self) -> List[Motif]:
+        """
+        Process the PDB file and extract motifs and interactions
+
+        Returns:
+            motif_list (list): list of motif names
+        """
+        log.debug(f"{self.pdb_name}")
+        residue_data = json.loads(
+            open(
+                os.path.join(DATA_PATH, "jsons", "residues", f"{self.pdb_name}.json")
+            ).read()
+        )
+        all_residues = {k: Residue.from_dict(v) for k, v in residue_data.items()}
+        json_path = os.path.join(DATA_PATH, "dssr_output", f"{self.pdb_name}.json")
+        dssr_output = DSSROutput(json_path=json_path)
+        dssr_motifs = dssr_output.get_motifs()
+        motifs = []
+        log.info(f"Processing {len(dssr_motifs)} motifs")
+        for m in dssr_motifs:
+            residues = self._get_residues_for_motif(m, all_residues)
+            m = self._generate_motif(residues)
+            motifs.append(m)
+        motifs = self._remove_strand_overlap_motifs(motifs)
+        motifs = self._remove_duplicate_motifs(motifs)
+        log.info(f"Final number of motifs: {len(motifs)}")
+        return motifs
+
+    def from_residues(self, residues: List[Residue]) -> Motif:
+        return self._generate_motif(residues)
+
+    def _get_residues_for_motif(
+        self, m: Any, all_residues: Dict[str, Residue]
+    ) -> List[Residue]:
+        residues = []
+        for nt in m.nts_long:
+            if nt in all_residues:
+                residues.append(all_residues[nt])
+            else:
+                log.warning(f"Residue {nt} not found in {self.pdb_name}")
+                continue
+        return residues
+
+    def _is_strand_a_loop(
+        self, strand: List[Residue], end_basepairs: List[Basepair]
+    ) -> bool:
+        end_residue_ids = []
+        end_residue_ids.append(strand[0].get_x3dna_str())
+        end_residue_ids.append(strand[-1].get_x3dna_str())
+        for bp in end_basepairs:
+            if (
+                bp.res_1.get_str() in end_residue_ids
+                and bp.res_2.get_str() in end_residue_ids
+            ):
+                return True
+        return False
+
+    def _is_bp_an_end_basepair(
+        self, strands: List[List[Residue]], bp: Basepair
+    ) -> bool:
+        bp_str = bp.res_1.res_id + bp.res_2.res_id
+        print(bp_str)
+        exit()
+
+    def _generate_motif(self, residues: List[Residue]) -> Motif:
+        # We need to determine the data for the motif and build a class
+        # First get the type
+        residue_ids = [res.get_x3dna_str() for res in residues]
+        strands = self.chain_generator.generate_chains(residues)
+        end_residue_ids = []
+        for s in strands:
+            end_residue_ids.append(s[0].get_x3dna_str())
+            end_residue_ids.append(s[-1].get_x3dna_str())
+        basepairs = []
+        for bp in self.basepairs:
+            if bp.res_1.get_str() in residue_ids and bp.res_2.get_str() in residue_ids:
+                basepairs.append(bp)
+        end_basepairs = []
+        for bp in basepairs:
+            if (
+                bp.res_1.get_str() in end_residue_ids
+                and bp.res_2.get_str() in end_residue_ids
+            ):
+                end_basepairs.append(bp)
+            # elif self._is_bp_an_end_basepair(strands, bp):
+            #    end_basepairs.append(bp)
+        hbonds = []
+        for hb in self.hbonds:
+            if hb.res_1.get_str() in residue_ids and hb.res_2.get_str() in residue_ids:
+                hbonds.append(hb)
+        mtype = "UNKNOWN"
+        num_of_loop_strands = 0
+        num_of_wc_pairs = 0
+        for bp in basepairs:
+            if bp.bp_type == "WC":
+                num_of_wc_pairs += 1
+        for s in strands:
+            if self._is_strand_a_loop(s, end_basepairs):
+                num_of_loop_strands += 1
+        if len(end_basepairs) == 0 and num_of_loop_strands == 0:
+            mtype = "SINGLE-STRAND"
+        elif len(end_basepairs) == 1 and num_of_loop_strands == 1:
+            mtype = "HAIRPIN"
+        elif len(end_basepairs) == 2 and len(strands) == 2 and num_of_loop_strands == 0:
+            if num_of_wc_pairs == len(strands[0]):
+                mtype = "HELIX"
+            else:
+                mtype = "TWOWAY-JUNCTION"
+        elif (
+            len(end_basepairs) > 2
+            and len(strands) == len(end_basepairs)
+            and num_of_loop_strands == 0
+        ):
+            mtype = "NWAY-JUNCTION"
+        else:
+            log.debug(
+                f"Unknown motif type in {self.pdb_name} with "
+                f"{len(end_basepairs)} end basepairs and "
+                f"{len(strands)} strands and "
+                f"{num_of_loop_strands} loop strands and "
+                f"{num_of_wc_pairs} wc pairs"
+            )
+            res_str = ""
+            for s in strands:
+                res_str += " ".join([res.get_x3dna_str() for res in s]) + " "
+            log.debug(res_str)
+        sequence = self._find_sequence(strands).replace("&", "-")
+        mname = f"{mtype}-{sequence}"
+        return Motif(
+            mname,
+            mtype,
+            self.pdb_name,
+            "SIZE",
+            sequence,
+            strands,
+            basepairs,
+            end_basepairs,
+            hbonds,
+        )
+
+    def _find_sequence(self, strands_of_rna: List[List[Residue]]) -> str:
+        """Find sequences from found strands of RNA"""
+        res_strands = []
+        for strand in strands_of_rna:
+            res_strand = []
+            for residue in strand:
+                mol_name = residue.res_id
+                res_strand.append(mol_name)
+            strand_sequence = "".join(res_strand)
+            res_strands.append(strand_sequence)
+        sequence = "&".join(res_strands)
+        return sequence
 
     def _remove_duplicate_motifs(self, motifs: List[Any]) -> List[Any]:
         unique_motifs = []

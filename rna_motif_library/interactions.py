@@ -225,16 +225,12 @@ def get_x3dna_pairs(pairs: Dict[str, DSSR_PAIR], interactions: List[X3DNAInterac
         res_2 = X3DNAResidueFactory.create_from_string(pair.nt2.nt_id)
         # Parse hbond description into atom pairs and distances
         hbond_details = parse_hbond_description(pair.hbonds_desc)
-        if len(hbond_details) == 0:
-            continue
         pair_interactions = []
         for interaction in interactions:
             if interaction.res_1 == res_1 and interaction.res_2 == res_2:
                 pair_interactions.append(interaction)
             elif interaction.res_1 == res_2 and interaction.res_2 == res_1:
                 pair_interactions.append(interaction)
-        if len(pair_interactions) == 0:
-            continue
         x3dna_pairs.append(
             X3DNAPair(res_1, res_2, pair_interactions, pair.name, pair.LW)
         )
