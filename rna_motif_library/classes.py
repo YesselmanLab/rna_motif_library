@@ -367,6 +367,18 @@ class Residue:
         if not isinstance(other, Residue):
             return False
 
+        return self.is_equal(other)
+
+    def is_equal(self, other, check_coords=False):
+        if check_coords:
+            return (
+                self.chain_id == other.chain_id
+                and self.res_id == other.res_id
+                and self.num == other.num
+                and self.ins_code == other.ins_code
+                and self.rtype == other.rtype
+                and np.allclose(self.coords, other.coords)
+            )
         return (
             self.chain_id == other.chain_id
             and self.res_id == other.res_id

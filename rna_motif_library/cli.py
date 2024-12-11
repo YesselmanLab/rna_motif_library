@@ -24,22 +24,7 @@ from rna_motif_library.update_library import (
 from rna_motif_library.interactions import get_hbonds_and_basepairs
 from rna_motif_library.motif import Motif
 
-# TODO look at this stuff for the next week or so
-# we want the angle not the dihedral angle
-# so save the dihedral but need to do angle calcs and rename the dihedral stuff and push it aside
-# also, take another look at threading because it shouldn't be so damn slow
-# figure out how to use github release
-# have a docker image to run on a virtual machine
-# we don't have the rights to DSSR or SNAP so we need to add a way to install these things
-
-####
-# check for pseudoknot:
-# does a strand of a helix exist within another motif (hairpin/sstrand)? (easy check to write)
-
-#### TODO look at this stoff - 10/25/2024 and week or so after and build it out
-# if 2 or more strands are within motif A that exist in motif B, then motif A should be rejected
-
-# write a function to generate PDB from residue/motif
+# TODO check other types of DSSR classes like kissing loops
 
 
 log = get_logger("cli")

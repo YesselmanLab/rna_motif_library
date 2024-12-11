@@ -78,6 +78,21 @@ class Motif:
             hbonds=hbonds,
         )
 
+    def is_equal(self, other, check_coords=False):
+        is_equal = (
+            (self.name == other.name)
+            and (self.mtype == other.mtype)
+            and (self.sequence == other.sequence)
+            and (self.size == other.size)
+        )
+        for strand1, strand2 in zip(self.strands, other.strands):
+            for res1, res2 in zip(strand1, strand2):
+                if res1.is_equal(res2, check_coords):
+                    continue
+                else:
+                    return False
+        return is_equal
+
     def num_strands(self):
         return len(self.strands)
 
@@ -189,7 +204,6 @@ class MotifFactory:
             motif_list (list): list of motif names
         """
         log.debug(f"{self.pdb_name}")
-
         residue_data = json.loads(
             open(
                 os.path.join(DATA_PATH, "jsons", "residues", f"{self.pdb_name}.json")
@@ -199,32 +213,15 @@ class MotifFactory:
         json_path = os.path.join(DATA_PATH, "dssr_output", f"{self.pdb_name}.json")
         dssr_output = DSSROutput(json_path=json_path)
         dssr_motifs = dssr_output.get_motifs()
-        dssr_tertiary_contacts = dssr_output.get_tertiary_contacts()
-        # TODO check other types of DSSR classes like kissing loops
-        # for t in dssr_tertiary_contacts:
-        #    print(t)
-        # Process each motif
         motifs = []
         log.info(f"Processing {len(dssr_motifs)} motifs")
         for m in dssr_motifs:
             residues = self._get_residues_for_motif(m, all_residues)
-            motifs.append(self._generate_motif(residues))
+            m = self._generate_motif(residues)
+            motifs.append(m)
         motifs = self._remove_strand_overlap_motifs(motifs)
-        return motifs
-        """for i, motif1 in enumerate(motifs):
-            for j, motif2 in enumerate(motifs):
-                if i >= j:
-                    continue
-                # Count residue overlap between motifs
-                overlap_count = 0
-                for res1 in motif1.get_residues():
-                    for res2 in motif2.get_residues():
-                        if res1 == res2:
-                            overlap_count += 1
-                if overlap_count > 2:
-                    print(motif1.name, motif2.name, overlap_count)
-        """
-
+        motifs = self._remove_duplicate_motifs(motifs)
+        log.info(f"Final number of motifs: {len(motifs)}")
         return motifs
 
     def from_residues(self, residues: List[Residue]) -> Motif:
@@ -368,7 +365,7 @@ class MotifFactory:
         but no 3' to 5' connection from another residue (i.e. it's at the 5' end).
 
         Args:
-            res_list: List of ResidueNew objects to analyze
+            res_list: List of Residue objects to analyze
 
         Returns:
             Tuple containing:
@@ -379,23 +376,17 @@ class MotifFactory:
 
         # Check each residue to see if it's a root
         for source_res in res_list:
-            has_outgoing = False  # 5' to 3' connection
             has_incoming = False  # 3' to 5' connection
-
             # Compare against all other residues
             for target_res in res_list:
                 if source_res == target_res:
                     continue
-
                 connection = self._are_residues_connected(source_res, target_res)
-
-                if connection == 1:  # 5' to 3'
-                    has_outgoing = True
-                elif connection == -1:  # 3' to 5'
+                if connection == -1:  # 3' to 5'
                     has_incoming = True
                     break  # Can stop checking once we find an incoming connection
             # Root residues have outgoing but no incoming connections
-            if has_outgoing and not has_incoming:
+            if not has_incoming:
                 roots.append(source_res)
 
         # Return roots and remaining residues
@@ -458,28 +449,23 @@ class MotifFactory:
 
         return built_strands
 
-    # TODO come back to this after other processing
     def _remove_duplicate_motifs(self, motifs: List[Any]) -> List[Any]:
-        """Remove duplicate motifs from a list of motifs"""
-        duplicates = []
-        for m1 in motifs:
-            if m1 in duplicates:
-                continue
-
-            m1_nts = [nt.split(".")[1] for nt in m1.nts_long]
-
-            for m2 in motifs:
-                if m1 == m2:
+        unique_motifs = []
+        for i, motif in enumerate(motifs):
+            duplicate = False
+            for j, unique_motif in enumerate(unique_motifs):
+                if i <= j:
                     continue
-
-                m2_nts = [nt.split(".")[1] for nt in m2.nts_long]
-
-                if m1_nts == m2_nts:
-                    duplicates.append(m2)
-
-        unique_motifs = [m for m in motifs if m not in duplicates]
+                if motif.name != unique_motif.name:
+                    continue
+                if motif.is_equal(unique_motif, check_coords=True):
+                    duplicate = True
+                    break
+            if not duplicate:
+                unique_motifs.append(motif)
         return unique_motifs
 
+    # TODO come back to this after other processing
     def _merge_singlet_separated(self, motifs: List[Motif]) -> List[Motif]:
         target_motifs = []
         for mi in motifs:
