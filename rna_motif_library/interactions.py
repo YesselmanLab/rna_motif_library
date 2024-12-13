@@ -62,6 +62,20 @@ def dataframe_to_cif(df: pd.DataFrame, file_path: str) -> None:
 # top level function ###################################################################
 
 
+def get_hbonds_from_json(json_path: str) -> List[Hbond]:
+    with open(json_path) as f:
+        hbonds_data = json.load(f)
+        hbonds = [Hbond.from_dict(h) for h in hbonds_data]
+    return hbonds
+
+
+def get_basepairs_from_json(json_path: str) -> List[Basepair]:
+    with open(json_path) as f:
+        basepairs_data = json.load(f)
+        basepairs = [Basepair.from_dict(bp) for bp in basepairs_data]
+    return basepairs
+
+
 def get_hbonds_and_basepairs(
     pdb_name: str, overwrite: bool = False
 ) -> Tuple[List[Hbond], List[Basepair]]:
@@ -77,13 +91,8 @@ def get_hbonds_and_basepairs(
         and not overwrite
     ):
         log.info(f"Loading existing hbonds and basepairs for {pdb_name}")
-        # Load existing json files
-        with open(hbonds_json_path) as f:
-            hbonds_data = json.load(f)
-            hbonds = [Hbond.from_dict(h) for h in hbonds_data]
-        with open(basepairs_json_path) as f:
-            basepairs_data = json.load(f)
-            basepairs = [Basepair.from_dict(bp) for bp in basepairs_data]
+        hbonds = get_hbonds_from_json(hbonds_json_path)
+        basepairs = get_basepairs_from_json(basepairs_json_path)
         return hbonds, basepairs
     log.info(f"Generating hbonds and basepairs for {pdb_name}")
     json_path = os.path.join(DATA_PATH, "dssr_output", f"{pdb_name}.json")

@@ -181,6 +181,34 @@ def save_motifs_to_json(motifs: List[Motif], json_path: str):
         json.dump([m.to_dict() for m in motifs], f)
 
 
+def are_residues_connected(
+    source_residue: Residue,
+    residue_in_question: Residue,
+    cutoff: float = 2.75,
+) -> int:
+    """Determine if another residue is connected to this residue"""
+    # Get O3' coordinates from source residue
+    o3_coords_1 = source_residue.get_atom_coords("O3'")
+    p_coords_2 = residue_in_question.get_atom_coords("P")
+
+    # Check 5' to 3' connection
+    if o3_coords_1 is not None and p_coords_2 is not None:
+        distance = np.linalg.norm(np.array(p_coords_2) - np.array(o3_coords_1))
+        if distance < cutoff:
+            return 1
+
+    # Check 3' to 5' connection
+    o3_coords_2 = residue_in_question.get_atom_coords("O3'")
+    p_coords_1 = source_residue.get_atom_coords("P")
+
+    if o3_coords_2 is not None and p_coords_1 is not None:
+        distance = np.linalg.norm(np.array(o3_coords_2) - np.array(p_coords_1))
+        if distance < cutoff:
+            return -1
+
+    return 0
+
+
 class ChainGenerator:
     def generate_chains(self, residues: List[Residue]) -> List[List[Residue]]:
         """
@@ -223,7 +251,7 @@ class ChainGenerator:
             for target_res in res_list:
                 if source_res == target_res:
                     continue
-                connection = self._are_residues_connected(source_res, target_res)
+                connection = are_residues_connected(source_res, target_res)
                 if connection == -1:  # 3' to 5'
                     has_incoming = True
                     break  # Can stop checking once we find an incoming connection
@@ -234,34 +262,6 @@ class ChainGenerator:
         # Return roots and remaining residues
         remaining = [res for res in res_list if res not in roots]
         return roots, remaining
-
-    def _are_residues_connected(
-        self,
-        source_residue: Residue,
-        residue_in_question: Residue,
-        cutoff: float = 2.75,
-    ) -> int:
-        """Determine if another residue is connected to this residue"""
-        # Get O3' coordinates from source residue
-        o3_coords_1 = source_residue.get_atom_coords("O3'")
-        p_coords_2 = residue_in_question.get_atom_coords("P")
-
-        # Check 5' to 3' connection
-        if o3_coords_1 is not None and p_coords_2 is not None:
-            distance = np.linalg.norm(np.array(p_coords_2) - np.array(o3_coords_1))
-            if distance < cutoff:
-                return 1
-
-        # Check 3' to 5' connection
-        o3_coords_2 = residue_in_question.get_atom_coords("O3'")
-        p_coords_1 = source_residue.get_atom_coords("P")
-
-        if o3_coords_2 is not None and p_coords_1 is not None:
-            distance = np.linalg.norm(np.array(o3_coords_2) - np.array(p_coords_1))
-            if distance < cutoff:
-                return -1
-
-        return 0
 
     def _build_strands_5to3(
         self, residue_roots: List[Residue], res_list: List[Residue]
@@ -276,7 +276,7 @@ class ChainGenerator:
             while True:
                 next_residue = None
                 for res in res_list:
-                    if self._are_residues_connected(current_residue, res) == 1:
+                    if are_residues_connected(current_residue, res) == 1:
                         next_residue = res
                         break
 
