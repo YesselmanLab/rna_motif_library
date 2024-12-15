@@ -21,7 +21,7 @@ def main():
 
     #directory_path = input("Enter the directory path: ")  # Prompt user to enter the directory path
     cif_names = list_cif_files(directory_path)
-    output_file = os.path.join(directory_path, 'new_set_cif_names.csv')  # Save the CSV in the same directory
+    output_file = os.path.join(directory_path, 'new_set_cif_names.txt')  # Save the CSV in the same directory
     write_to_csv(cif_names, output_file)
     print(f"Exported CIF file names to {output_file}")
 

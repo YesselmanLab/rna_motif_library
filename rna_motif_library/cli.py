@@ -95,18 +95,22 @@ def cli():
 
 @cli.command()
 @click.option("--threads", default=1, help="Number of threads to use.")
+@click.option("--debug", is_flag=True, help="Enable debugging.")
 @log_and_setup
-def download_cifs(threads):
+def download_cifs(threads, debug):
     """
     Downloads CIFs specified in the CSV from the RCSB PDB database.
 
     Args:
         threads (int): Number of threads to run on.
+        debug (bool): Enable debugging output.
 
     Returns:
         None
 
     """
+    if debug:
+        log.info("Debug mode is enabled.")
     warnings.filterwarnings("ignore")
     csv_directory = os.path.join(LIB_PATH, "data/csvs/")
     csv_files = [file for file in os.listdir(csv_directory) if file.endswith(".csv")]
@@ -121,8 +125,9 @@ def download_cifs(threads):
 @cli.command()
 @click.option("--threads", default=1, help="Number of threads to use.")
 @click.option("--directory", default=None, help="Directory to PDBs used")
+@click.option("--debug", is_flag=True, help="Enable debugging.")
 @log_and_setup
-def process_dssr(threads, directory):
+def process_dssr(threads, directory, debug):
     """
     Processes every downloaded PDB with DSSR, extracting the secondary structure into a JSON.
 
@@ -135,6 +140,8 @@ def process_dssr(threads, directory):
         None
 
     """
+    if debug:
+        log.info("Debug mode is enabled.")
     warnings.filterwarnings("ignore")
     get_dssr_files(threads, directory)
 
@@ -142,8 +149,9 @@ def process_dssr(threads, directory):
 @cli.command()
 @click.option("--threads", default=1, help="Number of threads to use.")
 @click.option("--directory", default=None, help="Directory of PDBs to process")
+@click.option("--debug", is_flag=True, help="Enable debugging.")
 @log_and_setup
-def process_snap(threads, directory):
+def process_snap(threads, directory, debug):
     """
     Processes every downloaded PDB with SNAP, extracting RNA-protein interaction data.
 
@@ -154,6 +162,8 @@ def process_snap(threads, directory):
         None
 
     """
+    if debug:
+        log.info("Debug mode is enabled.")
     warnings.filterwarnings("ignore")
     get_snap_files(threads, directory)
 
@@ -177,6 +187,8 @@ def process_residues(pdb, directory, debug):
     """
     Processes residues from source PDB using data from DSSR.
     """
+    if debug:
+        log.info("Debug mode is enabled.")
     warnings.filterwarnings("ignore")
     os.makedirs(os.path.join(DATA_PATH, "jsons", "residues"), exist_ok=True)
     pdb_codes = get_pdb_codes(pdb, directory)
@@ -227,6 +239,8 @@ def process_interactions(pdb, directory, debug):
     """
     Processes interactions from source PDB using data from DSSR and interactions using data from SNAP.
     """
+    if debug:
+        log.info("Debug mode is enabled.")
     warnings.filterwarnings("ignore")
     os.makedirs(os.path.join(DATA_PATH, "jsons", "hbonds"), exist_ok=True)
     os.makedirs(os.path.join(DATA_PATH, "jsons", "basepairs"), exist_ok=True)
@@ -282,6 +296,8 @@ def generate_motifs(pdb, directory, debug):
         None
 
     """
+    if debug:
+        log.info("Debug mode is enabled.")
     warnings.filterwarnings("ignore")
     pdb_codes = get_pdb_codes(pdb, directory)
     generate_motif_files(pdb_codes)
