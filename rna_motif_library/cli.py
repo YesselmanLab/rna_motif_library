@@ -7,6 +7,7 @@ import functools
 import json
 import glob
 import pandas as pd
+
 from rna_motif_library.settings import LIB_PATH, DATA_PATH
 from rna_motif_library.logger import setup_logging, get_logger
 from rna_motif_library.classes import (
@@ -14,6 +15,8 @@ from rna_motif_library.classes import (
     sanitize_x3dna_atom_name,
     X3DNAResidueFactory,
     get_x3dna_res_id,
+    canon_res_list,
+    canon_amino_acid_list, residue_reclassifier, solvent_res
 )
 from rna_motif_library.update_library import (
     get_dssr_files,
@@ -207,8 +210,19 @@ def process_residues(pdb, directory, debug):
             chain_id, res_num, res_name, ins_code = i
             if ins_code == "None" or ins_code is None:
                 ins_code = ""
+            # Original creation
             x3dna_res_id = get_x3dna_res_id(res_name, res_num, chain_id, ins_code)
             x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
+            # Create new based on residue reassignment
+            if x3dna_res.res_id not in {*canon_res_list, *solvent_res}:
+                new_res_id = residue_reclassifier.get(x3dna_res.res_id, "UNK")
+                print(f"Noncanonical residue detected: {x3dna_res.res_id}")
+                print("Mapping...")
+                print(f"{x3dna_res.res_id} --> {new_res_id}")
+                x3dna_res_id = get_x3dna_res_id(new_res_id, res_num, chain_id, ins_code)
+                x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
+                # else: do nothing and keep the old instance
+
             residues[x3dna_res_id] = Residue.from_x3dna_residue(
                 x3dna_res, atom_names, coords
             )
@@ -288,9 +302,7 @@ def generate_motifs(pdb, directory, debug):
     Extracts motifs from source PDB using data from DSSR, and interactions using data from DSSR and SNAP.
 
     Args:
-        limit (int): Number of PDBs to process (defaults to all).
         pdb (str): Specific PDB ID to process (all by default).
-        threads (int): number of threads to use (default: 1)
 
     Returns:
         None

@@ -33,7 +33,13 @@ canon_res_list = [
     "TRP",
     "TYR",
     "U",
-    "VAL",
+    "VAL"
+]
+solvent_res = [
+    "HOH",  # water
+    "MG",  # magnesium
+    "ZN",  # zinc
+    "IUM",  # iodine ion
 ]
 canon_amino_acid_list = [
     "ALA",
@@ -57,14 +63,18 @@ canon_amino_acid_list = [
     "TYR",
     "VAL",
 ]
-
-
 atom_renames = {
     "OP1": "O1P",
     "OP2": "O2P",
     "OP3": "O3P",
 }
-
+residue_reclassifier = {
+    "DA": "A",
+    "DC": "C",
+    "DG": "G",
+    "DT": "T",
+    "DU": "U"
+}
 
 def get_x3dna_res_id(res_id: str, num: int, chain_id: str, ins_code: str) -> str:
     if res_id[-1].isdigit():
