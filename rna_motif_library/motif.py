@@ -308,6 +308,7 @@ class MotifFactory:
         self.basepairs = basepairs
         self.chain_generator = ChainGenerator()
         self.wc_pairs = ["GC", "CG", "GU", "UG", "AU", "UA"]
+        self.used_names = {}
 
     def process(self) -> List[Motif]:
         """
@@ -365,13 +366,6 @@ class MotifFactory:
             ):
                 return True
         return False
-
-    def _is_bp_an_end_basepair(
-        self, strands: List[List[Residue]], bp: Basepair
-    ) -> bool:
-        bp_str = bp.res_1.res_id + bp.res_2.res_id
-        print(bp_str)
-        exit()
 
     def _generate_motif(self, residues: List[Residue]) -> Motif:
         # We need to determine the data for the motif and build a class
@@ -436,7 +430,13 @@ class MotifFactory:
                 res_str += " ".join([res.get_x3dna_str() for res in s]) + " "
             log.debug(res_str)
         sequence = self._find_sequence(strands).replace("&", "-")
-        mname = f"{mtype}-{sequence}"
+        mname = f"{self.pdb_name}-{mtype}-{sequence}"
+        if mname in self.used_names:
+            mname = f"{self.pdb_name}-{mtype}-{sequence}-{self.used_names[mname]}"
+            self.used_names[mname] += 1
+        else:
+            self.used_names[mname] = 1
+        mname += f"-{self.used_names[mname]}"
         return Motif(
             mname,
             mtype,
