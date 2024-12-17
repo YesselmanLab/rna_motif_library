@@ -469,7 +469,7 @@ class MotifFactory:
             for j, unique_motif in enumerate(unique_motifs):
                 if i <= j:
                     continue
-                if motif.name != unique_motif.name:
+                if motif.sequence != unique_motif.sequence:
                     continue
                 if motif.is_equal(unique_motif, check_coords=True):
                     duplicate = True
