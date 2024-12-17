@@ -432,7 +432,6 @@ class MotifFactory:
         sequence = self._find_sequence(strands).replace("&", "-")
         mname = f"{self.pdb_name}-{mtype}-{sequence}"
         if mname in self.used_names:
-            mname = f"{self.pdb_name}-{mtype}-{sequence}-{self.used_names[mname]}"
             self.used_names[mname] += 1
         else:
             self.used_names[mname] = 1
