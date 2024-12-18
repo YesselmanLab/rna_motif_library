@@ -126,7 +126,7 @@ def convert_x3dna_hbonds_to_interactions(
 ) -> List[X3DNAInteraction]:
     # Determine type based on atom name
     def get_atom_type(atom):
-        if atom.startswith(("P", "OP")):
+        if atom.startswith(("P", "O1P", "OP2")):
             return "phos"
         elif atom.startswith(
             ("O2'", "O3'", "O4'", "O5'", "C1'", "C2'", "C3'", "C4'", "C5'")

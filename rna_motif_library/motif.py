@@ -165,6 +165,81 @@ class Motif:
             f.write(s)
         f.close()
 
+    def to_cif_str(self, acount: int):
+        s = ""
+        for residue in self.get_residues():
+            s += residue.to_cif_str(acount)
+            acount += 1
+        return s, acount
+
+
+class TertiaryContact:
+    def __init__(
+        self,
+        motif_1: Motif,
+        motif_2: Motif,
+        hbonds: List[Hbond],
+        basepairs: List[Basepair],
+    ):
+        self.motif_1 = motif_1
+        self.motif_2 = motif_2
+        self.hbonds = hbonds
+        self.basepairs = basepairs
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "TertiaryContact":
+        """
+        Create TertiaryContact instance from dictionary.
+
+        Args:
+            data (Dict[str, Any]): Dictionary containing TertiaryContact attributes
+
+        Returns:
+            TertiaryContact: New TertiaryContact instance
+        """
+        return cls(
+            motif_1=Motif.from_dict(data["motif_1"]),
+            motif_2=Motif.from_dict(data["motif_2"]),
+            hbonds=[Hbond.from_dict(hb) for hb in data["hbonds"]],
+            basepairs=[Basepair.from_dict(bp) for bp in data["basepairs"]],
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Convert TertiaryContact to dictionary representation.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing TertiaryContact attributes
+        """
+        return {
+            "motif_1": self.motif_1.to_dict(),
+            "motif_2": self.motif_2.to_dict(),
+            "hbonds": [hb.to_dict() for hb in self.hbonds],
+            "basepairs": [bp.to_dict() for bp in self.basepairs],
+        }
+
+    def to_cif(self, cif_path: str):
+        f = open(cif_path, "w")
+        f.write("data_\n")
+        f.write("_entry.id test\n")
+        f.write("loop_\n")
+        f.write("_atom_site.group_PDB\n")
+        f.write("_atom_site.id\n")
+        f.write("_atom_site.auth_atom_id\n")
+        f.write("_atom_site.auth_comp_id\n")
+        f.write("_atom_site.auth_asym_id\n")
+        f.write("_atom_site.auth_seq_id\n")
+        f.write("_atom_site.pdbx_PDB_ins_code\n")
+        f.write("_atom_site.Cartn_x\n")
+        f.write("_atom_site.Cartn_y\n")
+        f.write("_atom_site.Cartn_z\n")
+        acount = 1
+        s, acount = self.motif_1.to_cif_str(acount)
+        f.write(s)
+        s, acount = self.motif_2.to_cif_str(acount)
+        f.write(s)
+        f.close()
+
 
 def get_motifs_from_json(json_path: str) -> List[Motif]:
     """
