@@ -1,6 +1,8 @@
 import time
 import warnings
 import os
+from collections import Counter
+
 import click
 import sys
 import functools
@@ -196,6 +198,8 @@ def process_residues(pdb, directory, debug):
     os.makedirs(os.path.join(DATA_PATH, "jsons", "residues"), exist_ok=True)
     pdb_codes = get_pdb_codes(pdb, directory)
     log.info(f"Processing {len(pdb_codes)} PDBs")
+
+    residue_counter = Counter()
     for pdb_code in pdb_codes:
         df_atoms = pd.read_parquet(
             os.path.join(DATA_PATH, "pdbs_dfs", f"{pdb_code}.parquet")
@@ -213,6 +217,7 @@ def process_residues(pdb, directory, debug):
             # Original creation
             x3dna_res_id = get_x3dna_res_id(res_name, res_num, chain_id, ins_code)
             x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
+            residue_counter[x3dna_res.res_id] += 1
             # Create new based on residue reassignment
             if x3dna_res.res_id not in {*canon_res_list, *solvent_res}:
                 new_res_id = residue_reclassifier.get(x3dna_res.res_id, "UNK")
@@ -222,7 +227,6 @@ def process_residues(pdb, directory, debug):
                 x3dna_res_id = get_x3dna_res_id(new_res_id, res_num, chain_id, ins_code)
                 x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
                 # else: do nothing and keep the old instance
-
             residues[x3dna_res_id] = Residue.from_x3dna_residue(
                 x3dna_res, atom_names, coords
             )
@@ -232,6 +236,13 @@ def process_residues(pdb, directory, debug):
         )
         with open(residues_json_path, "w") as f:
             json.dump({k: v.to_dict() for k, v in residues.items()}, f)
+
+    # Save residue counts to a CSV file
+    residue_counts_csv = os.path.join(DATA_PATH, "jsons", "residue_counts.csv")
+    residue_counts_df = pd.DataFrame.from_dict(residue_counter, orient="index", columns=["Count"])
+    residue_counts_df.index.name = "res_id"
+    residue_counts_df = residue_counts_df.reset_index()
+    residue_counts_df.to_csv(residue_counts_csv, index=False)
 
 
 @cli.command()
