@@ -221,9 +221,9 @@ def process_residues(pdb, directory, debug):
             # Create new based on residue reassignment
             if x3dna_res.res_id not in {*canon_res_list, *solvent_res}:
                 new_res_id = residue_reclassifier.get(x3dna_res.res_id, "UNK")
-                print(f"Noncanonical residue detected: {x3dna_res.res_id}")
-                print("Mapping...")
-                print(f"{x3dna_res.res_id} --> {new_res_id}")
+                log.info(f"Noncanonical residue detected: {x3dna_res.res_id}")
+                log.info("Mapping...")
+                log.info(f"{x3dna_res.res_id} --> {new_res_id}")
                 x3dna_res_id = get_x3dna_res_id(new_res_id, res_num, chain_id, ins_code)
                 x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
                 # else: do nothing and keep the old instance
@@ -238,7 +238,8 @@ def process_residues(pdb, directory, debug):
             json.dump({k: v.to_dict() for k, v in residues.items()}, f)
 
     # Save residue counts to a CSV file
-    residue_counts_csv = os.path.join(DATA_PATH, "jsons", "residue_counts.csv")
+    resources_path = os.path.join(os.path.dirname(DATA_PATH), "resources")
+    residue_counts_csv = os.path.join(resources_path, "residue_counts.csv")
     residue_counts_df = pd.DataFrame.from_dict(residue_counter, orient="index", columns=["Count"])
     residue_counts_df.index.name = "res_id"
     residue_counts_df = residue_counts_df.reset_index()

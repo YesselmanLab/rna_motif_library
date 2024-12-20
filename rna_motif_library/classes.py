@@ -37,9 +37,20 @@ canon_res_list = [
 ]
 solvent_res = [
     "HOH",  # water
-    "MG",  # magnesium
-    "ZN",  # zinc
+    "MG",  # magnesium ion
+    "ZN",  # zinc ion
     "IUM",  # iodine ion
+    "MRD",  # (2R,3R)-2,3-Butanediol
+    "ACT",  # acetate ion
+    "K",  # potassium ion
+
+
+]
+ligands = [
+    "LCC",  # 1,2-Dilinoleoyl-sn-glycero-3-phosphocholine
+    "LCG",  # 1,2-Dilinoleoyl-sn-glycero-3-phosphoglycerol
+    "SUR",  # sucralose
+
 ]
 canon_amino_acid_list = [
     "ALA",
@@ -73,7 +84,12 @@ residue_reclassifier = {
     "DC": "C",
     "DG": "G",
     "DT": "T",
-    "DU": "U"
+    "DU": "U",
+    "GNP": "G",  # Guanosine-5'-(β,γ-imido)triphosphate
+    "PZG": "A",  # 3-Acetylpyridine adenine dinucleotide
+    "GDP": "G",  # Guanosine-5'-diphosphate
+    "SAH": "A",  # S-Adenosyl-L-homocysteine
+    "MUM": "U",  # 2'-Deoxyuridine-5'-Monophosphate
 }
 
 def get_x3dna_res_id(res_id: str, num: int, chain_id: str, ins_code: str) -> str:

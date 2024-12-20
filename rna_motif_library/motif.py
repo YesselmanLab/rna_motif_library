@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 from dataclasses import dataclass
@@ -14,7 +15,7 @@ from rna_motif_library.classes import (
     X3DNAResidue,
     Residue,
     Hbond,
-    Basepair,
+    Basepair, residue_reclassifier,
 )
 
 from rna_motif_library.settings import LIB_PATH, DATA_PATH
@@ -328,8 +329,35 @@ class MotifFactory:
         dssr_motifs = dssr_output.get_motifs()
         motifs = []
         log.info(f"Processing {len(dssr_motifs)} motifs")
+        # load in residue count dictionary
+        residue_counts = {}
+        residue_counts_file_path = "resources/residue_counts.csv"
+        # Open and read
+        with open(residue_counts_file_path, mode="r") as file:
+            reader = csv.reader(file)
+            next(reader)  # Skip the header row
+            for row in reader:
+                key = row[0]
+                value = int(row[1])
+                residue_counts[key] = value
+
         for m in dssr_motifs:
             residues = self._get_residues_for_motif(m, all_residues)
+            odd_residue_found = False
+            for r in residues:
+                residue_id = r.res_id
+                residue_count = residue_counts.get(residue_id, 0)
+                if residue_count < 11:
+                    odd_residue_found = True
+                    break
+                else:
+                    new_res_id = residue_reclassifier.get(residue_id, "UNK")
+                    if new_res_id == "UNK":
+                        odd_residue_found = True
+                        break
+                    r.res_id = new_res_id
+            if odd_residue_found == True:
+                continue
             m = self._generate_motif(residues)
             motifs.append(m)
         motifs = self._remove_strand_overlap_motifs(motifs)
