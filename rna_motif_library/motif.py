@@ -340,7 +340,6 @@ class MotifFactory:
                 key = row[0]
                 value = int(row[1])
                 residue_counts[key] = value
-
         for m in dssr_motifs:
             residues = self._get_residues_for_motif(m, all_residues)
             odd_residue_found = False

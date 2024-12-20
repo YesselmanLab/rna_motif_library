@@ -119,6 +119,8 @@ def get_dssr_files(threads: int, directory: str) -> None:
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
         executor.map(process_pdb, pdbs)
+        validate_and_regenerate_invalid_json_files(out_path, pdb_dir)
+
     # TODO this should be put into the process_pdb function above to speed up with threading
     # validate_and_regenerate_invalid_json_files(out_path, pdb_dir)
 
@@ -179,3 +181,35 @@ def generate_motif_files(pdb_codes: List[str]) -> None:
     for pdb_code in pdb_codes:
         motifs = get_motifs(pdb_code)
         save_motifs_to_json(motifs, os.path.join(motif_dir, f"{pdb_code}.json"))
+
+
+def validate_and_regenerate_invalid_json_files(out_path: str, pdb_dir: str):
+    """
+    Validates all JSON files in the output directory. If a JSON file is invalid,
+    it is deleted and regenerated from the corresponding PDB file.
+
+    Args:
+        out_path (str): Path to the directory containing the JSON output files.
+        pdb_dir (str): Path to the directory containing the original PDB files.
+
+    Returns:
+        None
+    """
+    json_files = glob.glob(os.path.join(out_path, "*.json"))
+
+    for json_file in json_files:
+        try:
+            with open(json_file, "r") as file:
+                json.load(file)  # Try to load the JSON file
+        except (json.JSONDecodeError, IOError):
+            log.info(f"Invalid JSON detected: {json_file}. Regenerating...")
+            os.remove(json_file)  # Delete the invalid JSON file
+
+            # Regenerate the JSON file from the corresponding PDB file
+            pdb_name = os.path.basename(json_file)[:-5] + ".cif"
+            pdb_path = os.path.join(pdb_dir, pdb_name)
+            json_out_path = os.path.join(out_path, os.path.basename(json_file))
+
+            # Writes raw JSON data
+            write_dssr_json_output_to_file(DSSR_EXE, pdb_path, json_out_path)
+            log.info(f"Regenerated: {json_out_path}")
