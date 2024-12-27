@@ -43,15 +43,100 @@ solvent_res = [
     "MRD",  # (2R,3R)-2,3-Butanediol
     "ACT",  # acetate ion
     "K",  # potassium ion
-
+    "EDO",  # ethylene glycol
+    "CL",  # chloride ion
+    "CA",  # calcium ion
+    "GOL",  # glycerol
+    "SO",  # sulfite ion
+    "SF",  # sulfate ion
+    "SR",  # strontium ion
+    "MPD",  # 2-Methyl-2,4-pentanediol
+    "MES",  # 2-(N-morpholino)ethanesulfonic acid
+    "PO",  # phosphate ion
+    "NA",  # sodium ion
+    "NI",  # nickel ion
+    "IR",  # isopropanol or iridium ion (likely the former)
+    "MN",  # manganese ion
+    "CD",  # cadmium ion
+    "MA",  # methylamine
 
 ]
 ligands = [
     "LCC",  # 1,2-Dilinoleoyl-sn-glycero-3-phosphocholine
     "LCG",  # 1,2-Dilinoleoyl-sn-glycero-3-phosphoglycerol
     "SUR",  # sucralose
+    "SPD",  # spermidine
+    "GTA",  # Guanylyl-3',5'-thioadenosine; hybrid between G and A
+    "AET",  # 2-Aminoethylthiol
+    "IHP",  # inositol hexakisphosphate (phytic acid)
+    "PRF",  # proflavine; acridine derivative
+    "KIR",  # kirromycin
+    "BEF",  # beryllium trifluoride
+    "LDA",  # Lauric acid
+    "PE",  # phosphatidylethanolamine
+    "PG",  # phosphatidylglycerol
+    "1PE",  # 1-palmitoyl-2-oleoyl-phosphatidylethanolamine
+    "GLC",  # D-glucose
+    "FRU",  # D-fructose
+    "PPV",  # propylphosphonic acid anhydride
+    "ACE",  # acetyl group
+    "NCO",  # isocyanate
+    "DOC",  # deoxycholate
+
 
 ]
+residue_reclassifier = {
+    "DA": "A",
+    "DC": "C",
+    "DG": "G",
+    "DT": "T",
+    "DU": "U",
+    "GNP": "G",  # Guanosine-5'-(β,γ-imido)triphosphate
+    "PZG": "A",  # 3-Acetylpyridine adenine dinucleotide
+    "GDP": "G",  # Guanosine-5'-diphosphate
+    "SAH": "A",  # S-Adenosyl-L-homocysteine
+    "MUM": "U",  # 2'-Deoxyuridine-5'-Monophosphate
+    "1MG": "G",  # N1-Methylguanosine
+    "2MG": "G",  # N2-Methylguanosine
+    "H2U": "U",  # 5,6-Dihydrouridine
+    "M2G": "G",  # N2,N2-Dimethylguanosine
+    "T6A": "A",  # N6-Threonylcarbamoyladenosine
+    "7MG": "G",  # 7-Methylguanosine
+    "5MC": "C",  # 5-Methylcytosine
+    "1MA": "A",  # N1-Methyladenosine
+    "C2E": "C",  # cytidine-2'-phosphate-5'-phosphate-ethyl ester
+    "GTP": "G",  # Guanosine-5'-triphosphate
+    "ADP": "A",  # adenosine diphosphate
+    "IRI": "G",  # inosine-5'-monophosphate
+    "AMP": "A",  # adenosine monophosphate
+    "G7M": "G",  # 7-Methylguanosine-5'-monophosphate
+    "5MU": "U",  # 5-Methyluridine
+    "PSU": "U",  # pseudouridine
+    "ATP": "A",  # adenosine triphosphate
+    "SEP": "SER",  # phosphoserine
+    "75B": "T",  # 3'-(2-deoxy-beta-D-erythro-pentofuranosyl)thymine-5'-monophosphate
+    "ANP": "A",  # adenosine-5'-diphosphate
+    "URU": "U",  # pseudouridine monophosphate
+    "PPU": "U",  # pseudouridine
+    "GH": "G",  # guanosine-5'-aldehyde
+    "5GP": "G",  # 5'-Guanylic acid
+    "2IA": "A",  # 2-Iodoadenosine
+    "DU": "U",  # 2'-Deoxyuridine
+    "U3H": "U",  # 5-hydroxyuridine
+    "CH": "C",  # methylated cytosine
+    "MSE": "MET",  # selenomethionine
+    "TPO": "THR",  # phosphothreonine
+    "5BU": "U",  # 5-bromouridine
+    "KGN": "LYS",  # N6-glycyl-L-lysine
+    "9QV": "G",  # 9-Deazaguanine
+    "4OC": "C",  # 4-Oxocytidine
+    "UR": "U",  # uridine
+    "6MZ": "A",  # 6-Methyladenosine
+
+
+
+}
+
 canon_amino_acid_list = [
     "ALA",
     "ARG",
@@ -78,18 +163,6 @@ atom_renames = {
     "OP1": "O1P",
     "OP2": "O2P",
     "OP3": "O3P",
-}
-residue_reclassifier = {
-    "DA": "A",
-    "DC": "C",
-    "DG": "G",
-    "DT": "T",
-    "DU": "U",
-    "GNP": "G",  # Guanosine-5'-(β,γ-imido)triphosphate
-    "PZG": "A",  # 3-Acetylpyridine adenine dinucleotide
-    "GDP": "G",  # Guanosine-5'-diphosphate
-    "SAH": "A",  # S-Adenosyl-L-homocysteine
-    "MUM": "U",  # 2'-Deoxyuridine-5'-Monophosphate
 }
 
 def get_x3dna_res_id(res_id: str, num: int, chain_id: str, ins_code: str) -> str:
