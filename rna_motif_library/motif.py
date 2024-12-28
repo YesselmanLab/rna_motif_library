@@ -144,7 +144,9 @@ class Motif:
             "hbonds": [hb.to_dict() for hb in self.hbonds],
         }
 
-    def to_cif(self, cif_path: str):
+    def to_cif(self, cif_path: str = None):
+        if cif_path is None:
+            cif_path = f"{self.name}.cif"
         f = open(cif_path, "w")
         f.write("data_\n")
         f.write("_entry.id test\n")
@@ -472,7 +474,10 @@ class MotifFactory:
         num_of_loop_strands = 0
         num_of_wc_pairs = 0
         for bp in basepairs:
+            bp_name = bp.res_1.res_id + bp.res_2.res_id
             if bp.bp_type == "WC":
+                num_of_wc_pairs += 1
+            elif bp_name == "GU" or bp_name == "UG":
                 num_of_wc_pairs += 1
         for s in strands:
             if self._is_strand_a_loop(s, end_basepairs):
@@ -621,12 +626,22 @@ class MotifFactory:
         for motif1, motif2 in contained_motifs:
             if not ("HAIRPIN" in motif1.name or "HAIRPIN" in motif2.name):
                 continue
-            if "HAIRPIN" in motif1.name:
+            if "HAIRPIN" in motif1.name and "HAIRPIN" in motif2.name:
+                if len(motif1.get_residues()) < len(motif2.get_residues()):
+                    hairpin_motif = motif1
+                    other_motif = motif2
+                else:
+                    hairpin_motif = motif2
+                    other_motif = motif1
+            elif "HAIRPIN" in motif1.name:
                 hairpin_motif = motif1
                 other_motif = motif2
             else:
                 hairpin_motif = motif2
                 other_motif = motif1
+            log.info(
+                f"Extracting hairpin motif {hairpin_motif.name} from {other_motif.name}"
+            )
             new_motif = self._extract_hairpin_motif(hairpin_motif, other_motif)
             new_motifs.append(new_motif)
             new_motifs.append(hairpin_motif)

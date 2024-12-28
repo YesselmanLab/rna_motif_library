@@ -25,40 +25,6 @@ from rna_motif_library.settings import LIB_PATH, DATA_PATH
 log = get_logger("interactions")
 
 
-# TODO move somewhere else
-def dataframe_to_cif(df: pd.DataFrame, file_path: str) -> None:
-    with open(file_path, "w") as f:
-        # Write the CIF header section
-        f.write("data_\n")
-        f.write("_entry.id " + file_path.split(".")[0] + "\n")
-        f.write("loop_\n")
-        f.write("_atom_site.group_PDB\n")
-        f.write("_atom_site.id\n")
-        f.write("_atom_site.auth_atom_id\n")
-        f.write("_atom_site.auth_comp_id\n")
-        f.write("_atom_site.auth_asym_id\n")
-        f.write("_atom_site.auth_seq_id\n")
-        f.write("_atom_site.Cartn_x\n")
-        f.write("_atom_site.Cartn_y\n")
-        f.write("_atom_site.Cartn_z\n")
-
-        # Write the data from the DataFrame
-        for _, row in df.iterrows():
-            f.write(
-                "{:<8}{:<7}{:<6}{:<6}{:<6}{:<6}{:<12}{:<12}{:<12}\n".format(
-                    str(row["group_PDB"]),
-                    str(row["id"]),
-                    str(row["auth_atom_id"]),
-                    str(row["auth_comp_id"]),
-                    str(row["auth_asym_id"]),
-                    str(row["auth_seq_id"]),
-                    str(row["Cartn_x"]),
-                    str(row["Cartn_y"]),
-                    str(row["Cartn_z"]),
-                )
-            )
-
-
 # top level function ###################################################################
 
 

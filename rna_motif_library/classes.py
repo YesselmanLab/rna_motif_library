@@ -2,86 +2,9 @@ import pandas as pd
 import numpy as np
 import json
 from dataclasses import dataclass
-
-from biopandas.mmcif.pandas_mmcif import PandasMmcif
-from biopandas.mmcif.mmcif_parser import load_cif_data
-from biopandas.mmcif.engines import mmcif_col_types
-from biopandas.mmcif.engines import ANISOU_DF_COLUMNS
 from typing import Dict, List, Any, Tuple
 
-canon_res_list = [
-    "A",
-    "ALA",
-    "ARG",
-    "ASN",
-    "ASP",
-    "CYS",
-    "C",
-    "G",
-    "GLN",
-    "GLU",
-    "GLY",
-    "HIS",
-    "ILE",
-    "LEU",
-    "LYS",
-    "MET",
-    "PHE",
-    "PRO",
-    "SER",
-    "THR",
-    "TRP",
-    "TYR",
-    "U",
-    "VAL",
-]
-canon_amino_acid_list = [
-    "ALA",
-    "ARG",
-    "ASN",
-    "ASP",
-    "CYS",
-    "GLN",
-    "GLU",
-    "GLY",
-    "HIS",
-    "ILE",
-    "LEU",
-    "LYS",
-    "MET",
-    "PHE",
-    "PRO",
-    "SER",
-    "THR",
-    "TRP",
-    "TYR",
-    "VAL",
-]
-
-
-atom_renames = {
-    "OP1": "O1P",
-    "OP2": "O2P",
-    "OP3": "O3P",
-}
-
-
-def get_x3dna_res_id(res_id: str, num: int, chain_id: str, ins_code: str) -> str:
-    if res_id[-1].isdigit():
-        res_id = res_id[:-1]
-    if ins_code != "":
-        return f"{chain_id}.{res_id}{num}^{ins_code}"
-    else:
-        return f"{chain_id}.{res_id}{num}"
-
-
-def sanitize_x3dna_atom_name(atom_name: str) -> str:
-    if "." in atom_name:
-        atom_name = atom_name.split(".")[0]
-    if atom_name in atom_renames:
-        atom_name = atom_renames[atom_name]
-
-    return atom_name
+from rna_motif_library.util import *
 
 
 @dataclass(frozen=True, order=True)
@@ -345,6 +268,37 @@ class Residue:
             return None
         return self.coords[self.atom_names.index(atom_name)]
 
+    def get_base_atom_coords(self) -> List[Tuple[float, float, float]]:
+        """
+        Get coordinates of all base atoms (non-sugar/phosphate atoms).
+
+        Returns:
+            List[Tuple[float, float, float]]: List of (x,y,z) coordinates for base atoms
+        """
+        base_coords = []
+        for atom_name, coord in zip(self.atom_names, self.coords):
+            # Skip sugar and phosphate atoms
+            if atom_name.startswith(
+                (
+                    "C1'",
+                    "C2'",
+                    "C3'",
+                    "C4'",
+                    "C5'",
+                    "O2'",
+                    "O3'",
+                    "O4'",
+                    "O5'",
+                    "P",
+                    "O1P",
+                    "O2P",
+                    "O3P",
+                )
+            ):
+                continue
+            base_coords.append(coord)
+        return base_coords
+
     def get_x3dna_str(self):
         res_id = self.res_id
         if self.res_id[-1].isdigit():
@@ -401,7 +355,7 @@ class Residue:
             "coords": self.coords.tolist(),
         }
 
-    def to_cif_str(self, acount=0):
+    def to_cif_str(self, acount=1):
         s = ""
         # Write the data from the DataFrame
         ins_code = self.ins_code
@@ -416,13 +370,65 @@ class Residue:
                 f"{str(self.num):<6}"
                 f"{str(self.chain_id):<6}"
                 f"{str(ins_code):<6}"
-                f"{str(coord[0]):<12}"
-                f"{str(coord[1]):<12}"
-                f"{str(coord[2]):<12}\n"
+                f"{str(round(coord[0], 3)):<12}"
+                f"{str(round(coord[1], 3)):<12}"
+                f"{str(round(coord[2], 3)):<12}\n"
             )
             acount += 1
 
         return s, acount
+
+    def to_cif(self, file_path: str):
+        s = get_cif_header_str()
+        cif_str, _ = self.to_cif_str()
+        s += cif_str
+        with open(file_path, "w") as f:
+            f.write(s)
+        f.close()
+
+
+def get_residues_from_json(json_path: str) -> List[Residue]:
+    with open(json_path, "r") as f:
+        residue_data = json.load(f)
+    return {k: Residue.from_dict(v) for k, v in residue_data.items()}
+
+
+class NucleotideAminoAcidHbond:
+    def __init__(self, res_1: Residue, res_2: Residue, hbond: Hbond):
+        self.res_1 = res_1
+        self.res_2 = res_2
+        self.hbond = hbond
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        data["res_1"] = Residue.from_dict(data["res_1"])
+        data["res_2"] = Residue.from_dict(data["res_2"])
+        data["hbond"] = Hbond.from_dict(data["hbond"])
+        return cls(**data)
+
+    def to_dict(self):
+        return {
+            "res_1": self.res_1.to_dict(),
+            "res_2": self.res_2.to_dict(),
+            "hbond": self.hbond.to_dict(),
+        }
+
+    def to_cif_str(self):
+        s = ""
+        acount = 1
+        res_1_str, acount = self.res_1.to_cif_str(acount)
+        res_2_str, acount = self.res_2.to_cif_str(acount)
+        s += res_1_str
+        s += res_2_str
+        return s
+
+    def to_cif(self, file_path: str):
+        s = get_cif_header_str()
+        cif_str = self.to_cif_str()
+        s += cif_str
+        with open(file_path, "w") as f:
+            f.write(s)
+        f.close()
 
 
 def extract_longest_numeric_sequence(input_string: str) -> str:

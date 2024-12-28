@@ -26,6 +26,8 @@ setup(
         "rna_motif_library/classes",
         "rna_motif_library/cli",
         "rna_motif_library/logger",
+        "rna_motif_library/tranforms",
+        "rna_motif_library/util",
     ],
     include_package_data=True,
     # install_requires=requirements,
