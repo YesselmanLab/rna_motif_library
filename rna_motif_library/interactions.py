@@ -21,6 +21,7 @@ from rna_motif_library.classes import (
 from rna_motif_library.logger import get_logger
 from rna_motif_library.snap import parse_snap_output
 from rna_motif_library.settings import LIB_PATH, DATA_PATH
+from rna_motif_library.util import calculate_dihedral_angle, get_nucleotide_atom_type
 
 log = get_logger("interactions")
 
@@ -69,6 +70,7 @@ def get_hbonds_and_basepairs(
     dssr_output = DSSROutput(json_path=json_path)
     hbonds = dssr_output.get_hbonds()
     pairs = dssr_output.get_pairs()
+    save_basepair_params(pairs, pdb_name)
     x3dna_interactions = get_x3dna_interactions(pdb_name, hbonds)
     x3dna_pairs = get_x3dna_pairs(pairs, x3dna_interactions)
     hbonds = get_hbonds(pdb_name, residues, x3dna_interactions, x3dna_pairs)
@@ -77,6 +79,45 @@ def get_hbonds_and_basepairs(
 
 
 # handles converting X3DNA to current objects ##########################################
+
+
+def save_basepair_params(pairs: List[DSSR_PAIR], pdb_name: str):
+    all_data = []
+
+    for p in pairs.values():
+        e = p.bp.split("-")
+        if e[0] > e[1]:
+            bp_type = e[1] + e[0]
+        else:
+            bp_type = e[0] + e[1]
+        data = {
+            "res_1": p.nt1.nt_id,
+            "res_2": p.nt2.nt_id,
+            "bp_type": bp_type,
+            "bp_name": p.name,
+            "lw": p.LW,
+            "hbonds_desc": p.hbonds_desc,
+            "frame": np.array(
+                [
+                    p.frame["x_axis"],
+                    p.frame["y_axis"],
+                    p.frame["z_axis"],
+                ]
+            ),
+            "origin": p.frame["origin"],
+            "shear": p.bp_params[0],
+            "stretch": p.bp_params[1],
+            "stagger": p.bp_params[2],
+            "buckle": p.bp_params[3],
+            "propeller": p.bp_params[4],
+            "opening": p.bp_params[5],
+        }
+        all_data.append(data)
+    df = pd.DataFrame(all_data)
+    df.to_json(
+        os.path.join(DATA_PATH, "dataframes", "basepairs", f"{pdb_name}.json"),
+        orient="records",
+    )
 
 
 def get_x3dna_interactions(pdb_name: str, hbonds: List[DSSR_HBOND]):
@@ -91,15 +132,6 @@ def convert_x3dna_hbonds_to_interactions(
     hbonds: List[DSSR_HBOND],
 ) -> List[X3DNAInteraction]:
     # Determine type based on atom name
-    def get_atom_type(atom):
-        if atom.startswith(("P", "O1P", "OP2")):
-            return "phos"
-        elif atom.startswith(
-            ("O2'", "O3'", "O4'", "O5'", "C1'", "C2'", "C3'", "C4'", "C5'")
-        ):
-            return "sugar"
-        else:
-            return "base"
 
     rna_interactions = []
     for hbond in hbonds:
@@ -107,8 +139,8 @@ def convert_x3dna_hbonds_to_interactions(
         atom_2, res_2 = hbond.atom2_id.split("@")
         atom_1 = sanitize_x3dna_atom_name(atom_1)
         atom_2 = sanitize_x3dna_atom_name(atom_2)
-        type_1 = get_atom_type(atom_1)
-        type_2 = get_atom_type(atom_2)
+        type_1 = get_nucleotide_atom_type(atom_1)
+        type_2 = get_nucleotide_atom_type(atom_2)
         for aa in canon_amino_acid_list:
             if aa in res_1:
                 type_1 = "aa"
@@ -263,45 +295,6 @@ def find_closest_atom(
             min_dist = dist
             closest_atom = aname
     return closest_atom
-
-
-def calculate_dihedral_angle(
-    p1: np.ndarray, p2: np.ndarray, p3: np.ndarray, p4: np.ndarray
-) -> float:
-    """
-    Calculate the dihedral angle between 4 points in 3D space.
-
-    Args:
-        p1 (np.ndarray): Coordinates of first point
-        p2 (np.ndarray): Coordinates of second point
-        p3 (np.ndarray): Coordinates of third point
-        p4 (np.ndarray): Coordinates of fourth point
-
-    Returns:
-        float: Dihedral angle in degrees
-    """
-    # Calculate vectors between points
-    b1 = p2 - p1
-    b2 = p3 - p2
-    b3 = p4 - p3
-    # Calculate normal vectors
-    n1 = np.cross(b1, b2)
-    n2 = np.cross(b2, b3)
-    # Normalize normal vectors
-    n1 = n1 / np.linalg.norm(n1)
-    n2 = n2 / np.linalg.norm(n2)
-    # Calculate angle between normal vectors
-    cos_angle = np.dot(n1, n2)
-    # Handle numerical errors
-    if cos_angle > 1:
-        cos_angle = 1
-    elif cos_angle < -1:
-        cos_angle = -1
-    angle = np.arccos(cos_angle)
-    # Determine sign of angle
-    if np.dot(np.cross(n1, n2), b2) < 0:
-        angle = -angle
-    return round(np.degrees(angle), 1)
 
 
 def get_hbonds(

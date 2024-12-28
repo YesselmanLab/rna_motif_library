@@ -3,6 +3,7 @@ import glob
 import json
 import os
 import numpy as np
+from typing import Dict, List
 
 from biopandas.pdb import PandasPdb
 
@@ -26,7 +27,10 @@ class ResidueManager:
             self.residues[pdb_code] = get_residues_from_json(
                 os.path.join(DATA_PATH, "jsons", "residues", f"{pdb_code}.json")
             )
-        return self.residues[pdb_code][x3dna_res_code]
+        if x3dna_res_code not in self.residues[pdb_code]:
+            return None
+        else:
+            return self.residues[pdb_code][x3dna_res_code]
 
 
 class BasepairManager:
@@ -48,7 +52,7 @@ class BasepairManager:
         return None
 
 
-def load_ideal_basepairs():
+def load_ideal_basepairs() -> Dict[str, List[Residue]]:
     pdbs = glob.glob(
         os.path.join("rna_motif_library", "resources", "ideal_basepairs", "*.pdb")
     )

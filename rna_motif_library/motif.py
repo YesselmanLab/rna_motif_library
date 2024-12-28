@@ -9,7 +9,6 @@ from pydssr.dssr import DSSROutput
 from pydssr.dssr_classes import DSSR_PAIR
 
 from rna_motif_library.classes import (
-    extract_longest_numeric_sequence,
     sanitize_x3dna_atom_name,
     X3DNAResidue,
     Residue,

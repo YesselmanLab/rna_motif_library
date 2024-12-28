@@ -235,52 +235,25 @@ def align_basepair_to_identity(
     return transform, transformed_res1, transformed_res2
 
 
-def calculate_frame_angles(
-    frame1: np.ndarray, frame2: np.ndarray
-) -> Tuple[float, float, float]:
+def angle_between_base_planes(transform1: np.ndarray, transform2: np.ndarray) -> float:
     """
-    Calculate angles between two reference frames given as 4x4 matrices.
-    Gets the angle between the normal vectors (z-axis) of the two frames.
+    Calculate angle between base planes using consistent Z-axis normal vectors.
 
     Args:
-        frame1: First 4x4 transformation matrix
-        frame2: Second 4x4 transformation matrix
-
+        transform1: 4x4 transformation matrix for first nucleotide
+        transform2: 4x4 transformation matrix for second nucleotide
     Returns:
-        Tuple of:
-            - Angle between normal vectors in degrees
-            - 0.0 (placeholder)
-            - 0.0 (placeholder)
+        angle: angle between planes in degrees (0-180)
     """
-    # Get z-axis (normal vector) from each frame
-    normal1 = frame1[:3, 2]  # Third column is z-axis
-    normal2 = frame2[:3, 2]
+    # Z-axis is normal to base plane by construction
+    normal1 = transform1[:, 2]
+    normal2 = transform2[:, 2]
 
-    # Calculate angle between normal vectors
+    # Calculate dot product
     dot_product = np.dot(normal1, normal2)
-    # Handle numerical errors that could make dot product slightly > 1
-    dot_product = min(1.0, max(-1.0, dot_product))
-    angle = np.degrees(np.arccos(dot_product))
 
-    return angle, 0.0, 0.0
-
-
-def are_frames_coplanar(
-    frame1: np.ndarray, frame2: np.ndarray, tolerance_degrees: float = 10.0
-) -> bool:
-    """
-    Check if two reference frames represent approximately coplanar orientations.
-
-    Args:
-        frame1: First 4x4 transformation matrix
-        frame2: Second 4x4 transformation matrix
-        tolerance_degrees: Maximum angle deviation to consider planes parallel
-
-    Returns:
-        bool: True if frames are approximately coplanar
-    """
-    plane_angle, _, _ = calculate_frame_angles(frame1, frame2)
-    return plane_angle < tolerance_degrees or plane_angle > (180 - tolerance_degrees)
+    # Return angle in degrees
+    return 90.0 - np.fabs(np.degrees(np.arccos(dot_product)) - 90.0)
 
 
 def center_coordinates(coords: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:

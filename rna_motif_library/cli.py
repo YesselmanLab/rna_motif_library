@@ -234,8 +234,9 @@ def process_residues(pdb, directory, debug):
     help="The directory where the PDBs are located",
 )
 @click.option("--debug", is_flag=True, help="Run in debug mode")
+@click.option("--overwrite", is_flag=True, help="Overwrite existing interactions")
 @log_and_setup
-def process_interactions(pdb, directory, debug):
+def process_interactions(pdb, directory, debug, overwrite):
     """
     Processes interactions from source PDB using data from DSSR and interactions using data from SNAP.
     """
@@ -247,7 +248,7 @@ def process_interactions(pdb, directory, debug):
     pdb_codes = get_pdb_codes(pdb, directory)
     log.info(f"Processing {len(pdb_codes)} PDBs")
     for pdb_code in pdb_codes:
-        hbonds, basepairs = get_hbonds_and_basepairs(pdb_code)
+        hbonds, basepairs = get_hbonds_and_basepairs(pdb_code, overwrite)
         log.info(
             f"Processed {pdb_code} with {len(hbonds)} hbonds and {len(basepairs)} basepairs"
         )

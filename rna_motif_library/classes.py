@@ -308,6 +308,11 @@ class Residue:
         else:
             return f"{self.chain_id}.{res_id}{self.num}"
 
+    def get_x3dna_residue(self) -> X3DNAResidue:
+        return X3DNAResidue(
+            self.chain_id, self.res_id, self.num, self.ins_code, self.rtype
+        )
+
     def __eq__(self, other):
         """
         Checks if two Residue objects are equal by comparing all their attributes.
@@ -429,28 +434,3 @@ class NucleotideAminoAcidHbond:
         with open(file_path, "w") as f:
             f.write(s)
         f.close()
-
-
-def extract_longest_numeric_sequence(input_string: str) -> str:
-    """
-    Extracts the longest numeric sequence from a given string.
-
-    Args:
-        input_string (str): The string to extract the numeric sequence from.
-
-    Returns:
-        longest_sequence (str): The longest numeric sequence found in the input string.
-
-    """
-    longest_sequence = ""
-    current_sequence = ""
-    for c in input_string:
-        if c.isdigit() or (
-            c == "-" and (not current_sequence or current_sequence[0] == "-")
-        ):
-            current_sequence += c
-            if len(current_sequence) >= len(longest_sequence):
-                longest_sequence = current_sequence
-        else:
-            current_sequence = ""
-    return longest_sequence

@@ -1,3 +1,5 @@
+import numpy as np
+
 canon_res_list = [
     "A",
     "ALA",
@@ -76,6 +78,25 @@ def sanitize_x3dna_atom_name(atom_name: str) -> str:
     return atom_name
 
 
+def get_nucleotide_atom_type(atom_name: str) -> str:
+    """Get the type of nucleotide atom (phosphate, sugar, or base).
+
+    Args:
+        atom_name: The atom name to check.
+
+    Returns:
+        str: The type of atom - either 'phos', 'sugar', or 'base'.
+    """
+    if atom_name.startswith(("P", "O1P", "O2P", "O3P", "OP1", "OP2", "OP3")):
+        return "phos"
+    elif atom_name.startswith(
+        ("O2'", "O3'", "O4'", "O5'", "C1'", "C2'", "C3'", "C4'", "C5'")
+    ):
+        return "sugar"
+    else:
+        return "base"
+
+
 def get_cif_header_str() -> str:
     s = ""
     s += "data_\n"
@@ -92,3 +113,42 @@ def get_cif_header_str() -> str:
     s += "_atom_site.Cartn_y\n"
     s += "_atom_site.Cartn_z\n"
     return s
+
+
+def calculate_dihedral_angle(
+    p1: np.ndarray, p2: np.ndarray, p3: np.ndarray, p4: np.ndarray
+) -> float:
+    """
+    Calculate the dihedral angle between 4 points in 3D space.
+
+    Args:
+        p1 (np.ndarray): Coordinates of first point
+        p2 (np.ndarray): Coordinates of second point
+        p3 (np.ndarray): Coordinates of third point
+        p4 (np.ndarray): Coordinates of fourth point
+
+    Returns:
+        float: Dihedral angle in degrees
+    """
+    # Calculate vectors between points
+    b1 = p2 - p1
+    b2 = p3 - p2
+    b3 = p4 - p3
+    # Calculate normal vectors
+    n1 = np.cross(b1, b2)
+    n2 = np.cross(b2, b3)
+    # Normalize normal vectors
+    n1 = n1 / np.linalg.norm(n1)
+    n2 = n2 / np.linalg.norm(n2)
+    # Calculate angle between normal vectors
+    cos_angle = np.dot(n1, n2)
+    # Handle numerical errors
+    if cos_angle > 1:
+        cos_angle = 1
+    elif cos_angle < -1:
+        cos_angle = -1
+    angle = np.arccos(cos_angle)
+    # Determine sign of angle
+    if np.dot(np.cross(n1, n2), b2) < 0:
+        angle = -angle
+    return round(np.degrees(angle), 1)
