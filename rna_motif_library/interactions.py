@@ -86,6 +86,10 @@ def save_basepair_params(pairs: List[DSSR_PAIR], pdb_name: str):
 
     for p in pairs.values():
         e = p.bp.split("-")
+        if len(e) != 2:
+            e = p.bp.split("+")
+        else:
+            e = [p.bp[0], p.bp[-1]]
         if e[0] > e[1]:
             bp_type = e[1] + e[0]
         else:
