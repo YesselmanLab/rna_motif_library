@@ -149,7 +149,7 @@ def get_basepairs(
             res_2 = residues[pair.nt2.nt_id]
         except KeyError:
             log.error(
-                f"Residue not found in residues: {pair.nt1.nt_id}, {pair.nt2.nt_id}"
+                f"Residue not found in residues: {pdb_name}, {pair.nt1.nt_id}, {pair.nt2.nt_id}"
             )
             continue
         if res_1.res_id != bp_type[0]:
@@ -161,7 +161,7 @@ def get_basepairs(
             hbond = hf.get_hbond(res_1, res_2, hbond_atoms[0], hbond_atoms[1], pdb_name)
             if hbond is None:
                 log.error(
-                    f"Hbond not found in: {res_1.res_id}, {res_2.res_id}, {hbond_atoms[0]}, {hbond_atoms[1]}"
+                    f"Hbond not found in: {pdb_name}, {res_1.res_id}, {res_2.res_id}, {hbond_atoms[0]}, {hbond_atoms[1]}"
                 )
                 continue
             h_bond_score += score_hbond(
@@ -178,7 +178,7 @@ def get_basepairs(
                 )
                 if hbond is None:
                     log.error(
-                        f"Hbond not found in: {res_1.res_id}, {res_2.res_id}, {hbond_atoms[0]}, {hbond_atoms[1]}"
+                        f"Hbond not found in: {pdb_name}, {res_1.res_id}, {res_2.res_id}, {hbond_atoms[0]}, {hbond_atoms[1]}"
                     )
                     continue
                 other_h_bond_score += score_hbond(
