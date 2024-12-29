@@ -145,7 +145,9 @@ class Hbond:
     atom_type_1: str
     atom_type_2: str
     distance: float
-    angle: float
+    angle_1: float
+    angle_2: float
+    dihedral_angle: float
     hbond_type: str
     pdb_name: str
 
@@ -180,13 +182,32 @@ class Hbond:
 
 
 @dataclass(frozen=True, order=True)
+class BasepairParameters:
+    shear: float
+    stretch: float
+    stagger: float
+    buckle: float
+    propeller: float
+    opening: float
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "BasepairParameters":
+        return cls(**data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return vars(self)
+
+
+@dataclass(frozen=True, order=True)
 class Basepair:
     res_1: X3DNAResidue
     res_2: X3DNAResidue
     hbonds: List[Hbond]
     bp_type: str
-    bp_name: str
+    lw: str
     pdb_name: str
+    hbond_score: float
+    bp_params: BasepairParameters
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Basepair":
@@ -204,6 +225,7 @@ class Basepair:
         data["res_2"] = X3DNAResidue.from_dict(data["res_2"])
         # Convert list of Hbond objects
         data["hbonds"] = [Hbond.from_dict(hbond) for hbond in data["hbonds"]]
+        data["bp_params"] = BasepairParameters.from_dict(data["bp_params"])
         return cls(**data)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -217,6 +239,7 @@ class Basepair:
         data["res_1"] = self.res_1.to_dict()
         data["res_2"] = self.res_2.to_dict()
         data["hbonds"] = [hbond.to_dict() for hbond in self.hbonds]
+        data["bp_params"] = self.bp_params.to_dict()
         return data
 
 

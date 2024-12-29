@@ -115,6 +115,45 @@ def get_cif_header_str() -> str:
     return s
 
 
+def calculate_angle(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> float:
+    """
+    Calculate the angle between three points in 3D space.
+
+    Args:
+        p1 (np.ndarray): Coordinates of first point
+        p2 (np.ndarray): Coordinates of second point (vertex)
+        p3 (np.ndarray): Coordinates of third point
+
+    Returns:
+        float: Angle in degrees
+    """
+    # Calculate vectors from vertex to points
+    v1 = p1 - p2
+    v2 = p3 - p2
+
+    # Calculate dot product
+    dot_product = np.dot(v1, v2)
+
+    # Calculate magnitudes
+    mag1 = np.linalg.norm(v1)
+    mag2 = np.linalg.norm(v2)
+
+    # Calculate cosine of angle
+    cos_angle = dot_product / (mag1 * mag2)
+
+    # Handle numerical errors
+    if cos_angle > 1:
+        cos_angle = 1
+    elif cos_angle < -1:
+        cos_angle = -1
+
+    # Convert to degrees
+    angle = np.arccos(cos_angle)
+    angle_deg = np.degrees(angle)
+
+    return round(angle_deg, 1)
+
+
 def calculate_dihedral_angle(
     p1: np.ndarray, p2: np.ndarray, p3: np.ndarray, p4: np.ndarray
 ) -> float:

@@ -248,7 +248,7 @@ def process_interactions(pdb, directory, debug, overwrite):
     pdb_codes = get_pdb_codes(pdb, directory)
     log.info(f"Processing {len(pdb_codes)} PDBs")
     for pdb_code in pdb_codes:
-        hbonds, basepairs = get_hbonds_and_basepairs(pdb_code, overwrite)
+        hbonds, basepairs = get_hbonds_and_basepairs(pdb_code)
         log.info(
             f"Processed {pdb_code} with {len(hbonds)} hbonds and {len(basepairs)} basepairs"
         )
@@ -256,9 +256,9 @@ def process_interactions(pdb, directory, debug, overwrite):
         hbonds_json_path = os.path.join(
             DATA_PATH, "jsons", "hbonds", f"{pdb_code}.json"
         )
-        os.makedirs(os.path.dirname(hbonds_json_path), exist_ok=True)
-        with open(hbonds_json_path, "w") as f:
-            json.dump([hbond.to_dict() for hbond in hbonds], f)
+        # os.makedirs(os.path.dirname(hbonds_json_path), exist_ok=True)
+        # with open(hbonds_json_path, "w") as f:
+        #    json.dump([hbond.to_dict() for hbond in hbonds], f)
 
         # Save basepairs to json file
         basepairs_json_path = os.path.join(
