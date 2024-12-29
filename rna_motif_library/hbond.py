@@ -161,9 +161,9 @@ def score_hbond(distance, angle1, angle2, dihedral):
     # Combine scores with higher weight on distance
     total_score = (
         0.5 * dist_score
-        + 0.2 * angle1_score
-        + 0.2 * angle2_score
-        + 0.1 * dihedral_score
+        + 0.1 * angle1_score
+        + 0.1 * angle2_score
+        + 0.3 * dihedral_score
     )
 
     return total_score

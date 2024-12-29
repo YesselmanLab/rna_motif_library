@@ -1,0 +1,59 @@
+data_
+_entry.id test
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.auth_atom_id
+_atom_site.auth_comp_id
+_atom_site.auth_asym_id
+_atom_site.auth_seq_id
+_atom_site.pdbx_PDB_ins_code
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+ATOM    1      P     G     255   AA    ?     -1.802      0.65        -8.675      
+ATOM    2      O1P   G     255   AA    ?     -2.16       1.687       -9.68       
+ATOM    3      O2P   G     255   AA    ?     -0.522      0.768       -7.925      
+ATOM    4      O5'   G     255   AA    ?     -2.983      0.606       -7.62       
+ATOM    5      C5'   G     255   AA    ?     -4.336      0.432       -8.053      
+ATOM    6      C4'   G     255   AA    ?     -5.274      0.571       -6.886      
+ATOM    7      O4'   G     255   AA    ?     -5.011      -0.488      -5.937      
+ATOM    8      C3'   G     255   AA    ?     -5.105      1.855       -6.092      
+ATOM    9      O3'   G     255   AA    ?     -5.861      2.914       -6.662      
+ATOM    10     C2'   G     255   AA    ?     -5.599      1.472       -4.704      
+ATOM    11     O2'   G     255   AA    ?     -6.996      1.585       -4.563      
+ATOM    12     C1'   G     255   AA    ?     -5.195      0.0         -4.621      
+ATOM    13     N9    G     255   AA    ?     -3.973      -0.214      -3.851      
+ATOM    14     C8    G     255   AA    ?     -2.725      -0.571      -4.309      
+ATOM    15     N7    G     255   AA    ?     -1.846      -0.694      -3.353      
+ATOM    16     C5    G     255   AA    ?     -2.555      -0.393      -2.201      
+ATOM    17     C6    G     255   AA    ?     -2.136      -0.353      -0.852      
+ATOM    18     O6    G     255   AA    ?     -1.018      -0.579      -0.389      
+ATOM    19     N1    G     255   AA    ?     -3.182      0.0         0.0         
+ATOM    20     C2    G     255   AA    ?     -4.469      0.28        -0.4        
+ATOM    21     N2    G     255   AA    ?     -5.345      0.605       0.57        
+ATOM    22     N3    G     255   AA    ?     -4.87       0.246       -1.659      
+ATOM    23     C4    G     255   AA    ?     -3.868      -0.096      -2.497      
+ATOM    24     P     G     266   AA    ?     3.902       4.031       -6.439      
+ATOM    25     O1P   G     266   AA    ?     2.801       3.103       -6.063      
+ATOM    26     O2P   G     266   AA    ?     3.939       5.399       -5.862      
+ATOM    27     O5'   G     266   AA    ?     5.314       3.342       -6.148      
+ATOM    28     C5'   G     266   AA    ?     5.642       2.835       -4.849      
+ATOM    29     C4'   G     266   AA    ?     6.771       1.832       -4.94       
+ATOM    30     O4'   G     266   AA    ?     6.837       1.18        -3.65       
+ATOM    31     C3'   G     266   AA    ?     6.536       0.725       -5.96       
+ATOM    32     O3'   G     266   AA    ?     7.156       1.048       -7.224      
+ATOM    33     C2'   G     266   AA    ?     6.87        -0.567      -5.213      
+ATOM    34     O2'   G     266   AA    ?     8.226       -0.957      -5.223      
+ATOM    35     C1'   G     266   AA    ?     6.497       -0.178      -3.782      
+ATOM    36     N9    G     266   AA    ?     5.085       -0.258      -3.428      
+ATOM    37     C8    G     266   AA    ?     4.0         -0.378      -4.265      
+ATOM    38     N7    G     266   AA    ?     2.86        -0.351      -3.631      
+ATOM    39     C5    G     266   AA    ?     3.216       -0.216      -2.301      
+ATOM    40     C6    G     266   AA    ?     2.414       -0.121      -1.152      
+ATOM    41     O6    G     266   AA    ?     1.187       -0.13       -1.075      
+ATOM    42     N1    G     266   AA    ?     3.182       0.0         0.0         
+ATOM    43     C2    G     266   AA    ?     4.559       0.03        0.032       
+ATOM    44     N2    G     266   AA    ?     5.133       0.149       1.243       
+ATOM    45     N3    G     266   AA    ?     5.318       -0.052      -1.041      
+ATOM    46     C4    G     266   AA    ?     4.587       -0.173      -2.162      

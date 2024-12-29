@@ -79,7 +79,7 @@ def load_ideal_basepairs() -> Dict[str, List[Residue]]:
 
 def load_ideal_bases():
     pdbs = glob.glob(
-        os.path.join("rna_motif_library", "resources", "ideal_bases", "*.pdb")
+        os.path.join("rna_motif_library", "resources", "ideal_bases", "*.cif")
     )
     bases = {}
     for pdb in pdbs:

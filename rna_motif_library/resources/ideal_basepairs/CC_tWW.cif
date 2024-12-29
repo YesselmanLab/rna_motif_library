@@ -1,0 +1,53 @@
+data_
+_entry.id test
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.auth_atom_id
+_atom_site.auth_comp_id
+_atom_site.auth_asym_id
+_atom_site.auth_seq_id
+_atom_site.pdbx_PDB_ins_code
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+ATOM    1      P     C     876   A     ?     -9.527      -1.149      0.68        
+ATOM    2      O1P   C     876   A     ?     -10.561     -1.932      -0.04       
+ATOM    3      O2P   C     876   A     ?     -9.182      -1.498      2.081       
+ATOM    4      O5'   C     876   A     ?     -8.184      -1.165      -0.179      
+ATOM    5      C5'   C     876   A     ?     -8.223      -1.019      -1.59       
+ATOM    6      C4'   C     876   A     ?     -6.841      -0.864      -2.171      
+ATOM    7      O4'   C     876   A     ?     -6.167      0.258       -1.534      
+ATOM    8      C3'   C     876   A     ?     -5.882      -2.027      -1.974      
+ATOM    9      O3'   C     876   A     ?     -6.068      -3.087      -2.896      
+ATOM    10     C2'   C     876   A     ?     -4.523      -1.354      -2.091      
+ATOM    11     O2'   C     876   A     ?     -4.176      -1.137      -3.449      
+ATOM    12     C1'   C     876   A     ?     -4.783      0.0         -1.435      
+ATOM    13     N1    C     876   A     ?     -4.384      0.0         0.0         
+ATOM    14     C2    C     876   A     ?     -3.026      0.021       0.378       
+ATOM    15     O2    C     876   A     ?     -2.119      0.07        -0.465      
+ATOM    16     N3    C     876   A     ?     -2.7        0.01        1.689       
+ATOM    17     C4    C     876   A     ?     -3.645      -0.04       2.623       
+ATOM    18     N4    C     876   A     ?     -3.261      -0.045      3.901       
+ATOM    19     C5    C     876   A     ?     -5.024      -0.077      2.283       
+ATOM    20     C6    C     876   A     ?     -5.336      -0.054      0.984       
+ATOM    21     P     C     901   A     ?     6.581       1.251       5.169       
+ATOM    22     O1P   C     901   A     ?     7.554       2.089       5.913       
+ATOM    23     O2P   C     901   A     ?     5.167       1.691       5.06        
+ATOM    24     O5'   C     901   A     ?     7.139       1.038       3.694       
+ATOM    25     C5'   C     901   A     ?     6.917       2.016       2.69        
+ATOM    26     C4'   C     901   A     ?     7.138       1.451       1.311       
+ATOM    27     O4'   C     901   A     ?     6.42        0.196       1.18        
+ATOM    28     C3'   C     901   A     ?     6.622       2.295       0.156       
+ATOM    29     O3'   C     901   A     ?     7.5         3.336       -0.233      
+ATOM    30     C2'   C     901   A     ?     6.381       1.267       -0.932      
+ATOM    31     O2'   C     901   A     ?     7.605       0.892       -1.544      
+ATOM    32     C1'   C     901   A     ?     5.873       0.081       -0.117      
+ATOM    33     N1    C     901   A     ?     4.384       0.0         0.0         
+ATOM    34     C2    C     901   A     ?     3.447       0.036       -1.071      
+ATOM    35     O2    C     901   A     ?     3.756       0.129       -2.273      
+ATOM    36     N3    C     901   A     ?     2.125       -0.062      -0.786      
+ATOM    37     C4    C     901   A     ?     1.683       -0.186      0.462       
+ATOM    38     N4    C     901   A     ?     0.363       -0.265      0.656       
+ATOM    39     C5    C     901   A     ?     2.58        -0.212      1.563       
+ATOM    40     C6    C     901   A     ?     3.886       -0.118      1.275       

@@ -1,0 +1,53 @@
+data_
+_entry.id test
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.auth_atom_id
+_atom_site.auth_comp_id
+_atom_site.auth_asym_id
+_atom_site.auth_seq_id
+_atom_site.pdbx_PDB_ins_code
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+ATOM    1      P     C     153   AA    ?     -8.739      1.121       0.902       
+ATOM    2      O1P   C     153   AA    ?     -10.056     0.974       0.232       
+ATOM    3      O2P   C     153   AA    ?     -8.592      0.653       2.303       
+ATOM    4      O5'   C     153   AA    ?     -7.594      0.484       -0.002      
+ATOM    5      C5'   C     153   AA    ?     -7.556      0.714       -1.405      
+ATOM    6      C4'   C     153   AA    ?     -6.308      0.137       -2.03       
+ATOM    7      O4'   C     153   AA    ?     -5.144      0.875       -1.569      
+ATOM    8      C3'   C     153   AA    ?     -5.993      -1.312      -1.675      
+ATOM    9      O3'   C     153   AA    ?     -6.723      -2.252      -2.445      
+ATOM    10     C2'   C     153   AA    ?     -4.486      -1.393      -1.876      
+ATOM    11     O2'   C     153   AA    ?     -4.167      -1.542      -3.254      
+ATOM    12     C1'   C     153   AA    ?     -4.045      0.0         -1.413      
+ATOM    13     N1    C     153   AA    ?     -3.656      0.0         0.0         
+ATOM    14     C2    C     153   AA    ?     -2.314      -0.147      0.331       
+ATOM    15     O2    C     153   AA    ?     -1.474      -0.264      -0.571      
+ATOM    16     N3    C     153   AA    ?     -1.976      -0.156      1.634       
+ATOM    17     C4    C     153   AA    ?     -2.923      -0.03       2.564       
+ATOM    18     N4    C     153   AA    ?     -2.545      -0.043      3.843       
+ATOM    19     C5    C     153   AA    ?     -4.3        0.121       2.244       
+ATOM    20     C6    C     153   AA    ?     -4.617      0.13        0.953       
+ATOM    21     P     C     169   AA    ?     8.816       -2.283      3.361       
+ATOM    22     O1P   C     169   AA    ?     10.299      -2.402      3.356       
+ATOM    23     O2P   C     169   AA    ?     8.177       -1.404      4.37        
+ATOM    24     O5'   C     169   AA    ?     8.294       -1.905      1.903       
+ATOM    25     C5'   C     169   AA    ?     7.579       -0.697      1.665       
+ATOM    26     C4'   C     169   AA    ?     6.966       -0.693      0.289       
+ATOM    27     O4'   C     169   AA    ?     5.624       -1.226      0.349       
+ATOM    28     C3'   C     169   AA    ?     6.791       0.66        -0.368      
+ATOM    29     O3'   C     169   AA    ?     7.987       1.146       -0.94       
+ATOM    30     C2'   C     169   AA    ?     5.697       0.39        -1.391      
+ATOM    31     O2'   C     169   AA    ?     6.234       -0.245      -2.541      
+ATOM    32     C1'   C     169   AA    ?     4.829       -0.624      -0.647      
+ATOM    33     N1    C     169   AA    ?     3.656       0.0         0.0         
+ATOM    34     C2    C     169   AA    ?     2.556       0.322       -0.816      
+ATOM    35     O2    C     169   AA    ?     2.631       0.097       -2.043      
+ATOM    36     N3    C     169   AA    ?     1.452       0.877       -0.244      
+ATOM    37     C4    C     169   AA    ?     1.424       1.096       1.076       
+ATOM    38     N4    C     169   AA    ?     0.315       1.645       1.571       
+ATOM    39     C5    C     169   AA    ?     2.526       0.767       1.933       
+ATOM    40     C6    C     169   AA    ?     3.613       0.22        1.36        

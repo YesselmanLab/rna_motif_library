@@ -1,0 +1,54 @@
+data_
+_entry.id test
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.auth_atom_id
+_atom_site.auth_comp_id
+_atom_site.auth_asym_id
+_atom_site.auth_seq_id
+_atom_site.pdbx_PDB_ins_code
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+ATOM    1      P     DG    22    Y     ?     -4.262      -5.162      -3.488      
+ATOM    2      O1P   DG    22    Y     ?     -5.704      -5.492      -3.482      
+ATOM    3      O2P   DG    22    Y     ?     -3.322      -5.985      -4.281      
+ATOM    4      O5'   DG    22    Y     ?     -4.077      -3.633      -3.937      
+ATOM    5      C5'   DG    22    Y     ?     -2.771      -3.114      -4.195      
+ATOM    6      C4'   DG    22    Y     ?     -2.782      -2.188      -5.403      
+ATOM    7      O4'   DG    22    Y     ?     -3.271      -0.887      -5.015      
+ATOM    8      C3'   DG    22    Y     ?     -1.415      -1.961      -6.056      
+ATOM    9      O3'   DG    22    Y     ?     -1.479      -2.32       -7.43       
+ATOM    10     C2'   DG    22    Y     ?     -1.132      -0.459      -5.887      
+ATOM    11     C1'   DG    22    Y     ?     -2.189      -0.0        -4.89       
+ATOM    12     N9    DG    22    Y     ?     -1.738      -0.012      -3.502      
+ATOM    13     C8    DG    22    Y     ?     -0.44       -0.025      -3.051      
+ATOM    14     N7    DG    22    Y     ?     -0.344      -0.03       -1.75       
+ATOM    15     C5    DG    22    Y     ?     -1.662      -0.017      -1.312      
+ATOM    16     C6    DG    22    Y     ?     -2.188      -0.015      0.002       
+ATOM    17     O6    DG    22    Y     ?     -1.57       -0.025      1.077       
+ATOM    18     N1    DG    22    Y     ?     -3.581      -0.0        -0.0        
+ATOM    19     C2    DG    22    Y     ?     -4.365      0.012       -1.131      
+ATOM    20     N2    DG    22    Y     ?     -5.691      0.027       -0.939      
+ATOM    21     N3    DG    22    Y     ?     -3.884      0.011       -2.365      
+ATOM    22     C4    DG    22    Y     ?     -2.53       -0.005      -2.379      
+ATOM    23     P     DC    32    Y     ?     7.949       -1.434      -2.992      
+ATOM    24     O1P   DC    32    Y     ?     8.32        -1.771      -4.384      
+ATOM    25     O2P   DC    32    Y     ?     8.785       -0.494      -2.21       
+ATOM    26     O5'   DC    32    Y     ?     6.45        -0.883      -2.978      
+ATOM    27     C5'   DC    32    Y     ?     5.398       -1.677      -3.509      
+ATOM    28     C4'   DC    32    Y     ?     4.058       -1.018      -3.252      
+ATOM    29     O4'   DC    32    Y     ?     3.607       -1.36       -1.925      
+ATOM    30     C3'   DC    32    Y     ?     4.093       0.5         -3.297      
+ATOM    31     O3'   DC    32    Y     ?     3.783       0.944       -4.61       
+ATOM    32     C2'   DC    32    Y     ?     3.01        0.912       -2.304      
+ATOM    33     C1'   DC    32    Y     ?     2.949       -0.26       -1.328      
+ATOM    34     N1    DC    32    Y     ?     3.581       0.0         0.0         
+ATOM    35     C2    DC    32    Y     ?     2.781       0.345       1.093       
+ATOM    36     O2    DC    32    Y     ?     1.559       0.458       0.934       
+ATOM    37     N3    DC    32    Y     ?     3.368       0.552       2.299       
+ATOM    38     C4    DC    32    Y     ?     4.689       0.415       2.43        
+ATOM    39     N4    DC    32    Y     ?     5.225       0.632       3.636       
+ATOM    40     C5    DC    32    Y     ?     5.52        0.059       1.329       
+ATOM    41     C6    DC    32    Y     ?     4.93        -0.14       0.146       

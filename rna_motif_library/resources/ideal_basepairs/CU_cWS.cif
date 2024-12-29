@@ -1,0 +1,53 @@
+data_
+_entry.id test
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.auth_atom_id
+_atom_site.auth_comp_id
+_atom_site.auth_asym_id
+_atom_site.auth_seq_id
+_atom_site.pdbx_PDB_ins_code
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+ATOM    1      P     C     37    B     ?     -7.467      -3.478      2.75        
+ATOM    2      O1P   C     37    B     ?     -8.574      -4.238      2.127       
+ATOM    3      O2P   C     37    B     ?     -6.349      -4.208      3.396       
+ATOM    4      O5'   C     37    B     ?     -6.842      -2.517      1.647       
+ATOM    5      C5'   C     37    B     ?     -7.643      -1.557      0.973       
+ATOM    6      C4'   C     37    B     ?     -6.968      -1.089      -0.287      
+ATOM    7      O4'   C     37    B     ?     -6.103      0.041       -0.005      
+ATOM    8      C3'   C     37    B     ?     -6.048      -2.105      -0.933      
+ATOM    9      O3'   C     37    B     ?     -6.748      -3.054      -1.711      
+ATOM    10     C2'   C     37    B     ?     -5.098      -1.237      -1.739      
+ATOM    11     O2'   C     37    B     ?     -5.7        -0.848      -2.964      
+ATOM    12     C1'   C     37    B     ?     -4.97       -0.0        -0.847      
+ATOM    13     N1    C     37    B     ?     -3.751      -0.0        0.0         
+ATOM    14     C2    C     37    B     ?     -2.452      0.107       -0.524      
+ATOM    15     O2    C     37    B     ?     -2.246      0.188       -1.74       
+ATOM    16     N3    C     37    B     ?     -1.396      0.116       0.31        
+ATOM    17     C4    C     37    B     ?     -1.574      0.037       1.617       
+ATOM    18     N4    C     37    B     ?     -0.497      0.051       2.396       
+ATOM    19     C5    C     37    B     ?     -2.867      -0.057      2.185       
+ATOM    20     C6    C     37    B     ?     -3.907      -0.064      1.351       
+ATOM    21     P     U     48    B     ?     6.672       0.969       -4.419      
+ATOM    22     O1P   U     48    B     ?     6.378       1.704       -5.662      
+ATOM    23     O2P   U     48    B     ?     7.716       1.465       -3.496      
+ATOM    24     O5'   U     48    B     ?     5.318       0.861       -3.598      
+ATOM    25     C5'   U     48    B     ?     4.106       0.529       -4.251      
+ATOM    26     C4'   U     48    B     ?     2.972       0.393       -3.272      
+ATOM    27     O4'   U     48    B     ?     3.314       -0.57       -2.24       
+ATOM    28     C3'   U     48    B     ?     2.623       1.641       -2.488      
+ATOM    29     O3'   U     48    B     ?     1.846       2.56        -3.223      
+ATOM    30     C2'   U     48    B     ?     1.891       1.066       -1.292      
+ATOM    31     O2'   U     48    B     ?     0.576       0.687       -1.655      
+ATOM    32     C1'   U     48    B     ?     2.7         -0.2        -1.024      
+ATOM    33     N1    U     48    B     ?     3.751       -0.0        0.0         
+ATOM    34     C2    U     48    B     ?     3.383       0.078       1.328       
+ATOM    35     O2    U     48    B     ?     2.236       0.0         1.729       
+ATOM    36     N3    U     48    B     ?     4.409       0.256       2.214       
+ATOM    37     C4    U     48    B     ?     5.742       0.357       1.924       
+ATOM    38     O4    U     48    B     ?     6.55        0.518       2.835       
+ATOM    39     C5    U     48    B     ?     6.049       0.268       0.538       
+ATOM    40     C6    U     48    B     ?     5.071       0.09        -0.343      

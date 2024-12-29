@@ -14,6 +14,10 @@ from typing import Tuple, List, Optional
 class NucleotideReferenceFrameGenerator:
     def __init__(self):
         self.ideal_bases = load_ideal_bases()
+        self.ideal_bases["DA"] = self.ideal_bases["A"]
+        self.ideal_bases["DC"] = self.ideal_bases["C"]
+        self.ideal_bases["DG"] = self.ideal_bases["G"]
+        self.ideal_bases["DU"] = self.ideal_bases["U"]
 
     def get_reference_frame(self, residue: Residue) -> np.ndarray:
         base_atoms = self._get_base_atoms(residue)
@@ -109,12 +113,12 @@ class NucleotideReferenceFrameGenerator:
 
     def _get_base_atoms(self, residue: Residue) -> np.ndarray:
         base_atoms = []
-        if residue.res_id in ["A", "G"]:
+        if residue.res_id in ["A", "G", "DA", "DG"]:
             base_atoms = purine_atom_names
-        elif residue.res_id in ["U", "C"]:
+        elif residue.res_id in ["U", "C", "DC", "DG"]:
             base_atoms = pyrimidine_atom_names
         else:
-            raise ValueError(f"Unknown residue: {residue.res_name}")
+            raise ValueError(f"Unknown residue: {residue.res_id}")
         coords = []
         for atom in base_atoms:
             coords.append(residue.coords[residue.atom_names.index(atom)])

@@ -1,0 +1,57 @@
+data_
+_entry.id test
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.auth_atom_id
+_atom_site.auth_comp_id
+_atom_site.auth_asym_id
+_atom_site.auth_seq_id
+_atom_site.pdbx_PDB_ins_code
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+ATOM    1      P     A     9     1y    ?     -0.755      -4.613      -6.495      
+ATOM    2      O1P   A     9     1y    ?     -1.234      -5.082      -7.826      
+ATOM    3      O2P   A     9     1y    ?     0.688       -4.327      -6.275      
+ATOM    4      O5'   A     9     1y    ?     -1.57       -3.292      -6.124      
+ATOM    5      C5'   A     9     1y    ?     -2.855      -3.04       -6.691      
+ATOM    6      C4'   A     9     1y    ?     -3.229      -1.578      -6.626      
+ATOM    7      O4'   A     9     1y    ?     -3.407      -1.171      -5.238      
+ATOM    8      C3'   A     9     1y    ?     -2.212      -0.605      -7.235      
+ATOM    9      O3'   A     9     1y    ?     -2.896      0.434       -7.937      
+ATOM    10     C2'   A     9     1y    ?     -1.514      -0.019      -6.006      
+ATOM    11     O2'   A     9     1y    ?     -0.955      1.266       -6.196      
+ATOM    12     C1'   A     9     1y    ?     -2.653      -0.0        -4.989      
+ATOM    13     N9    A     9     1y    ?     -2.207      -0.002      -3.592      
+ATOM    14     C8    A     9     1y    ?     -0.906      0.036       -3.142      
+ATOM    15     N7    A     9     1y    ?     -0.794      0.049       -1.836      
+ATOM    16     C5    A     9     1y    ?     -2.114      0.025       -1.39       
+ATOM    17     C6    A     9     1y    ?     -2.677      0.026       -0.095      
+ATOM    18     N6    A     9     1y    ?     -1.947      0.047       1.028       
+ATOM    19     N1    A     9     1y    ?     -4.031      -0.0        -0.0        
+ATOM    20     C2    A     9     1y    ?     -4.759      -0.017      -1.13       
+ATOM    21     N3    A     9     1y    ?     -4.346      -0.023      -2.4        
+ATOM    22     C4    A     9     1y    ?     -2.998      0.003       -2.463      
+ATOM    23     P     A     23    1y    ?     -1.936      2.045       5.856       
+ATOM    24     O1P   A     23    1y    ?     -2.804      2.49        6.982       
+ATOM    25     O2P   A     23    1y    ?     -2.432      2.168       4.454       
+ATOM    26     O5'   A     23    1y    ?     -0.53       2.795       5.939       
+ATOM    27     C5'   A     23    1y    ?     0.349       2.568       7.032       
+ATOM    28     C4'   A     23    1y    ?     1.748       2.233       6.575       
+ATOM    29     O4'   A     23    1y    ?     1.749       0.998       5.809       
+ATOM    30     C3'   A     23    1y    ?     2.421       3.231       5.644       
+ATOM    31     O3'   A     23    1y    ?     2.92        4.381       6.311       
+ATOM    32     C2'   A     23    1y    ?     3.505       2.384       4.988       
+ATOM    33     O2'   A     23    1y    ?     4.612       2.218       5.867       
+ATOM    34     C1'   A     23    1y    ?     2.79        1.034       4.85        
+ATOM    35     N9    A     23    1y    ?     2.236       0.827       3.491       
+ATOM    36     C8    A     23    1y    ?     0.935       0.86        3.036       
+ATOM    37     N7    A     23    1y    ?     0.805       0.626       1.744       
+ATOM    38     C5    A     23    1y    ?     2.113       0.424       1.309       
+ATOM    39     C6    A     23    1y    ?     2.686       0.132       0.045       
+ATOM    40     N6    A     23    1y    ?     2.014       -0.033      -1.106      
+ATOM    41     N1    A     23    1y    ?     4.031       -0.0        -0.0        
+ATOM    42     C2    A     23    1y    ?     4.751       0.152       1.118       
+ATOM    43     N3    A     23    1y    ?     4.331       0.42        2.351       
+ATOM    44     C4    A     23    1y    ?     2.993       0.549       2.379       

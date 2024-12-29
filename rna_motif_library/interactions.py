@@ -189,8 +189,8 @@ def get_basepairs(
                 hbonds = other_hbonds
         bp_params = BasepairParameters(*pair.bp_params)
         bp = Basepair(
-            res_1,
-            res_2,
+            res_1.get_x3dna_residue(),
+            res_2.get_x3dna_residue(),
             hbonds,
             bp_type,
             pair.LW,
