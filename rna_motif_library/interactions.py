@@ -199,6 +199,8 @@ def get_basepairs(
             bp_params,
         )
         basepairs.append(bp)
+        data = get_basepair_info(pair, pdb_name, h_bond_score)
+        all_data.append(data)
 
     # write data to json
     df = pd.DataFrame(all_data)
