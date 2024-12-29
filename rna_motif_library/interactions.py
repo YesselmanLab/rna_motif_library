@@ -144,8 +144,14 @@ def get_basepairs(
     for pair in pairs.values():
         bp_type = get_bp_type(pair.bp)
         df_sub = df_bp_hbonds[df_bp_hbonds["basepair_type"] == f"{bp_type}_{pair.LW}"]
-        res_1 = residues[pair.nt1.nt_id]
-        res_2 = residues[pair.nt2.nt_id]
+        try:
+            res_1 = residues[pair.nt1.nt_id]
+            res_2 = residues[pair.nt2.nt_id]
+        except KeyError:
+            log.error(
+                f"Residue not found in residues: {pair.nt1.nt_id}, {pair.nt2.nt_id}"
+            )
+            continue
         if res_1.res_id != bp_type[0]:
             res_1, res_2 = res_2, res_1
         h_bond_score = 0
@@ -153,6 +159,11 @@ def get_basepairs(
         for i, row in df_sub.iterrows():
             hbond_atoms = row["hbond"].split("-")
             hbond = hf.get_hbond(res_1, res_2, hbond_atoms[0], hbond_atoms[1], pdb_name)
+            if hbond is None:
+                log.error(
+                    f"Hbond not found in: {res_1.res_id}, {res_2.res_id}, {hbond_atoms[0]}, {hbond_atoms[1]}"
+                )
+                continue
             h_bond_score += score_hbond(
                 hbond.distance, hbond.angle_1, hbond.angle_2, hbond.dihedral_angle
             )
@@ -165,6 +176,11 @@ def get_basepairs(
                 hbond = hf.get_hbond(
                     res_1, res_2, hbond_atoms[0], hbond_atoms[1], pdb_name
                 )
+                if hbond is None:
+                    log.error(
+                        f"Hbond not found in: {res_1.res_id}, {res_2.res_id}, {hbond_atoms[0]}, {hbond_atoms[1]}"
+                    )
+                    continue
                 other_h_bond_score += score_hbond(
                     hbond.distance, hbond.angle_1, hbond.angle_2, hbond.dihedral_angle
                 )
