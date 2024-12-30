@@ -1,4 +1,8 @@
 import numpy as np
+import glob
+import os
+
+from rna_motif_library.settings import DATA_PATH
 
 canon_res_list = [
     "A",
@@ -52,12 +56,38 @@ canon_amino_acid_list = [
 purine_atom_names = ["C4", "N3", "C2", "N1", "C6", "C5", "N7", "C8", "N9"]
 pyrimidine_atom_names = ["C4", "N3", "C2", "N1", "C6", "C5"]
 
+wc_basepairs = ["AU", "UA", "GC", "CG"]
+wc_basepairs_w_gu = wc_basepairs + ["GU", "UG"]
 
 atom_renames = {
     "OP1": "O1P",
     "OP2": "O2P",
     "OP3": "O3P",
 }
+
+
+def get_pdb_codes(pdb: str = None, directory: str = None) -> list:
+    """
+    Get list of PDB codes based on input parameters.
+
+    Args:
+        pdb (str, optional): Single PDB code to process. Defaults to None.
+        directory (str, optional): Directory containing PDB files. Defaults to None.
+
+    Returns:
+        list: List of PDB codes to process
+    """
+    pdb_codes = []
+    if pdb is not None:
+        pdb_codes.append(pdb)
+    elif directory is not None:
+        pdb_codes = [os.path.basename(file)[:-4] for file in os.listdir(directory)]
+    else:
+        files = glob.glob(os.path.join(DATA_PATH, "pdbs", "*.cif"))
+        for file in files:
+            pdb_code = os.path.basename(file)[:-4]
+            pdb_codes.append(pdb_code)
+    return pdb_codes
 
 
 def get_x3dna_res_id(res_id: str, num: int, chain_id: str, ins_code: str) -> str:

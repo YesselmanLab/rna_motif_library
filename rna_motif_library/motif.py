@@ -20,6 +20,7 @@ from rna_motif_library.settings import LIB_PATH, DATA_PATH
 from rna_motif_library.snap import parse_snap_output
 from rna_motif_library.interactions import get_hbonds_and_basepairs
 from rna_motif_library.logger import get_logger
+from rna_motif_library.util import wc_basepairs_w_gu
 
 log = get_logger("motif")
 
@@ -125,6 +126,29 @@ class Motif:
     def contains_hbond(self, hbond: Hbond) -> bool:
         if hbond in self.hbonds:
             return True
+        return False
+
+    def get_basepair(self, res1: Residue, res2: Residue) -> Basepair:
+        for bp in self.basepairs:
+            if (
+                bp.res_1.get_str() == res1.get_x3dna_str()
+                and bp.res_2.get_str() == res2.get_x3dna_str()
+            ):
+                return bp
+            if (
+                bp.res_1.get_str() == res2.get_x3dna_str()
+                and bp.res_2.get_str() == res1.get_x3dna_str()
+            ):
+                return bp
+        return None
+
+    def residue_has_basepair(self, res: Residue) -> bool:
+        for bp in self.basepairs:
+            if (
+                bp.res_1.get_str() == res.get_x3dna_str()
+                or bp.res_2.get_str() == res.get_x3dna_str()
+            ):
+                return True
         return False
 
     def to_dict(self):
@@ -285,6 +309,40 @@ def are_residues_connected(
     return 0
 
 
+def find_chain_ends(res_list: List[Residue]) -> List[Residue]:
+    """
+    Find the root residues that start each RNA chain.
+
+    A root residue is one that has a 5' to 3' connection to another residue
+    but no 3' to 5' connection from another residue (i.e. it's at the 5' end).
+
+    Args:
+        res_list: List of Residue objects to analyze
+
+    Returns:
+        Tuple containing:
+        - List of root residues found
+        - Modified list with roots removed
+    """
+    roots = []
+
+    # Check each residue to see if it's a root
+    for source_res in res_list:
+        has_incoming = False  # 3' to 5' connection
+        # Compare against all other residues
+        for target_res in res_list:
+            if source_res == target_res:
+                continue
+            connection = are_residues_connected(source_res, target_res)
+            if connection == -1:  # 3' to 5'
+                has_incoming = True
+                break  # Can stop checking once we find an incoming connection
+        # Root residues have outgoing but no incoming connections
+        if not has_incoming:
+            roots.append(source_res)
+    return roots
+
+
 class ChainGenerator:
     def generate_chains(self, residues: List[Residue]) -> List[List[Residue]]:
         """
@@ -368,6 +426,42 @@ class ChainGenerator:
         return built_strands
 
 
+# useful for motif classification #####################################################
+
+
+def do_strands_have_helix_sequence(strands: List[List[Residue]]) -> bool:
+    strand_1 = strands[0]
+    strand_2 = strands[1]
+    for res1, res2 in zip(strand_1, strand_2[::-1]):
+        if res1.res_id + res2.res_id not in wc_basepairs_w_gu:
+            return False
+    return True
+
+
+def are_end_residues_chain_ends(
+    residues: Dict[str, Residue], strands: List[List[Residue]]
+) -> bool:
+    motif_res = {}
+    for strand in strands:
+        for res in strand:
+            motif_res[res.get_x3dna_str()] = res
+    for strand in strands:
+        connected_residues = [None, None]
+        for res in residues.values():
+            if res.get_x3dna_str() in motif_res:
+                continue
+            if are_residues_connected(res, strand[0]) == 1:
+                connected_residues[0] = res
+            elif are_residues_connected(res, strand[-1]) == -1:
+                connected_residues[1] = res
+        if connected_residues[0] is None or connected_residues[1] is None:
+            return True
+    return False
+
+
+# MotifFactory #######################################################################
+
+
 class MotifFactory:
     """Class for processing motifs and interactions from PDB files"""
 
@@ -411,6 +505,7 @@ class MotifFactory:
             motifs.append(m)
         motifs = self._remove_strand_overlap_motifs(motifs)
         motifs = self._remove_duplicate_motifs(motifs)
+        motifs = self._split_motif_into_single_strands(motifs, all_residues)
         log.info(f"Final number of motifs: {len(motifs)}")
         return motifs
 
@@ -443,6 +538,59 @@ class MotifFactory:
                 return True
         return False
 
+    def _assign_end_basepairs(self, strands: List[List[Residue]]) -> List[Basepair]:
+        end_residue_ids = []
+        for s in strands:
+            end_residue_ids.append(s[0].get_x3dna_str())
+            end_residue_ids.append(s[-1].get_x3dna_str())
+
+        # First collect all potential end basepairs
+        end_basepairs = []
+        for bp in self.basepairs:
+            if (
+                not bp.res_1.get_str() in end_residue_ids
+                or not bp.res_2.get_str() in end_residue_ids
+            ):
+                continue
+            if bp.bp_type not in wc_basepairs_w_gu:
+                continue
+            end_basepairs.append(bp)
+
+        # Track basepairs by residue
+        residue_basepairs = {}
+        for bp in end_basepairs:
+            res1 = bp.res_1.get_str()
+            res2 = bp.res_2.get_str()
+            if res1 not in residue_basepairs:
+                residue_basepairs[res1] = []
+            if res2 not in residue_basepairs:
+                residue_basepairs[res2] = []
+            residue_basepairs[res1].append(bp)
+            residue_basepairs[res2].append(bp)
+
+        # Filter out weaker basepairs, keeping only the strongest one per residue pair
+        filtered_basepairs = set()
+        processed_residues = set()
+
+        # Sort all basepairs by hbond score from strongest to weakest
+        all_bps = []
+        for bps in residue_basepairs.values():
+            all_bps.extend(bps)
+        all_bps.sort(key=lambda x: x.hbond_score, reverse=True)
+
+        # Process basepairs in order of strength
+        for bp in all_bps:
+            res1 = bp.res_1.get_str()
+            res2 = bp.res_2.get_str()
+
+            # Only add if neither residue has been processed yet
+            if res1 not in processed_residues and res2 not in processed_residues:
+                filtered_basepairs.add(bp)
+                processed_residues.add(res1)
+                processed_residues.add(res2)
+
+        return list(filtered_basepairs)
+
     def _generate_motif(self, residues: List[Residue]) -> Motif:
         # We need to determine the data for the motif and build a class
         # First get the type
@@ -456,15 +604,7 @@ class MotifFactory:
         for bp in self.basepairs:
             if bp.res_1.get_str() in residue_ids and bp.res_2.get_str() in residue_ids:
                 basepairs.append(bp)
-        end_basepairs = []
-        for bp in basepairs:
-            if (
-                bp.res_1.get_str() in end_residue_ids
-                and bp.res_2.get_str() in end_residue_ids
-            ):
-                end_basepairs.append(bp)
-            # elif self._is_bp_an_end_basepair(strands, bp):
-            #    end_basepairs.append(bp)
+        end_basepairs = self._assign_end_basepairs(strands)
         hbonds = []
         for hb in self.hbonds:
             if hb.res_1.get_str() in residue_ids and hb.res_2.get_str() in residue_ids:
@@ -486,15 +626,11 @@ class MotifFactory:
         elif len(end_basepairs) == 1 and num_of_loop_strands == 1:
             mtype = "HAIRPIN"
         elif len(end_basepairs) == 2 and len(strands) == 2 and num_of_loop_strands == 0:
-            if num_of_wc_pairs == len(strands[0]):
+            if do_strands_have_helix_sequence(strands):
                 mtype = "HELIX"
             else:
                 mtype = "TWOWAY-JUNCTION"
-        elif (
-            len(end_basepairs) > 2
-            and len(strands) == len(end_basepairs)
-            and num_of_loop_strands == 0
-        ):
+        elif len(end_basepairs) > 2 and num_of_loop_strands == 0:
             mtype = "NWAY-JUNCTION"
         else:
             log.debug(
@@ -534,7 +670,10 @@ class MotifFactory:
             res_strand = []
             for residue in strand:
                 mol_name = residue.res_id
-                res_strand.append(mol_name)
+                if mol_name in ["A", "G", "C", "U"]:
+                    res_strand.append(mol_name)
+                else:
+                    res_strand.append("X")
             strand_sequence = "".join(res_strand)
             res_strands.append(strand_sequence)
         sequence = "&".join(res_strands)
@@ -644,4 +783,31 @@ class MotifFactory:
             new_motif = self._extract_hairpin_motif(hairpin_motif, other_motif)
             new_motifs.append(new_motif)
             new_motifs.append(hairpin_motif)
+        return new_motifs
+
+    def _split_motif_into_single_strands(
+        self, motifs: List[Motif], residues: Dict[str, Residue]
+    ) -> List[Motif]:
+        new_motifs = []
+        for motif in motifs:
+            if motif.mtype != "UNKNOWN":
+                new_motifs.append(motif)
+                continue
+            if not are_end_residues_chain_ends(residues, motif.strands):
+                new_motifs.append(motif)
+                continue
+            log.debug(f"Splitting motif {motif.name} into single strands")
+            for strand in motif.strands:
+                res = strand
+                if motif.residue_has_basepair(res[0]):
+                    if len(res) > 1:
+                        res = res[1:]
+                    else:
+                        continue
+                if motif.residue_has_basepair(res[-1]):
+                    if len(res) > 1:
+                        res = res[:-1]
+                    else:
+                        continue
+                new_motifs.append(self.from_residues(res))
         return new_motifs

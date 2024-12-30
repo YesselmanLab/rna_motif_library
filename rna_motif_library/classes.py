@@ -228,6 +228,10 @@ class Basepair:
         data["bp_params"] = BasepairParameters.from_dict(data["bp_params"])
         return cls(**data)
 
+    def __hash__(self):
+        # Create a unique hash based on the residues and score
+        return hash((self.res_1.get_str(), self.res_2.get_str(), self.hbond_score))
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Converts Pair instance to a dictionary.
@@ -241,6 +245,13 @@ class Basepair:
         data["hbonds"] = [hbond.to_dict() for hbond in self.hbonds]
         data["bp_params"] = self.bp_params.to_dict()
         return data
+
+
+def get_basepairs_from_json(json_path: str) -> List[Basepair]:
+    with open(json_path) as f:
+        basepairs_data = json.load(f)
+        basepairs = [Basepair.from_dict(bp) for bp in basepairs_data]
+    return basepairs
 
 
 class Residue:

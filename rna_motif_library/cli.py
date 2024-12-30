@@ -23,35 +23,12 @@ from rna_motif_library.update_library import (
 )
 from rna_motif_library.interactions import get_hbonds_and_basepairs
 from rna_motif_library.motif import Motif
+from rna_motif_library.util import get_pdb_codes
 
 # TODO check other types of DSSR classes like kissing loops
 
 
 log = get_logger("cli")
-
-
-def get_pdb_codes(pdb: str = None, directory: str = None) -> list:
-    """
-    Get list of PDB codes based on input parameters.
-
-    Args:
-        pdb (str, optional): Single PDB code to process. Defaults to None.
-        directory (str, optional): Directory containing PDB files. Defaults to None.
-
-    Returns:
-        list: List of PDB codes to process
-    """
-    pdb_codes = []
-    if pdb is not None:
-        pdb_codes.append(pdb)
-    elif directory is not None:
-        pdb_codes = [os.path.basename(file)[:-4] for file in os.listdir(directory)]
-    else:
-        files = glob.glob(os.path.join(DATA_PATH, "pdbs", "*.cif"))
-        for file in files:
-            pdb_code = os.path.basename(file)[:-4]
-            pdb_codes.append(pdb_code)
-    return pdb_codes
 
 
 def log_and_setup(func):

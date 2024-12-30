@@ -17,6 +17,7 @@ from rna_motif_library.classes import (
     X3DNAResidueFactory,
     X3DNAPair,
     sanitize_x3dna_atom_name,
+    get_basepairs_from_json,
 )
 from rna_motif_library.hbond import HbondFactory, score_hbond
 from rna_motif_library.logger import get_logger
@@ -41,18 +42,11 @@ def get_hbonds_from_json(json_path: str) -> List[Hbond]:
     return hbonds
 
 
-def get_basepairs_from_json(json_path: str) -> List[Basepair]:
-    with open(json_path) as f:
-        basepairs_data = json.load(f)
-        basepairs = [Basepair.from_dict(bp) for bp in basepairs_data]
-    return basepairs
-
-
 def get_hbonds_and_basepairs(
     pdb_name: str, overwrite: bool = False
 ) -> Tuple[List[Hbond], List[Basepair]]:
     # Check if hbonds and basepairs json files already exist
-    """hbonds_json_path = os.path.join(DATA_PATH, "jsons", "hbonds", f"{pdb_name}.json")
+    hbonds_json_path = os.path.join(DATA_PATH, "jsons", "hbonds", f"{pdb_name}.json")
     basepairs_json_path = os.path.join(
         DATA_PATH, "jsons", "basepairs", f"{pdb_name}.json"
     )
@@ -63,10 +57,10 @@ def get_hbonds_and_basepairs(
         and not overwrite
     ):
         log.info(f"Loading existing hbonds and basepairs for {pdb_name}")
-        hbonds = get_hbonds_from_json(hbonds_json_path)
+        # hbonds = get_hbonds_from_json(hbonds_json_path)
         basepairs = get_basepairs_from_json(basepairs_json_path)
-        return hbonds, basepairs
-    log.info(f"Generating hbonds and basepairs for {pdb_name}")"""
+        return [], basepairs
+    log.info(f"Generating hbonds and basepairs for {pdb_name}")
     json_path = os.path.join(DATA_PATH, "dssr_output", f"{pdb_name}.json")
     residue_data = json.loads(
         open(os.path.join(DATA_PATH, "jsons", "residues", f"{pdb_name}.json")).read()
@@ -149,7 +143,7 @@ def get_basepairs(
             res_2 = residues[pair.nt2.nt_id]
         except KeyError:
             log.error(
-                f"Residue not found in residues: {pdb_name}, {pair.nt1.nt_id}, {pair.nt2.nt_id}"
+                f"Residue not found in residues: {pdb_name}, {pair.nt1}, {pair.nt2}"
             )
             continue
         if res_1.res_id != bp_type[0]:
@@ -161,7 +155,7 @@ def get_basepairs(
             hbond = hf.get_hbond(res_1, res_2, hbond_atoms[0], hbond_atoms[1], pdb_name)
             if hbond is None:
                 log.error(
-                    f"Hbond not found in: {pdb_name}, {res_1.res_id}, {res_2.res_id}, {hbond_atoms[0]}, {hbond_atoms[1]}"
+                    f"Hbond not found in: {pdb_name}, {res_1.get_x3dna_str()}, {res_2.get_x3dna_residue()}, {hbond_atoms[0]}, {hbond_atoms[1]}"
                 )
                 continue
             h_bond_score += score_hbond(
@@ -178,7 +172,7 @@ def get_basepairs(
                 )
                 if hbond is None:
                     log.error(
-                        f"Hbond not found in: {pdb_name}, {res_1.res_id}, {res_2.res_id}, {hbond_atoms[0]}, {hbond_atoms[1]}"
+                        f"Hbond not found in: {pdb_name}, {res_1.get_x3dna_str()}, {res_2.get_x3dna_str()}, {hbond_atoms[0]}, {hbond_atoms[1]}"
                     )
                     continue
                 other_h_bond_score += score_hbond(
