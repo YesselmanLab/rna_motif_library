@@ -20,7 +20,7 @@ from rna_motif_library.classes import (
 
 from rna_motif_library.settings import LIB_PATH, DATA_PATH
 from rna_motif_library.snap import parse_snap_output
-from rna_motif_library.interactions import get_hbonds_and_basepairs
+from rna_motif_library.interactions import get_hbonds_and_basepairs, dataframe_to_cif
 from rna_motif_library.logger import get_logger
 
 log = get_logger("motif")
@@ -584,3 +584,15 @@ class MotifFactory:
             new_motifs.append(new_motif)
             new_motifs.append(hairpin_motif)
         return new_motifs
+
+
+"""if __name__ == "__main__":
+    #cwd = os.getcwd()
+    motifs = get_motifs_from_json("unknown_mtype.json")
+    unknown_motif_directory = "unknown_motifs_cifs"
+    os.makedirs(unknown_motif_directory)
+    for motif in motifs:
+        motif_name = motif.name
+        motif.to_cif(cif_path=os.path.join(unknown_motif_directory, f"{motif_name}.cif"))
+
+"""
