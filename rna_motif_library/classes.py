@@ -4,6 +4,9 @@ import json
 from dataclasses import dataclass
 from typing import Dict, List, Any, Tuple
 
+from biopandas.pdb import PandasPdb
+from biopandas.mmcif import PandasMmcif
+
 from rna_motif_library.util import *
 
 
@@ -425,11 +428,79 @@ class Residue:
             f.write(s)
         f.close()
 
+    def to_pdb_str(self):
+        """
+        Creates a PDB format string representation of the residue.
 
-def get_residues_from_json(json_path: str) -> List[Residue]:
+        Returns:
+            str: PDB formatted string
+        """
+        s = ""
+        for i, (atom_name, coord) in enumerate(zip(self.atom_names, self.coords), 1):
+            # Pad atom name with spaces according to PDB format
+            if len(atom_name) < 4:
+                atom_name = f" {atom_name:<3}"
+            else:
+                atom_name = f"{atom_name:<4}"
+
+            # Format insertion code
+            ins_code = self.ins_code if self.ins_code else " "
+            chain_id = self.chain_id
+            if len(chain_id) > 1:
+                chain_id = chain_id[0]
+            s += (
+                f"ATOM  {i:5d} {atom_name} {self.res_id:>3} {chain_id}"
+                f"{self.num:4d}{ins_code:1}   "
+                f"{coord[0]:8.3f}{coord[1]:8.3f}{coord[2]:8.3f}"
+                f"  1.00  0.00           {atom_name[0]:>2}\n"
+            )
+        return s
+
+
+def get_residues_from_json(json_path: str) -> Dict[str, Residue]:
     with open(json_path, "r") as f:
         residue_data = json.load(f)
     return {k: Residue.from_dict(v) for k, v in residue_data.items()}
+
+
+def get_residues_from_pdb(pdb_path: str) -> Dict[str, Residue]:
+    ppdb = PandasPdb().read_pdb(pdb_path)
+    df_atom = pd.concat([ppdb.df["ATOM"], ppdb.df["HETATM"]])
+    residues = {}
+    for i, g in df_atom.groupby(
+        ["chain_id", "residue_number", "residue_name", "insertion"]
+    ):
+        coords = g[["x_coord", "y_coord", "z_coord"]].values
+        atom_names = g["atom_name"].tolist()
+        atom_names = [sanitize_x3dna_atom_name(name) for name in atom_names]
+        chain_id, res_num, res_name, ins_code = i
+        if ins_code == "None" or ins_code is None:
+            ins_code = ""
+        x3dna_res_id = get_x3dna_res_id(res_name, res_num, chain_id, ins_code)
+        x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
+        residues[x3dna_res_id] = Residue.from_x3dna_residue(
+            x3dna_res, atom_names, coords
+        )
+    return residues
+
+
+def get_residues_from_cif(cif_path: str) -> Dict[str, Residue]:
+    ppdb = PandasMmcif().read_mmcif(cif_path)
+    df = pd.concat([ppdb.df["ATOM"], ppdb.df["HETATM"]])
+    residues = {}
+    for i, g in df.groupby(
+        ["auth_asym_id", "auth_seq_id", "auth_comp_id", "pdbx_PDB_ins_code"]
+    ):
+        coords = g[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+        atom_names = g["auth_atom_id"].tolist()
+        atom_names = [sanitize_x3dna_atom_name(name) for name in atom_names]
+        chain_id, res_num, res_name, ins_code = i
+        x3dna_res_id = get_x3dna_res_id(res_name, res_num, chain_id, ins_code)
+        x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
+        residues[x3dna_res_id] = Residue.from_x3dna_residue(
+            x3dna_res, atom_names, coords
+        )
+    return residues
 
 
 class NucleotideAminoAcidHbond:

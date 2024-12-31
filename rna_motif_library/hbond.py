@@ -14,7 +14,7 @@ from rna_motif_library.util import (
 )
 
 
-def get_closest_atoms():
+def get_closest_atoms_dict():
     RESOURCE_PATH = os.path.join(LIB_PATH, "rna_motif_library", "resources")
     f = os.path.join(RESOURCE_PATH, "closest_atoms.csv")
     df = pd.read_csv(f)
@@ -26,7 +26,8 @@ def get_closest_atoms():
 
 class HbondFactory:
     def __init__(self):
-        self.closest_atoms = get_closest_atoms()
+        self.closest_atoms = get_closest_atoms_dict()
+        self.distance_cutoff = 5.0
 
     def get_hbond(
         self, res1: Residue, res2: Residue, atom1: str, atom2: str, pdb_code: str
@@ -36,6 +37,8 @@ class HbondFactory:
         if atom1_coords is None or atom2_coords is None:
             return None
         distance = np.linalg.norm(atom1_coords - atom2_coords)
+        if distance > self.distance_cutoff:
+            return None
         closest_atom1 = self._get_closest_atom(atom1, res1)
         closest_atom2 = self._get_closest_atom(atom2, res2)
         closest_atom1_coords = res1.get_atom_coords(closest_atom1)
@@ -111,9 +114,6 @@ def parse_hbond_description(hbonds_desc: str) -> List[Tuple[str, str, float]]:
             continue
         atom2 = atom2_dist[0].split("(")[0].strip()
         distance = float(atom2_dist[1].strip("]"))
-        # Skip if distance is greater than 3.3 this is not a real hbond
-        if distance > 3.3:
-            continue
         atom1 = sanitize_x3dna_atom_name(atom1)
         atom2 = sanitize_x3dna_atom_name(atom2)
         hbond_details.append((atom1, atom2, distance))

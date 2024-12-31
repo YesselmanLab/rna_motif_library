@@ -225,7 +225,7 @@ def process_interactions(pdb, directory, debug, overwrite):
     pdb_codes = get_pdb_codes(pdb, directory)
     log.info(f"Processing {len(pdb_codes)} PDBs")
     for pdb_code in pdb_codes:
-        hbonds, basepairs = get_hbonds_and_basepairs(pdb_code)
+        hbonds, basepairs = get_hbonds_and_basepairs(pdb_code, overwrite)
         log.info(
             f"Processed {pdb_code} with {len(hbonds)} hbonds and {len(basepairs)} basepairs"
         )

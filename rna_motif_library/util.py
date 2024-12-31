@@ -2,6 +2,7 @@ import numpy as np
 import glob
 import os
 
+
 from rna_motif_library.settings import DATA_PATH
 
 canon_res_list = [

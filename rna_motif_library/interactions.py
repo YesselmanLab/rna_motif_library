@@ -19,7 +19,7 @@ from rna_motif_library.classes import (
     sanitize_x3dna_atom_name,
     get_basepairs_from_json,
 )
-from rna_motif_library.hbond import HbondFactory, score_hbond
+from rna_motif_library.hbond import HbondFactory, score_hbond, parse_hbond_description
 from rna_motif_library.logger import get_logger
 from rna_motif_library.snap import parse_snap_output
 from rna_motif_library.settings import LIB_PATH, DATA_PATH
@@ -42,6 +42,13 @@ def get_hbonds_from_json(json_path: str) -> List[Hbond]:
     return hbonds
 
 
+def get_basepairs_from_json(json_path: str) -> List[Basepair]:
+    with open(json_path) as f:
+        basepairs_data = json.load(f)
+        basepairs = [Basepair.from_dict(bp) for bp in basepairs_data]
+    return basepairs
+
+
 def get_hbonds_and_basepairs(
     pdb_name: str, overwrite: bool = False
 ) -> Tuple[List[Hbond], List[Basepair]]:
@@ -59,7 +66,7 @@ def get_hbonds_and_basepairs(
         log.info(f"Loading existing hbonds and basepairs for {pdb_name}")
         # hbonds = get_hbonds_from_json(hbonds_json_path)
         basepairs = get_basepairs_from_json(basepairs_json_path)
-        return [], basepairs
+        return hbonds, basepairs
     log.info(f"Generating hbonds and basepairs for {pdb_name}")
     json_path = os.path.join(DATA_PATH, "dssr_output", f"{pdb_name}.json")
     residue_data = json.loads(
@@ -90,9 +97,9 @@ def get_bp_type(bp: str) -> str:
     if len(e) != 2:
         e = [bp[0], bp[-1]]
     if e[0] > e[1]:
-        return e[1] + e[0]
+        return e[1] + "-" + e[0]
     else:
-        return e[0] + e[1]
+        return e[0] + "-" + e[1]
 
 
 def basepair_to_cif(res1: Residue, res2: Residue, path: str):
@@ -116,6 +123,13 @@ def get_basepair_info(
         "bp_type": get_bp_type(pair.bp),
         "bp_name": pair.name,
         "lw": pair.LW,
+        "ref_frame": np.array(
+            [
+                pair.frame["x_axis"],
+                pair.frame["y_axis"],
+                pair.frame["z_axis"],
+            ]
+        ),
         "shear": pair.bp_params[0],
         "stretch": pair.bp_params[1],
         "stagger": pair.bp_params[2],
@@ -128,59 +142,47 @@ def get_basepair_info(
     return data
 
 
-def get_basepairs(
-    pdb_name: str, pairs: List[X3DNAPair], residues: Dict[str, Residue]
-) -> List[Basepair]:
-    hf = HbondFactory()
-    basepairs = []
-    all_data = []
-    df_bp_hbonds = pd.read_csv("rna_motif_library/resources/basepair_hbonds.csv")
-    for pair in pairs.values():
+class BasepairFactory:
+    def __init__(self):
+        self.df_bp_hbonds = pd.read_csv(
+            "rna_motif_library/resources/basepair_hbonds.csv"
+        )
+        df_acceptor_donors = pd.read_json(
+            "rna_motif_library/resources/hbond_acceptor_and_donors.json"
+        )
+        self.hbond_acceptors = {}
+        self.hbond_donors = {}
+        for i, row in df_acceptor_donors.iterrows():
+            self.hbond_acceptors[row["residue_id"]] = row["acceptors"]
+            self.hbond_donors[row["residue_id"]] = row["donors"]
+        self.hf = HbondFactory()
+
+    def get_basepair(
+        self, pdb_name: str, pair: DSSR_PAIR, residues: Dict[str, Residue]
+    ) -> Basepair:
+        res_1, res_2 = self._get_bp_residues(pdb_name, pair, residues)
+        if res_1 is None or res_2 is None:
+            return None
         bp_type = get_bp_type(pair.bp)
-        df_sub = df_bp_hbonds[df_bp_hbonds["basepair_type"] == f"{bp_type}_{pair.LW}"]
-        try:
-            res_1 = residues[pair.nt1.nt_id]
-            res_2 = residues[pair.nt2.nt_id]
-        except KeyError:
-            log.error(
-                f"Residue not found in residues: {pdb_name}, {pair.nt1}, {pair.nt2}"
-            )
-            continue
-        if res_1.res_id != bp_type[0]:
+        bp_type_short = bp_type.replace("-", "")
+        if pair.nt1.nt_id != res_1.res_id:
             res_1, res_2 = res_2, res_1
-        h_bond_score = 0
-        hbonds = []
-        for i, row in df_sub.iterrows():
-            hbond_atoms = row["hbond"].split("-")
-            hbond = hf.get_hbond(res_1, res_2, hbond_atoms[0], hbond_atoms[1], pdb_name)
-            if hbond is None:
-                log.error(
-                    f"Hbond not found in: {pdb_name}, {res_1.get_x3dna_str()}, {res_2.get_x3dna_residue()}, {hbond_atoms[0]}, {hbond_atoms[1]}"
-                )
-                continue
-            h_bond_score += score_hbond(
-                hbond.distance, hbond.angle_1, hbond.angle_2, hbond.dihedral_angle
+        df_sub = self.df_bp_hbonds[
+            self.df_bp_hbonds["basepair_type"] == f"{bp_type_short}_{pair.LW}"
+        ]
+        if len(df_sub) == 0:
+            hbonds = self._get_potential_hbonds(res_1, res_2, pdb_name)
+        for _, row in df_sub.iterrows():
+            hbonds = self._get_hbonds_from_known_iteractions(
+                res_1, res_2, df_sub, pdb_name
             )
-            hbonds.append(hbond)
-        if res_1.res_id == res_2.res_id:
-            other_h_bond_score = 0
-            other_hbonds = []
-            for i, row in df_sub.iterrows():
-                hbond_atoms = row["hbond"].split("-")
-                hbond = hf.get_hbond(
-                    res_1, res_2, hbond_atoms[0], hbond_atoms[1], pdb_name
+            if res_1.res_id == res_2.res_id:
+                other_hbonds = self._get_hbonds_from_known_iteractions(
+                    res_2, res_1, df_sub, pdb_name
                 )
-                if hbond is None:
-                    log.error(
-                        f"Hbond not found in: {pdb_name}, {res_1.get_x3dna_str()}, {res_2.get_x3dna_str()}, {hbond_atoms[0]}, {hbond_atoms[1]}"
-                    )
-                    continue
-                other_h_bond_score += score_hbond(
-                    hbond.distance, hbond.angle_1, hbond.angle_2, hbond.dihedral_angle
-                )
-                other_hbonds.append(hbond)
-            if other_h_bond_score < h_bond_score:
-                hbonds = other_hbonds
+                if self._get_hbond_score(other_hbonds) < self._get_hbond_score(hbonds):
+                    hbonds = other_hbonds
+        hbond_score = self._get_hbond_score(hbonds)
         bp_params = BasepairParameters(*pair.bp_params)
         bp = Basepair(
             res_1.get_x3dna_residue(),
@@ -189,11 +191,104 @@ def get_basepairs(
             bp_type,
             pair.LW,
             pdb_name,
-            h_bond_score,
+            hbond_score,
             bp_params,
         )
-        basepairs.append(bp)
-        data = get_basepair_info(pair, pdb_name, h_bond_score)
+        return bp
+
+    def _get_bp_residues(
+        self, pdb_name: str, pair: X3DNAPair, residues: Dict[str, Residue]
+    ):
+        try:
+            res_1 = residues[pair.nt1.nt_id]
+            res_2 = residues[pair.nt2.nt_id]
+        except KeyError:
+            log.error(
+                f"Residue not found in residues: {pdb_name}, {pair.nt1.nt_id}, {pair.nt2.nt_id}"
+            )
+            return None, None
+        return res_1, res_2
+
+    def _get_potential_hbonds(self, res_1: Residue, res_2: Residue, pdb_name: str):
+        hbond_atom_pairs = []
+        acceptors = self.hbond_acceptors[res_1.res_id]
+        donors = self.hbond_donors[res_2.res_id]
+        for acceptor in acceptors:
+            for donor in donors:
+                hbond_atom_pairs.append((acceptor, donor))
+        acceptors = self.hbond_acceptors[res_2.res_id]
+        donors = self.hbond_donors[res_1.res_id]
+        for acceptor in acceptors:
+            for donor in donors:
+                hbond_atom_pairs.append((acceptor, donor))
+        potential_hbonds = []
+        for res1_atom, res2_atom in hbond_atom_pairs:
+            hbond = self.hf.get_hbond(res_1, res_2, res1_atom, res2_atom, pdb_name)
+            if hbond is None:
+                continue
+            potential_hbonds.append(hbond)
+        # Score all potential hbonds
+        scored_hbonds = []
+        for hbond in potential_hbonds:
+            score = score_hbond(
+                hbond.distance, hbond.angle_1, hbond.angle_2, hbond.dihedral_angle
+            )
+            scored_hbonds.append((score, hbond))
+
+        # Sort by score descending
+        scored_hbonds.sort(reverse=True, key=lambda x: x[0])
+
+        # Track which atoms have been used
+        used_atoms_res1 = set()
+        used_atoms_res2 = set()
+
+        # Pick best scoring hbonds where atoms haven't been used
+        final_hbonds = []
+        for score, hbond in scored_hbonds:
+            if (
+                hbond.atom_1 not in used_atoms_res1
+                and hbond.atom_2 not in used_atoms_res2
+            ):
+                final_hbonds.append(hbond)
+                used_atoms_res1.add(hbond.atom_1)
+                used_atoms_res2.add(hbond.atom_2)
+
+        potential_hbonds = final_hbonds
+        return potential_hbonds
+
+    def _get_hbonds_from_known_iteractions(
+        self, res_1: Residue, res_2: Residue, df_sub: pd.DataFrame, pdb_name: str
+    ):
+        hbonds = []
+        for i, row in df_sub.iterrows():
+            hbond_atoms = row["hbond"].split("-")
+            hbond = self.hf.get_hbond(
+                res_1, res_2, hbond_atoms[0], hbond_atoms[1], pdb_name
+            )
+            if hbond is None:
+                continue
+            hbonds.append(hbond)
+        return hbonds
+
+    def _get_hbond_score(self, hbonds: List[Hbond]):
+        hbond_score = 0
+        for hbond in hbonds:
+            hbond_score += score_hbond(
+                hbond.distance, hbond.angle_1, hbond.angle_2, hbond.dihedral_angle
+            )
+        return hbond_score
+
+
+def get_basepairs(
+    pdb_name: str, pairs: List[DSSR_PAIR], residues: Dict[str, Residue]
+) -> List[Basepair]:
+    bf = BasepairFactory()
+    basepairs = []
+    all_data = []
+    for pair in pairs.values():
+        basepair = bf.get_basepair(pdb_name, pair, residues)
+        basepairs.append(basepair)
+        data = get_basepair_info(pair, pdb_name, basepair.hbond_score)
         all_data.append(data)
 
     # write data to json
