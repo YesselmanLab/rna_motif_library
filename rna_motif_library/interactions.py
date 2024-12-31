@@ -287,6 +287,11 @@ def get_basepairs(
     all_data = []
     for pair in pairs.values():
         basepair = bf.get_basepair(pdb_name, pair, residues)
+        if basepair is None:
+            log.error(
+                f"Basepair not found for {pdb_name}, {pair.nt1.nt_id}, {pair.nt2.nt_id}"
+            )
+            continue
         basepairs.append(basepair)
         data = get_basepair_info(pair, pdb_name, basepair.hbond_score)
         all_data.append(data)
