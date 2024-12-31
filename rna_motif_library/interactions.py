@@ -66,7 +66,7 @@ def get_hbonds_and_basepairs(
         log.info(f"Loading existing hbonds and basepairs for {pdb_name}")
         # hbonds = get_hbonds_from_json(hbonds_json_path)
         basepairs = get_basepairs_from_json(basepairs_json_path)
-        return hbonds, basepairs
+        return [], basepairs
     log.info(f"Generating hbonds and basepairs for {pdb_name}")
     json_path = os.path.join(DATA_PATH, "dssr_output", f"{pdb_name}.json")
     residue_data = json.loads(
