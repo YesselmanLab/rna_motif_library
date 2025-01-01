@@ -85,12 +85,13 @@ class Motif:
             and (self.sequence == other.sequence)
             and (self.size == other.size)
         )
-        for strand1, strand2 in zip(self.strands, other.strands):
-            for res1, res2 in zip(strand1, strand2):
-                if res1.is_equal(res2, check_coords):
-                    continue
-                else:
-                    return False
+        if check_coords:
+            for strand1, strand2 in zip(self.strands, other.strands):
+                for res1, res2 in zip(strand1, strand2):
+                    if res1.is_equal(res2, check_coords):
+                        continue
+                    else:
+                        return False
         return is_equal
 
     def num_strands(self):
@@ -656,6 +657,7 @@ class MotifFactory:
 
     def _remove_duplicate_motifs(self, motifs: List[Any]) -> List[Any]:
         unique_motifs = []
+        unique_motif_residues = {}
         for i, motif in enumerate(motifs):
             duplicate = False
             for j, unique_motif in enumerate(unique_motifs):
@@ -663,11 +665,22 @@ class MotifFactory:
                     continue
                 if motif.sequence != unique_motif.sequence:
                     continue
-                if motif.is_equal(unique_motif, check_coords=True):
+                contains_residue = True
+                for res in motif.get_residues():
+                    if (
+                        res.get_x3dna_str()
+                        not in unique_motif_residues[unique_motif.name]
+                    ):
+                        contains_residue = False
+                        break
+                if contains_residue:
                     duplicate = True
                     break
             if not duplicate:
                 unique_motifs.append(motif)
+                unique_motif_residues[motif.name] = []
+                for res in motif.get_residues():
+                    unique_motif_residues[motif.name].append(res.get_x3dna_str())
         return unique_motifs
 
     # TODO come back to this after other processing

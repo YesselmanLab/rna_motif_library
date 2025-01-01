@@ -373,7 +373,7 @@ class Residue:
                 and self.num == other.num
                 and self.ins_code == other.ins_code
                 and self.rtype == other.rtype
-                and np.allclose(self.coords, other.coords)
+                and np.allclose(self.coords, other.coords, atol=0.01)
             )
         return (
             self.chain_id == other.chain_id
