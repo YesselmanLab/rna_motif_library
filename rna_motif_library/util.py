@@ -57,8 +57,8 @@ canon_amino_acid_list = [
 purine_atom_names = ["C4", "N3", "C2", "N1", "C6", "C5", "N7", "C8", "N9"]
 pyrimidine_atom_names = ["C4", "N3", "C2", "N1", "C6", "C5"]
 
-wc_basepairs = ["AU", "UA", "GC", "CG"]
-wc_basepairs_w_gu = wc_basepairs + ["GU", "UG"]
+wc_basepairs = ["A-U", "U-A", "G-C", "C-G"]
+wc_basepairs_w_gu = wc_basepairs + ["G-U", "U-G"]
 
 atom_renames = {
     "OP1": "O1P",

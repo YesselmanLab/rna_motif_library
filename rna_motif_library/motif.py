@@ -20,7 +20,7 @@ from rna_motif_library.settings import LIB_PATH, DATA_PATH
 from rna_motif_library.snap import parse_snap_output
 from rna_motif_library.interactions import get_hbonds_and_basepairs
 from rna_motif_library.logger import get_logger
-from rna_motif_library.util import wc_basepairs_w_gu
+from rna_motif_library.util import wc_basepairs_w_gu, get_cif_header_str
 
 log = get_logger("motif")
 
@@ -546,16 +546,15 @@ class MotifFactory:
 
         # First collect all potential end basepairs
         end_basepairs = []
+        has_issues = 0
         for bp in self.basepairs:
             if (
                 not bp.res_1.get_str() in end_residue_ids
                 or not bp.res_2.get_str() in end_residue_ids
             ):
                 continue
-            if bp.bp_type not in wc_basepairs_w_gu:
-                continue
-            end_basepairs.append(bp)
-
+            if bp.bp_type in wc_basepairs_w_gu or bp.hbond_score > 0.5:
+                end_basepairs.append(bp)
         # Track basepairs by residue
         residue_basepairs = {}
         for bp in end_basepairs:
