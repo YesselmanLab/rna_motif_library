@@ -171,19 +171,7 @@ class Motif:
         if cif_path is None:
             cif_path = f"{self.name}.cif"
         f = open(cif_path, "w")
-        f.write("data_\n")
-        f.write("_entry.id test\n")
-        f.write("loop_\n")
-        f.write("_atom_site.group_PDB\n")
-        f.write("_atom_site.id\n")
-        f.write("_atom_site.auth_atom_id\n")
-        f.write("_atom_site.auth_comp_id\n")
-        f.write("_atom_site.auth_asym_id\n")
-        f.write("_atom_site.auth_seq_id\n")
-        f.write("_atom_site.pdbx_PDB_ins_code\n")
-        f.write("_atom_site.Cartn_x\n")
-        f.write("_atom_site.Cartn_y\n")
-        f.write("_atom_site.Cartn_z\n")
+        f.write(get_cif_header_str())
         acount = 1
         for residue in self.get_residues():
             s, acount = residue.to_cif_str(acount)
@@ -245,19 +233,7 @@ class TertiaryContact:
 
     def to_cif(self, cif_path: str):
         f = open(cif_path, "w")
-        f.write("data_\n")
-        f.write("_entry.id test\n")
-        f.write("loop_\n")
-        f.write("_atom_site.group_PDB\n")
-        f.write("_atom_site.id\n")
-        f.write("_atom_site.auth_atom_id\n")
-        f.write("_atom_site.auth_comp_id\n")
-        f.write("_atom_site.auth_asym_id\n")
-        f.write("_atom_site.auth_seq_id\n")
-        f.write("_atom_site.pdbx_PDB_ins_code\n")
-        f.write("_atom_site.Cartn_x\n")
-        f.write("_atom_site.Cartn_y\n")
-        f.write("_atom_site.Cartn_z\n")
+        f.write(get_cif_header_str())
         acount = 1
         s, acount = self.motif_1.to_cif_str(acount)
         f.write(s)
@@ -546,13 +522,13 @@ class MotifFactory:
 
         # First collect all potential end basepairs
         end_basepairs = []
-        has_issues = 0
         for bp in self.basepairs:
             if (
                 not bp.res_1.get_str() in end_residue_ids
                 or not bp.res_2.get_str() in end_residue_ids
             ):
                 continue
+            # hbond score to allow for non-canonical nucelotides
             if bp.bp_type in wc_basepairs_w_gu or bp.hbond_score > 0.5:
                 end_basepairs.append(bp)
         # Track basepairs by residue
@@ -621,16 +597,16 @@ class MotifFactory:
             if self._is_strand_a_loop(s, end_basepairs):
                 num_of_loop_strands += 1
         if len(end_basepairs) == 0 and num_of_loop_strands == 0:
-            mtype = "SINGLE-STRAND"
+            mtype = "SSTRAND"
         elif len(end_basepairs) == 1 and num_of_loop_strands == 1:
             mtype = "HAIRPIN"
         elif len(end_basepairs) == 2 and len(strands) == 2 and num_of_loop_strands == 0:
             if do_strands_have_helix_sequence(strands):
                 mtype = "HELIX"
             else:
-                mtype = "TWOWAY-JUNCTION"
+                mtype = "TWOWAY"
         elif len(end_basepairs) > 2 and num_of_loop_strands == 0:
-            mtype = "NWAY-JUNCTION"
+            mtype = "NWAY"
         else:
             log.debug(
                 f"Unknown motif type in {self.pdb_name} with "
