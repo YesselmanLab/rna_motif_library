@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 from rna_motif_library.classes import Residue, get_residues_from_json
-from rna_motif_library.cli import get_pdb_codes
+from rna_motif_library.cli import get_pdb_ids
 from rna_motif_library.interactions import get_hbonds_and_basepairs
 from rna_motif_library.tranforms import (
     get_transformed_residue,
@@ -17,7 +17,7 @@ from rna_motif_library.util import get_cif_header_str
 
 
 def get_non_canonical_basepairs():
-    pdb_codes = get_pdb_codes()
+    pdb_codes = get_pdb_ids()
     bp_data = []
     for pdb_code in pdb_codes:
         _, basepairs = get_hbonds_and_basepairs(pdb_code)
@@ -45,7 +45,7 @@ def get_non_canonical_basepairs():
 
 
 def get_canonical_basepairs():
-    pdb_codes = get_pdb_codes()
+    pdb_codes = get_pdb_ids()
     bp_data = []
     for pdb_code in pdb_codes:
         _, basepairs = get_hbonds_and_basepairs(pdb_code)

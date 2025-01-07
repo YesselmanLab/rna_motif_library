@@ -67,28 +67,35 @@ atom_renames = {
 }
 
 
-def get_pdb_codes(pdb: str = None, directory: str = None) -> list:
+def get_cached_path(pdb_id: str, name: str) -> str:
+    if name == "dssr_output":
+        return os.path.join(DATA_PATH, "dssr_output", f"{pdb_id}.json")
+    else:
+        return os.path.join(DATA_PATH, "jsons", name, f"{pdb_id}.json")
+
+
+def get_pdb_ids(pdb_id: str = None, directory: str = None) -> list:
     """
     Get list of PDB codes based on input parameters.
 
     Args:
-        pdb (str, optional): Single PDB code to process. Defaults to None.
+        pdb_id (str, optional): Single PDB id to process. Defaults to None.
         directory (str, optional): Directory containing PDB files. Defaults to None.
 
     Returns:
-        list: List of PDB codes to process
+        list: List of PDB ids to process
     """
-    pdb_codes = []
-    if pdb is not None:
-        pdb_codes.append(pdb)
+    pdb_ids = []
+    if pdb_id is not None:
+        pdb_ids.append(pdb_id)
     elif directory is not None:
-        pdb_codes = [os.path.basename(file)[:-4] for file in os.listdir(directory)]
+        pdb_ids = [os.path.basename(file)[:-4] for file in os.listdir(directory)]
     else:
         files = glob.glob(os.path.join(DATA_PATH, "pdbs", "*.cif"))
         for file in files:
-            pdb_code = os.path.basename(file)[:-4]
-            pdb_codes.append(pdb_code)
-    return pdb_codes
+            pdb_id = os.path.basename(file)[:-4]
+            pdb_ids.append(pdb_id)
+    return pdb_ids
 
 
 def get_x3dna_res_id(res_id: str, num: int, chain_id: str, ins_code: str) -> str:

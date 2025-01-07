@@ -7,11 +7,11 @@ import subprocess
 from dataclasses import dataclass
 from typing import List, Optional
 
-from rna_motif_library.classes import (
+from rna_motif_library.x3dna import (
     X3DNAInteraction,
     X3DNAResidueFactory,
-    sanitize_x3dna_atom_name,
 )
+from rna_motif_library.util import sanitize_x3dna_atom_name
 from rna_motif_library.settings import DSSR_EXE
 
 

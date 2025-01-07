@@ -1,7 +1,11 @@
+import os
 from typing import List, Tuple
 from dataclasses import dataclass
 
-from rna_motif_library.util import canon_amino_acid_list
+from pydssr.dssr import DSSROutput
+
+from rna_motif_library.util import canon_amino_acid_list, get_cached_path
+from rna_motif_library.settings import DATA_PATH
 
 
 @dataclass(frozen=True, order=True)
@@ -131,3 +135,10 @@ class X3DNAPair:
     interactions: List[X3DNAInteraction]
     bp_type: str
     bp_name: str
+
+
+def get_cached_dssr_output(pdb_id: str) -> DSSROutput:
+    json_path = get_cached_path(pdb_id, "dssr_output")
+    if not os.path.exists(json_path):
+        raise FileNotFoundError(f"DSSR output file not found for {pdb_id}")
+    return DSSROutput(json_path=json_path)

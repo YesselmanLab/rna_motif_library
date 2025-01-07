@@ -2,7 +2,7 @@ import pandas as pd
 import json
 import os
 
-from rna_motif_library.cli import get_pdb_codes
+from rna_motif_library.cli import get_pdb_ids
 from rna_motif_library.classes import Basepair, Hbond
 from rna_motif_library.motif import get_motifs_from_json
 from rna_motif_library.settings import DATA_PATH
@@ -50,7 +50,7 @@ def get_hbonds_and_basepairs(pdb_code, all_hbonds, all_basepairs):
 def test():
     all_hbonds = get_hbonds_from_json("tertiary_contacts_hbonds.json")
     all_basepairs = get_basepairs_from_json("tertiary_contacts_basepairs.json")
-    pdb_codes = get_pdb_codes()
+    pdb_codes = get_pdb_ids()
     os.makedirs("tcs", exist_ok=True)
     pos = 0
     for pdb_code in pdb_codes:

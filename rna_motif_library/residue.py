@@ -1,4 +1,5 @@
 import json
+import os
 from typing import List, Tuple, Dict
 
 import pandas as pd
@@ -12,6 +13,7 @@ from rna_motif_library.util import (
     sanitize_x3dna_atom_name,
     get_x3dna_res_id,
     get_cif_header_str,
+    get_cached_path,
 )
 
 
@@ -223,6 +225,18 @@ class Residue:
                 f"  1.00  0.00           {atom_name[0]:>2}\n"
             )
         return s
+
+
+def get_cached_residues(pdb_id: str) -> Dict[str, Residue]:
+    json_path = get_cached_path(pdb_id, "residues")
+    if not os.path.exists(json_path):
+        raise FileNotFoundError(f"Residues file not found for {pdb_id}")
+    return get_residues_from_json(json_path)
+
+
+def save_residues_to_json(residues: Dict[str, Residue], json_path: str):
+    with open(json_path, "w") as f:
+        json.dump({k: v.to_dict() for k, v in residues.items()}, f)
 
 
 def get_residues_from_json(json_path: str) -> Dict[str, Residue]:

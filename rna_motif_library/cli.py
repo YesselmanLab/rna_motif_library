@@ -7,14 +7,20 @@ import functools
 import json
 import glob
 import pandas as pd
+
+
 from rna_motif_library.settings import LIB_PATH, DATA_PATH
 from rna_motif_library.logger import setup_logging, get_logger
-from rna_motif_library.classes import (
+
+from rna_motif_library.basepair import (
+    Basepair,
+    generate_basepairs,
+    save_basepairs_to_json,
+)
+from rna_motif_library.residue import (
     Residue,
-    sanitize_x3dna_atom_name,
-    X3DNAResidueFactory,
-    get_x3dna_res_id,
-    get_residues_from_json,
+    save_residues_to_json,
+    get_cached_residues,
 )
 from rna_motif_library.update_library import (
     get_dssr_files,
@@ -22,22 +28,25 @@ from rna_motif_library.update_library import (
     download_cif_files,
     generate_motif_files,
 )
-from rna_motif_library.interactions import get_hbonds_and_basepairs
-from rna_motif_library.motif import (
-    Motif,
+from rna_motif_library.chain import (
     get_rna_chains,
     save_chains_to_json,
     write_chain_to_cif,
+    get_cached_chains,
 )
-from rna_motif_library.util import get_pdb_codes
-
-# TODO check other types of DSSR classes like kissing loops
+from rna_motif_library.util import (
+    get_pdb_ids,
+    sanitize_x3dna_atom_name,
+    get_x3dna_res_id,
+    get_cached_path,
+)
+from rna_motif_library.x3dna import X3DNAResidueFactory, get_cached_dssr_output
 
 
 log = get_logger("cli")
 
 
-def log_and_setup(func):
+def time_func(func):
     """
     Decorator to set up logging and log the start and end of the function execution.
 
@@ -53,7 +62,6 @@ def log_and_setup(func):
         if "debug" not in kwargs:
             kwargs["debug"] = False
         func_name = func.__name__
-        setup_logging(debug=kwargs["debug"])
         log.info("Ran at commandline as: %s", " ".join(sys.argv))
         start_time = time.time()
         log.info("Starting time: %s" % pd.Timestamp.now())
@@ -79,7 +87,7 @@ def cli():
 @cli.command()
 @click.option("--threads", default=1, help="Number of threads to use.")
 @click.option("--debug", is_flag=True, help="Enable debugging.")
-@log_and_setup
+@time_func
 def download_cifs(threads, debug):
     """
     Downloads CIFs specified in the CSV from the RCSB PDB database.
@@ -92,8 +100,7 @@ def download_cifs(threads, debug):
         None
 
     """
-    if debug:
-        log.info("Debug mode is enabled.")
+    setup_logging(debug=debug)
     warnings.filterwarnings("ignore")
     csv_directory = os.path.join(LIB_PATH, "data/csvs/")
     csv_files = [file for file in os.listdir(csv_directory) if file.endswith(".csv")]
@@ -109,7 +116,7 @@ def download_cifs(threads, debug):
 @click.option("--threads", default=1, help="Number of threads to use.")
 @click.option("--directory", default=None, help="Directory to PDBs used")
 @click.option("--debug", is_flag=True, help="Enable debugging.")
-@log_and_setup
+@time_func
 def process_dssr(threads, directory, debug):
     """
     Processes every downloaded PDB with DSSR, extracting the secondary structure into a JSON.
@@ -123,8 +130,7 @@ def process_dssr(threads, directory, debug):
         None
 
     """
-    if debug:
-        log.info("Debug mode is enabled.")
+    setup_logging(debug=debug)
     warnings.filterwarnings("ignore")
     get_dssr_files(threads, directory)
 
@@ -133,7 +139,7 @@ def process_dssr(threads, directory, debug):
 @click.option("--threads", default=1, help="Number of threads to use.")
 @click.option("--directory", default=None, help="Directory of PDBs to process")
 @click.option("--debug", is_flag=True, help="Enable debugging.")
-@log_and_setup
+@time_func
 def process_snap(threads, directory, debug):
     """
     Processes every downloaded PDB with SNAP, extracting RNA-protein interaction data.
@@ -145,8 +151,7 @@ def process_snap(threads, directory, debug):
         None
 
     """
-    if debug:
-        log.info("Debug mode is enabled.")
+    setup_logging(debug=debug)
     warnings.filterwarnings("ignore")
     get_snap_files(threads, directory)
 
@@ -165,20 +170,19 @@ def process_snap(threads, directory, debug):
     help="The directory where the PDBs are located",
 )
 @click.option("--debug", is_flag=True, help="Run in debug mode")
-@log_and_setup
+@time_func
 def process_residues(pdb, directory, debug):
     """
     Processes residues from source PDB using data from DSSR.
     """
-    if debug:
-        log.info("Debug mode is enabled.")
+    setup_logging(debug=debug)
     warnings.filterwarnings("ignore")
     os.makedirs(os.path.join(DATA_PATH, "jsons", "residues"), exist_ok=True)
-    pdb_codes = get_pdb_codes(pdb, directory)
-    log.info(f"Processing {len(pdb_codes)} PDBs")
-    for pdb_code in pdb_codes:
+    pdb_ids = get_pdb_ids(pdb, directory)
+    log.info(f"Processing {len(pdb_ids)} PDBs")
+    for pdb_id in pdb_ids:
         df_atoms = pd.read_parquet(
-            os.path.join(DATA_PATH, "pdbs_dfs", f"{pdb_code}.parquet")
+            os.path.join(DATA_PATH, "pdbs_dfs", f"{pdb_id}.parquet")
         )
         residues = {}
         for i, g in df_atoms.groupby(
@@ -196,11 +200,7 @@ def process_residues(pdb, directory, debug):
                 x3dna_res, atom_names, coords
             )
         # Save residues to json file
-        residues_json_path = os.path.join(
-            DATA_PATH, "jsons", "residues", f"{pdb_code}.json"
-        )
-        with open(residues_json_path, "w") as f:
-            json.dump({k: v.to_dict() for k, v in residues.items()}, f)
+        save_residues_to_json(residues, get_cached_path(pdb_id, "residues"))
 
 
 @cli.command()
@@ -212,25 +212,20 @@ def process_residues(pdb, directory, debug):
     help="The directory where the PDBs are located",
 )
 @click.option("--debug", is_flag=True, help="Run in debug mode")
-@log_and_setup
+@time_func
 def generate_chains(pdb, directory, debug):
     if debug:
         log.info("Debug mode is enabled.")
     warnings.filterwarnings("ignore")
     os.makedirs(os.path.join(DATA_PATH, "jsons", "chains"), exist_ok=True)
-    pdb_codes = get_pdb_codes(pdb, directory)
-    for pdb_code in pdb_codes:
-        residues = get_residues_from_json(
-            os.path.join(DATA_PATH, "jsons", "residues", f"{pdb_code}.json")
-        )
+    pdb_ids = get_pdb_ids(pdb, directory)
+    for pdb_id in pdb_ids:
+        residues = get_cached_residues(pdb_id)
         chains = get_rna_chains(list(residues.values()))
         for i, chain in enumerate(chains):
-            write_chain_to_cif(chain, f"{pdb_code}_{i}.cif")
-            print(f"Chain {i}: {len(chain)} residues")
+            write_chain_to_cif(chain, f"{pdb_id}_{i}.cif")
 
-        save_chains_to_json(
-            chains, os.path.join(DATA_PATH, "jsons", "chains", f"{pdb_code}.json")
-        )
+        save_chains_to_json(chains, get_cached_path(pdb_id, "chains"))
 
 
 @cli.command()
@@ -248,38 +243,33 @@ def generate_chains(pdb, directory, debug):
 )
 @click.option("--debug", is_flag=True, help="Run in debug mode")
 @click.option("--overwrite", is_flag=True, help="Overwrite existing interactions")
-@log_and_setup
+@time_func
 def process_interactions(pdb, directory, debug, overwrite):
     """
     Processes interactions from source PDB using data from DSSR and interactions using data from SNAP.
     """
-    if debug:
-        log.info("Debug mode is enabled.")
+    setup_logging(debug=debug)
     warnings.filterwarnings("ignore")
     os.makedirs(os.path.join(DATA_PATH, "jsons", "hbonds"), exist_ok=True)
     os.makedirs(os.path.join(DATA_PATH, "jsons", "basepairs"), exist_ok=True)
-    pdb_codes = get_pdb_codes(pdb, directory)
-    log.info(f"Processing {len(pdb_codes)} PDBs")
-    for pdb_code in pdb_codes:
-        hbonds, basepairs = get_hbonds_and_basepairs(pdb_code, overwrite)
+    pdb_ids = get_pdb_ids(pdb, directory)
+    log.info(f"Processing {len(pdb_ids)} PDBs")
+    for pdb_id in pdb_ids:
+        # TODO fill in later
+        hbonds = []
+        dssr_output = get_cached_dssr_output(pdb_id)
+        dssr_pairs = dssr_output.get_pairs()
+        residues = get_cached_residues(pdb_id)
+        basepairs = generate_basepairs(pdb_id, dssr_pairs, residues)
         log.info(
-            f"Processed {pdb_code} with {len(hbonds)} hbonds and {len(basepairs)} basepairs"
+            f"Processed {pdb_id} with {len(hbonds)} hbonds and {len(basepairs)} basepairs"
         )
         # Save hbonds to json file
-        hbonds_json_path = os.path.join(
-            DATA_PATH, "jsons", "hbonds", f"{pdb_code}.json"
-        )
-        # os.makedirs(os.path.dirname(hbonds_json_path), exist_ok=True)
-        # with open(hbonds_json_path, "w") as f:
-        #    json.dump([hbond.to_dict() for hbond in hbonds], f)
+        # hbonds_json_path = get_cached_path(pdb_id, "hbonds")
+        # save_hbonds_to_json(hbonds, hbonds_json_path)
 
         # Save basepairs to json file
-        basepairs_json_path = os.path.join(
-            DATA_PATH, "jsons", "basepairs", f"{pdb_code}.json"
-        )
-        os.makedirs(os.path.dirname(basepairs_json_path), exist_ok=True)
-        with open(basepairs_json_path, "w") as f:
-            json.dump([bp.to_dict() for bp in basepairs], f)
+        save_basepairs_to_json(basepairs, get_cached_path(pdb_id, "basepairs"))
 
 
 @cli.command()
@@ -296,7 +286,7 @@ def process_interactions(pdb, directory, debug, overwrite):
     help="The directory where the PDBs are located",
 )
 @click.option("--debug", is_flag=True, help="Run in debug mode")
-@log_and_setup
+@time_func
 def generate_motifs(pdb, directory, debug):
     """
     Extracts motifs from source PDB using data from DSSR, and interactions using data from DSSR and SNAP.
@@ -310,11 +300,10 @@ def generate_motifs(pdb, directory, debug):
         None
 
     """
-    if debug:
-        log.info("Debug mode is enabled.")
+    setup_logging(debug=debug)
     warnings.filterwarnings("ignore")
-    pdb_codes = get_pdb_codes(pdb, directory)
-    generate_motif_files(pdb_codes)
+    pdb_ids = get_pdb_ids(pdb, directory)
+    generate_motif_files(pdb_ids)
 
 
 if __name__ == "__main__":

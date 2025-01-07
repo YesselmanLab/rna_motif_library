@@ -6,7 +6,7 @@ from multiprocessing import Pool
 from functools import partial
 from pydssr.dssr import DSSROutput
 from rna_motif_library.classes import Basepair
-from rna_motif_library.cli import get_pdb_codes
+from rna_motif_library.cli import get_pdb_ids
 from rna_motif_library.interactions import get_hbonds_and_basepairs
 from rna_motif_library.motif import (
     get_motifs_from_json,
@@ -56,7 +56,7 @@ def load_contained_motifs():
 
 
 def create_motif_pickle():
-    pdb_codes = get_pdb_codes()
+    pdb_codes = get_pdb_ids()
     num_processes = 15  # Default number of processes
     chunk_size = len(pdb_codes) // num_processes
     if len(pdb_codes) % num_processes:
@@ -317,7 +317,7 @@ def check_residue_overlap(motif_1, motif_2):
 
 def find_tertiary_contact_interactions():
     os.makedirs("tcs", exist_ok=True)
-    pdb_codes = get_pdb_codes()
+    pdb_codes = get_pdb_ids()
     tcs_hbonds = []
     tcs_basepairs = []
     count = 0
@@ -453,7 +453,7 @@ def find_tertiary_contact_interactions():
 
 
 def find_rna_protein_interactions():
-    pdb_codes = get_pdb_codes()
+    pdb_codes = get_pdb_ids()
     count = 0
     csv_hbond_data = []
     for pdb_code in pdb_codes:
@@ -495,7 +495,7 @@ def find_rna_protein_interactions():
 
 def process_motifs():
     count = 0
-    pdb_codes = get_pdb_codes()
+    pdb_codes = get_pdb_ids()
     # df_rna_counts = pd.read_csv("rna_residue_counts.csv")
     # df_rna_counts = df_rna_counts[df_rna_counts["count"] < 200]
     # pdb_codes = df_rna_counts["pdb_code"].to_list()
@@ -552,7 +552,7 @@ def process_motifs_2():
 
 
 def find_overlapping_motifs():
-    pdb_codes = get_pdb_codes()
+    pdb_codes = get_pdb_ids()
     pos = 0
     for pdb_code in pdb_codes:
         json_path = os.path.join(DATA_PATH, "jsons", "motifs", f"{pdb_code}.json")

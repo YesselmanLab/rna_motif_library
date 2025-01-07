@@ -16,6 +16,7 @@ from rna_motif_library.util import (
     get_nucleotide_atom_type,
     sanitize_x3dna_atom_name,
     canon_amino_acid_list,
+    get_cached_path,
 )
 from rna_motif_library.x3dna import X3DNAResidue, X3DNAInteraction, X3DNAResidueFactory
 
@@ -207,7 +208,22 @@ def score_hbond(distance, angle1, angle2, dihedral):
     return total_score
 
 
+def get_cached_hbonds(pdb_id: str) -> List[Hbond]:
+    json_path = get_cached_path(pdb_id, "hbonds")
+    if not os.path.exists(json_path):
+        raise FileNotFoundError(f"Hbonds file not found for {pdb_id}")
+    return get_hbonds_from_json(json_path)
+
+
 # parsing x3dna stuff #################################################################
+
+
+def get_hbonds_from_x3dna_interactions(pdb_name: str, hbonds: List[DSSR_HBOND]):
+    rnp_out_path = os.path.join(LIB_PATH, "data/snap_output", f"{pdb_name}.out")
+    rnp_interactions = parse_snap_output(rnp_out_path)
+    rna_interactions = convert_x3dna_hbonds_to_interactions(hbonds)
+    all_interactions = merge_hbond_interaction_data(rnp_interactions, rna_interactions)
+    return all_interactions
 
 
 def parse_hbond_description(hbonds_desc: str) -> List[Tuple[str, str, float]]:
@@ -233,14 +249,6 @@ def parse_hbond_description(hbonds_desc: str) -> List[Tuple[str, str, float]]:
         atom2 = sanitize_x3dna_atom_name(atom2)
         hbond_details.append((atom1, atom2, distance))
     return hbond_details
-
-
-def get_x3dna_interactions(pdb_name: str, hbonds: List[DSSR_HBOND]):
-    rnp_out_path = os.path.join(LIB_PATH, "data/snap_output", f"{pdb_name}.out")
-    rnp_interactions = parse_snap_output(rnp_out_path)
-    rna_interactions = convert_x3dna_hbonds_to_interactions(hbonds)
-    all_interactions = merge_hbond_interaction_data(rnp_interactions, rna_interactions)
-    return all_interactions
 
 
 def convert_x3dna_hbonds_to_interactions(

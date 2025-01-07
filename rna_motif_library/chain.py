@@ -1,10 +1,15 @@
 import json
+import os
 import numpy as np
 from typing import Set, List, Dict, Tuple, Optional
 
 from rna_motif_library.residue import Residue
 from rna_motif_library.basepair import Basepair
-from rna_motif_library.util import get_cif_header_str, wc_basepairs_w_gu
+from rna_motif_library.util import (
+    get_cif_header_str,
+    wc_basepairs_w_gu,
+    get_cached_path,
+)
 
 
 class RNAChains:
@@ -343,3 +348,10 @@ def write_chain_to_cif(chain: List[Residue], filename: str):
         for res in chain:
             s, acount = res.to_cif_str(acount)
             f.write(s)
+
+
+def get_cached_chains(pdb_id: str) -> List[List[Residue]]:
+    json_path = get_cached_path(pdb_id, "chains")
+    if not os.path.exists(json_path):
+        raise FileNotFoundError(f"Chains file not found for {pdb_id}")
+    return get_chains_from_json(json_path)

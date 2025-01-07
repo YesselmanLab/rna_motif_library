@@ -16,9 +16,10 @@ from pydssr.dssr import write_dssr_json_output_to_file
 
 from rna_motif_library.snap import generate_out_file
 from rna_motif_library.settings import LIB_PATH, DSSR_EXE, DATA_PATH
-
+from rna_motif_library.util import get_cached_path
 from rna_motif_library.logger import get_logger
 from rna_motif_library.motif import get_motifs, save_motifs_to_json
+
 
 log = get_logger("update-library")
 
@@ -168,14 +169,13 @@ def get_snap_files(threads: int, directory: str) -> None:
     log.info(f"{generated_count} new .out files generated.")
 
 
-def generate_motif_files(pdb_codes: List[str]) -> None:
+def generate_motif_files(pdb_ids: List[str]) -> None:
     """
     Processes PDB files to extract and analyze motif interactions, storing detailed outputs.
     """
-    # Define directories for output
     motif_dir = os.path.join(DATA_PATH, "jsons", "motifs")
     os.makedirs(motif_dir, exist_ok=True)
 
-    for pdb_code in pdb_codes:
-        motifs = get_motifs(pdb_code)
-        save_motifs_to_json(motifs, os.path.join(motif_dir, f"{pdb_code}.json"))
+    for pdb_id in pdb_ids:
+        motifs = get_motifs(pdb_id)
+        save_motifs_to_json(motifs, get_cached_path(pdb_id, "motifs"))

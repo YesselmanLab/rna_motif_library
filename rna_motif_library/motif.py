@@ -8,23 +8,28 @@ import numpy as np
 import pandas as pd
 
 # Local imports
-from rna_motif_library.basepair import Basepair
+from rna_motif_library.basepair import Basepair, get_cached_basepairs
 from rna_motif_library.chain import RNAChains, get_rna_chains
 from rna_motif_library.hbond import Hbond
 from rna_motif_library.logger import get_logger
-from rna_motif_library.residue import Residue
+from rna_motif_library.residue import Residue, get_cached_residues
 from rna_motif_library.settings import DATA_PATH, LIB_PATH
 from rna_motif_library.snap import parse_snap_output
 from rna_motif_library.util import (
     get_cif_header_str,
     wc_basepairs_w_gu,
+    get_cached_path,
 )
 
 log = get_logger("motif")
 
 
-def get_motifs(pdb_name: str) -> list:
-    pass
+def get_motifs(pdb_id: str) -> list:
+    residues = get_cached_residues(pdb_id)
+    basepairs = get_cached_basepairs(pdb_id)
+    chains = RNAChains(get_rna_chains(residues.values()))
+    mf = MotifFactory(pdb_id, chains, basepairs)
+    return mf.get_motifs()
 
 
 class Motif:
@@ -205,7 +210,11 @@ def save_motifs_to_json(motifs: List[Motif], json_path: str):
         json.dump([m.to_dict() for m in motifs], f)
 
 
-# useful for motif classification #####################################################
+def get_cached_motifs(pdb_id: str) -> List[Motif]:
+    json_path = get_cached_path(pdb_id, "motifs")
+    if not os.path.exists(json_path):
+        raise FileNotFoundError(f"Motifs file not found for {pdb_id}")
+    return get_motifs_from_json(json_path)
 
 
 # MotifFactory #######################################################################

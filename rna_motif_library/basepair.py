@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Dict, List, Any, Tuple
 from dataclasses import dataclass
 
@@ -7,11 +8,12 @@ import pandas as pd
 
 from pydssr.dssr_classes import DSSR_HBOND, DSSR_PAIR
 
-from rna_motif_library.util import *
 from rna_motif_library.hbond import Hbond, HbondFactory, score_hbond
+from rna_motif_library.settings import DATA_PATH
 from rna_motif_library.x3dna import X3DNAResidue, X3DNAPair
 from rna_motif_library.residue import Residue
 from rna_motif_library.logger import get_logger
+from rna_motif_library.util import get_cached_path, get_cif_header_str
 
 log = get_logger("basepair")
 
@@ -40,7 +42,7 @@ class Basepair:
     hbonds: List[Hbond]
     bp_type: str
     lw: str
-    pdb_name: str
+    pdb_id: str
     hbond_score: float
     bp_params: BasepairParameters
 
@@ -279,7 +281,26 @@ class BasepairFactory:
         return hbond_score
 
 
-def get_basepairs(
+def get_cached_basepairs(pdb_id: str) -> List[Basepair]:
+    json_path = get_cached_path(pdb_id, "basepairs")
+    if not os.path.exists(json_path):
+        raise FileNotFoundError(f"Basepairs file not found for {pdb_id}")
+    return get_basepairs_from_json(json_path)
+
+
+def get_basepairs_from_json(json_path: str) -> List[Basepair]:
+    with open(json_path) as f:
+        basepairs_data = json.load(f)
+        basepairs = [Basepair.from_dict(bp) for bp in basepairs_data]
+    return basepairs
+
+
+def save_basepairs_to_json(basepairs: List[Basepair], json_path: str):
+    with open(json_path, "w") as f:
+        json.dump([bp.to_dict() for bp in basepairs], f)
+
+
+def generate_basepairs(
     pdb_name: str, pairs: List[DSSR_PAIR], residues: Dict[str, Residue]
 ) -> List[Basepair]:
     bf = BasepairFactory()
@@ -302,11 +323,4 @@ def get_basepairs(
         os.path.join(DATA_PATH, "dataframes", "basepairs", f"{pdb_name}.json"),
         orient="records",
     )
-    return basepairs
-
-
-def get_basepairs_from_json(json_path: str) -> List[Basepair]:
-    with open(json_path) as f:
-        basepairs_data = json.load(f)
-        basepairs = [Basepair.from_dict(bp) for bp in basepairs_data]
     return basepairs

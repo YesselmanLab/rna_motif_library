@@ -4,11 +4,11 @@ import pandas as pd
 
 from rna_motif_library.classes import get_residues_from_json
 from rna_motif_library.settings import DATA_PATH
-from rna_motif_library.util import get_pdb_codes
+from rna_motif_library.util import get_pdb_ids
 
 
 def main():
-    pdb_codes = get_pdb_codes()
+    pdb_codes = get_pdb_ids()
     all_data = []
     rna_ids = ["A", "C", "G", "U"]
     for pdb_code in pdb_codes:

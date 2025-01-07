@@ -9,7 +9,7 @@ from rna_motif_library.classes import (
     get_residues_from_pdb,
 )
 from rna_motif_library.settings import DATA_PATH
-from rna_motif_library.util import canon_res_list, get_pdb_codes
+from rna_motif_library.util import canon_res_list, get_pdb_ids
 
 
 def find_connected_atoms(
@@ -98,7 +98,7 @@ def identify_potential_sites(residue: Residue) -> Tuple[List[str], List[str]]:
 
 
 def generate_residues_with_hydrogen():
-    pdb_codes = get_pdb_codes()
+    pdb_codes = get_pdb_ids()
     seen = []
 
     for pdb_code in pdb_codes:
@@ -117,7 +117,7 @@ def generate_residues_with_hydrogen():
 
 
 def main():
-    pdb_codes = get_pdb_codes()
+    pdb_codes = get_pdb_ids()
     seen = []
     acceptor_donor_data = []
     for pdb_code in pdb_codes:

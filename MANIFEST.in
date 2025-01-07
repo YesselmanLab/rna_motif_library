@@ -1,0 +1,6 @@
+include README.md
+include LICENSE
+include setup.py
+include pyproject.toml
+include rna_motif_library/*
+include rna_motif_library/resources/*
