@@ -7,15 +7,12 @@ from typing import Dict, List
 
 from biopandas.pdb import PandasPdb
 
-from rna_motif_library.classes import (
-    Residue,
-    get_residues_from_json,
-    Basepair,
-    X3DNAResidueFactory,
-)
-from rna_motif_library.interactions import get_basepairs_from_json
+
+from rna_motif_library.basepair import Basepair, get_basepairs_from_json
+from rna_motif_library.residue import Residue, get_residues_from_json
 from rna_motif_library.settings import DATA_PATH
 from rna_motif_library.util import sanitize_x3dna_atom_name, get_x3dna_res_id
+from rna_motif_library.x3dna import X3DNAResidueFactory
 
 
 class ResidueManager:

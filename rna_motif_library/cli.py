@@ -14,6 +14,7 @@ from rna_motif_library.classes import (
     sanitize_x3dna_atom_name,
     X3DNAResidueFactory,
     get_x3dna_res_id,
+    get_residues_from_json,
 )
 from rna_motif_library.update_library import (
     get_dssr_files,
@@ -22,7 +23,12 @@ from rna_motif_library.update_library import (
     generate_motif_files,
 )
 from rna_motif_library.interactions import get_hbonds_and_basepairs
-from rna_motif_library.motif import Motif
+from rna_motif_library.motif import (
+    Motif,
+    get_rna_chains,
+    save_chains_to_json,
+    write_chain_to_cif,
+)
 from rna_motif_library.util import get_pdb_codes
 
 # TODO check other types of DSSR classes like kissing loops
@@ -195,6 +201,36 @@ def process_residues(pdb, directory, debug):
         )
         with open(residues_json_path, "w") as f:
             json.dump({k: v.to_dict() for k, v in residues.items()}, f)
+
+
+@cli.command()
+@click.option("--pdb", default=None, type=str, help="Process a specific PDB")
+@click.option(
+    "--directory",
+    default=None,
+    type=str,
+    help="The directory where the PDBs are located",
+)
+@click.option("--debug", is_flag=True, help="Run in debug mode")
+@log_and_setup
+def generate_chains(pdb, directory, debug):
+    if debug:
+        log.info("Debug mode is enabled.")
+    warnings.filterwarnings("ignore")
+    os.makedirs(os.path.join(DATA_PATH, "jsons", "chains"), exist_ok=True)
+    pdb_codes = get_pdb_codes(pdb, directory)
+    for pdb_code in pdb_codes:
+        residues = get_residues_from_json(
+            os.path.join(DATA_PATH, "jsons", "residues", f"{pdb_code}.json")
+        )
+        chains = get_rna_chains(list(residues.values()))
+        for i, chain in enumerate(chains):
+            write_chain_to_cif(chain, f"{pdb_code}_{i}.cif")
+            print(f"Chain {i}: {len(chain)} residues")
+
+        save_chains_to_json(
+            chains, os.path.join(DATA_PATH, "jsons", "chains", f"{pdb_code}.json")
+        )
 
 
 @cli.command()
