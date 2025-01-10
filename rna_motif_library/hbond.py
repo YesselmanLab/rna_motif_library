@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import pandas as pd
 from pydssr.dssr_classes import DSSR_HBOND
 
-from rna_motif_library.residue import Residue
+from rna_motif_library.residue import Residue, get_cached_residues
 from rna_motif_library.settings import LIB_PATH
 from rna_motif_library.snap import parse_snap_output
 from rna_motif_library.util import (
@@ -216,6 +216,10 @@ def get_cached_hbonds(pdb_id: str) -> List[Hbond]:
 
 
 # parsing x3dna stuff #################################################################
+
+
+def generate_hbonds_from_x3dna(pdb_name: str):
+    residues = get_cached_residues(pdb_name)
 
 
 def get_hbonds_from_x3dna_interactions(pdb_name: str, hbonds: List[DSSR_HBOND]):

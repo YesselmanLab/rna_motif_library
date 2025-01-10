@@ -10,6 +10,9 @@ from rna_motif_library.util import (
     wc_basepairs_w_gu,
     get_cached_path,
 )
+from rna_motif_library.logger import get_logger
+
+log = get_logger("chain")
 
 
 class RNAChains:
@@ -155,6 +158,17 @@ class RNAChains:
         return res.get_x3dna_str() in self.chain_ends
 
 
+def p5_to_p3_connection_distance(res1: Residue, res2: Residue) -> Optional[float]:
+    o3_coords_1 = res1.get_atom_coords("O3'")
+    p_coords_2 = res2.get_atom_coords("P")
+    if p_coords_2 is None:
+        p_coords_2 = res2.get_atom_coords("PA")
+    if o3_coords_1 is not None and p_coords_2 is not None:
+        distance = np.linalg.norm(np.array(p_coords_2) - np.array(o3_coords_1))
+        return distance
+    return None
+
+
 def are_residues_connected(
     source_residue: Residue,
     residue_in_question: Residue,
@@ -250,6 +264,10 @@ def sort_rna_residues_by_chain_and_num(residues: List[Residue]) -> List[Residue]
     return sorted_residues
 
 
+def get_diff_in_residue_num(res1: Residue, res2: Residue) -> int:
+    return res1.num - res2.num
+
+
 def get_rna_chains(residues: List[Residue]) -> List[List[Residue]]:
     """Group RNA residues into connected chains.
 
@@ -287,6 +305,55 @@ def get_rna_chains(residues: List[Residue]) -> List[List[Residue]]:
                     break
             if not found_connection:
                 break
+    # Keep merging chains until no more merges are possible
+    while True:
+        merged_chains = []
+        i = 0
+        merged_any = False
+
+        while i < len(chains):
+            # Handle last chain
+            if i == len(chains) - 1:
+                merged_chains.append(chains[i])
+                break
+
+            chain_1 = chains[i]
+            chain_2 = chains[i + 1]
+            res_1 = chain_1[-1]
+            res_2 = chain_2[0]
+
+            merge = False
+            if res_1.chain_id == res_2.chain_id:
+                if get_diff_in_residue_num(res_2, res_1) == 1:
+                    distance = p5_to_p3_connection_distance(res_1, res_2)
+                    if distance is None:
+                        res_1_mean = np.mean(res_1.get_sugar_atom_coords(), axis=0)
+                        res_2_mean = np.mean(res_2.get_sugar_atom_coords(), axis=0)
+                        distance = np.linalg.norm(res_2_mean - res_1_mean)
+                        if distance < 8:
+                            log.info(
+                                f"Merging chains with {res_1.get_x3dna_str()} and {res_2.get_x3dna_str()}"
+                            )
+                            merge = True
+                    elif distance < 5:
+                        log.info(
+                            f"Merging chains with {res_1.get_x3dna_str()} and {res_2.get_x3dna_str()}"
+                        )
+                        merge = True
+
+            if merge:
+                merged_chains.append(chain_1 + chain_2)
+                merged_any = True
+                i += 2
+            else:
+                merged_chains.append(chain_1)
+                i += 1
+
+        chains = merged_chains
+
+        if not merged_any:
+            break
+
     return chains
 
 

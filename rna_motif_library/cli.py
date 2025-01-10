@@ -4,8 +4,6 @@ import os
 import click
 import sys
 import functools
-import json
-import glob
 import pandas as pd
 
 
@@ -13,7 +11,6 @@ from rna_motif_library.settings import LIB_PATH, DATA_PATH
 from rna_motif_library.logger import setup_logging, get_logger
 
 from rna_motif_library.basepair import (
-    Basepair,
     generate_basepairs,
     save_basepairs_to_json,
 )
@@ -32,7 +29,6 @@ from rna_motif_library.chain import (
     get_rna_chains,
     save_chains_to_json,
     write_chain_to_cif,
-    get_cached_chains,
 )
 from rna_motif_library.util import (
     get_pdb_ids,
@@ -214,8 +210,7 @@ def process_residues(pdb, directory, debug):
 @click.option("--debug", is_flag=True, help="Run in debug mode")
 @time_func
 def generate_chains(pdb, directory, debug):
-    if debug:
-        log.info("Debug mode is enabled.")
+    setup_logging(debug=debug)
     warnings.filterwarnings("ignore")
     os.makedirs(os.path.join(DATA_PATH, "jsons", "chains"), exist_ok=True)
     pdb_ids = get_pdb_ids(pdb, directory)
@@ -224,7 +219,6 @@ def generate_chains(pdb, directory, debug):
         chains = get_rna_chains(list(residues.values()))
         for i, chain in enumerate(chains):
             write_chain_to_cif(chain, f"{pdb_id}_{i}.cif")
-
         save_chains_to_json(chains, get_cached_path(pdb_id, "chains"))
 
 

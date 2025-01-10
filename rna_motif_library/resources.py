@@ -8,7 +8,11 @@ from typing import Dict, List
 from biopandas.pdb import PandasPdb
 
 from rna_motif_library.basepair import Basepair, get_basepairs_from_json
-from rna_motif_library.residue import Residue, get_residues_from_json
+from rna_motif_library.residue import (
+    Residue,
+    get_residues_from_json,
+    get_residues_from_cif,
+)
 from rna_motif_library.settings import DATA_PATH
 from rna_motif_library.util import (
     sanitize_x3dna_atom_name,
@@ -55,26 +59,13 @@ class BasepairManager:
 
 
 def load_ideal_basepairs() -> Dict[str, List[Residue]]:
-    pdbs = glob.glob(
-        os.path.join("rna_motif_library", "resources", "ideal_basepairs", "*.pdb")
+    cifs = glob.glob(
+        os.path.join("rna_motif_library", "resources", "ideal_basepairs", "*.cif")
     )
     basepairs = {}
-    for pdb in pdbs:
-        ppdb = PandasPdb().read_pdb(pdb)
-        df_atom = ppdb.df["ATOM"]
-        residues = []
-        for i, g in df_atom.groupby(
-            ["chain_id", "residue_number", "residue_name", "insertion"]
-        ):
-            coords = g[["x_coord", "y_coord", "z_coord"]].values
-            atom_names = g["atom_name"].tolist()
-            atom_names = [sanitize_x3dna_atom_name(name) for name in atom_names]
-            chain_id, res_num, res_name, ins_code = i
-            x3dna_res_id = get_x3dna_res_id(res_name, res_num, chain_id, ins_code)
-            x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
-            residues.append(Residue.from_x3dna_residue(x3dna_res, atom_names, coords))
-        residues = sorted(residues, key=lambda x: x.res_id)
-        bp_name = f"{residues[0].res_id}{residues[1].res_id}"
+    for cif in cifs:
+        residues = get_residues_from_cif(cif)
+        bp_name = cif.split("/")[-1].split(".")[0]
         basepairs[bp_name] = residues
     return basepairs
 

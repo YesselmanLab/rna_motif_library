@@ -106,6 +106,21 @@ class Residue:
             base_coords.append(coord)
         return base_coords
 
+    def get_sugar_atom_coords(self) -> List[Tuple[float, float, float]]:
+        """
+        Get coordinates of all sugar atoms (C1', C2', C3', C4', C5', O2', O3', O4', O5').
+
+        Returns:
+            List[Tuple[float, float, float]]: List of (x,y,z) coordinates for sugar atoms
+        """
+        sugar_coords = []
+        for atom_name, coord in zip(self.atom_names, self.coords):
+            if atom_name.startswith(
+                ("C1'", "C2'", "C3'", "C4'", "C5'", "O2'", "O3'", "O4'", "O5'")
+            ):
+                sugar_coords.append(coord)
+        return sugar_coords
+
     def get_x3dna_str(self):
         res_id = self.res_id
         if self.res_id[-1].isdigit():

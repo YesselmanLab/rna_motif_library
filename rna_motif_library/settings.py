@@ -37,5 +37,5 @@ def get_os() -> str:
 LIB_PATH: str = get_lib_path()
 DATA_PATH: str = "data"
 UNITTEST_PATH: str = LIB_PATH
-RESOURCES_PATH: str = os.path.join(LIB_PATH, "resources/")
+RESOURCES_PATH: str = os.path.join(LIB_PATH, "rna_motif_library/resources/")
 DSSR_EXE: str = os.path.join(RESOURCES_PATH, f"snap/{get_os()}/x3dna-dssr")

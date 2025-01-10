@@ -13,13 +13,8 @@ from rna_motif_library.chain import RNAChains, get_rna_chains
 from rna_motif_library.hbond import Hbond
 from rna_motif_library.logger import get_logger
 from rna_motif_library.residue import Residue, get_cached_residues
-from rna_motif_library.settings import DATA_PATH, LIB_PATH
-from rna_motif_library.snap import parse_snap_output
-from rna_motif_library.util import (
-    get_cif_header_str,
-    wc_basepairs_w_gu,
-    get_cached_path,
-)
+from rna_motif_library.settings import RESOURCES_PATH
+from rna_motif_library.util import get_cif_header_str, get_cached_path
 
 log = get_logger("motif")
 
@@ -226,20 +221,32 @@ class MotifFactory:
         self.chains = chains
         self.basepairs = basepairs
         self.motif_name_count = {}
-        self.allowed_pairs = []
-        f = open("end_pairs.txt")
-        lines = f.readlines()
-        for line in lines:
-            self.allowed_pairs.append(line.strip())
-        f.close()
         self.cww_basepairs_lookup = self._get_cww_basepairs(self.basepairs)
         self.cww_basepairs = set(self.cww_basepairs_lookup.values())
 
         self.cww_residues_to_basepairs = {}
-        # TODO come back and check to see if the best residue is the one that is in the basepair
+        # Group basepairs by residue
+        residue_basepairs = {}
         for bp in self.cww_basepairs:
-            self.cww_residues_to_basepairs[bp.res_1.get_str()] = bp
-            self.cww_residues_to_basepairs[bp.res_2.get_str()] = bp
+            if bp.res_1.get_str() not in residue_basepairs:
+                residue_basepairs[bp.res_1.get_str()] = []
+            if bp.res_2.get_str() not in residue_basepairs:
+                residue_basepairs[bp.res_2.get_str()] = []
+            residue_basepairs[bp.res_1.get_str()].append(bp)
+            residue_basepairs[bp.res_2.get_str()].append(bp)
+
+        # For each residue, take only the basepair with highest hbond score
+        for res, bps in residue_basepairs.items():
+            if len(bps) != 1:
+                log.warn(
+                    f"Residue {res} has {len(bps)} basepairs. Only taking the one with the highest hbond score."
+                )
+                for bp in bps:
+                    log.warn(
+                        f"Basepair: {bp.res_1.get_str()} {bp.res_2.get_str()} with hbond score {bp.hbond_score}"
+                    )
+            best_bp = max(bps, key=lambda x: x.hbond_score)
+            self.cww_residues_to_basepairs[res] = best_bp
         self.singlet_pairs = self._find_singlet_pairs()
         self.singlet_pairs_lookup = {}
         for bp in self.singlet_pairs:
@@ -250,8 +257,10 @@ class MotifFactory:
                 bp
             )
 
+    # callable functions ################################################################
+    # main interface
     def get_motifs(self) -> List[Motif]:
-        possible_hairpins = self._get_possible_hairpins()
+        possible_hairpins = self.get_looped_strands()
         helices = self.get_helices(possible_hairpins)
         non_helical_strands = self.get_non_helical_strands(helices)
         strands_between_helices = self.get_strands_between_helices(helices)
@@ -304,11 +313,119 @@ class MotifFactory:
             finalized_motifs.append(new_m)
         return finalized_motifs
 
+    def get_helices(self, hairpins: List[Motif]) -> List[Motif]:
+        """Find all possible helices in the structure."""
+        # Get residues already used in hairpins
+        # this avoids confusing pseudoknots with helices
+        hairpin_x3nda_strs = []
+        for h in hairpins:
+            # exclude first and last residue which are a cWW basepair
+            for res in h.strands[0][1:-1]:
+                hairpin_x3nda_strs.append(res.get_x3dna_str())
+        # Filter to only valid cWW basepairs not in hairpins
+        cww_basepairs = []
+        for bp in self.cww_basepairs:
+            if (
+                bp.res_1.get_str() in hairpin_x3nda_strs
+                or bp.res_2.get_str() in hairpin_x3nda_strs
+            ):
+                continue
+            cww_basepairs.append(bp)
+        helices = []
+        used_basepairs = set()
+        # Look for consecutive basepairs
+        for bp in cww_basepairs:
+            key = f"{bp.res_1.get_str()}-{bp.res_2.get_str()}"
+            if key in used_basepairs:
+                continue
+            helix = self._build_helix(bp, hairpin_x3nda_strs, used_basepairs)
+            if helix:
+                helices.append(helix)
+
+        return helices
+
+    def get_strands_between_helices(self, helices: List[Motif]) -> List[List[Residue]]:
+        strands = []
+        # Map residues to their helices
+        helix_map = {}
+        for i, helix in enumerate(helices):
+            for res in helix.get_residues():
+                helix_map[res.get_x3dna_str()] = i
+        # Look for consecutive residues that span different helices
+        for chain in self.chains.chains:
+            for i in range(len(chain) - 1):
+                res1 = chain[i]
+                res2 = chain[i + 1]
+                # Skip if either residue isn't in a helix
+                if (
+                    res1.get_x3dna_str() not in helix_map
+                    or res2.get_x3dna_str() not in helix_map
+                ):
+                    continue
+                # Check if residues are in different helices
+                if helix_map[res1.get_x3dna_str()] != helix_map[res2.get_x3dna_str()]:
+                    strands.append([res1, res2])
+
+        return strands
+
+    def get_non_canonical_motifs(
+        self,
+        non_helical_strands: List[List[Residue]],
+    ) -> List[Motif]:
+
+        # Group strands that share basepairs
+        motifs = []
+        unprocessed_strands = non_helical_strands.copy()
+        count = 0
+
+        while unprocessed_strands:
+            # Start a new motif with the first unprocessed strand
+            count += 1
+            motifs.extend(
+                self._get_non_canonical_motif_from_strands(
+                    unprocessed_strands[0], count, unprocessed_strands
+                )
+            )
+
+        return motifs
+
+    def get_missing_residues(
+        self,
+        motifs: List[Motif],
+        strands: List[List[Residue]] = None,
+    ) -> List[Residue]:
+        """Get residues not included in any motif or strand.
+
+        Args:
+            motifs: List of motifs to check
+            strands: Optional list of strands to check
+
+        Returns:
+            List of residues not in any motif or strand
+        """
+        motifs_residues = []
+        for m in motifs:
+            motifs_residues.extend(m.get_residues())
+
+        if strands is not None:
+            for strand in strands:
+                motifs_residues.extend(strand)
+
+        return [r for r in self.chains.get_residues() if r not in motifs_residues]
+
+    # basepair functions ################################################################
+
     def _get_cww_basepairs(self, basepairs: List[Basepair]) -> Dict[str, Basepair]:
         """Get dictionary of cWW basepairs keyed by residue pair strings."""
+        allowed_pairs = []
+        f = open(os.path.join(RESOURCES_PATH, "valid_cww_pairs.txt"))
+        lines = f.readlines()
+        for line in lines:
+            allowed_pairs.append(line.strip())
+        f.close()
         cww_basepairs = {}
         for bp in basepairs:
-            if bp.lw != "cWW" or bp.bp_type not in self.allowed_pairs:
+            if bp.lw != "cWW" or bp.bp_type not in allowed_pairs:
                 continue
             if (
                 self.chains.get_residue(bp.res_1.get_str()) is None
@@ -455,83 +572,21 @@ class MotifFactory:
                 basepairs.append(bp)
         return basepairs
 
-    def _is_multi_strand_motif_valid(
-        self, strands: List[List[Residue]], end_basepairs: List[Basepair]
-    ) -> bool:
-        end_bp_res = {}
-        for i, bp in enumerate(end_basepairs):
-            end_bp_res[bp.res_1.get_str()] = 0
-            end_bp_res[bp.res_2.get_str()] = 0
-
-        chain_ends_in_bp = {}
+    def _get_potential_basepair_ends_for_strands(
+        self, strands: List[List[Residue]]
+    ) -> List[Basepair]:
+        basepairs = []
         for strand in strands:
-            for res in [strand[0], strand[-1]]:
-                chain_ends_in_bp[res.get_x3dna_str()] = 0
-
-        for strand in strands:
-            for res in [strand[0], strand[-1]]:
-                if res.get_x3dna_str() in end_bp_res:
-                    end_bp_res[res.get_x3dna_str()] = 1
-                    chain_ends_in_bp[res.get_x3dna_str()] = 1
-
-        if len(end_bp_res) != sum(end_bp_res.values()):
-            return False
-        if len(chain_ends_in_bp) != sum(chain_ends_in_bp.values()):
-            return False
-
-        return True
-
-    def get_strands_between_helices(self, helices: List[Motif]) -> List[List[Residue]]:
-        strands = []
-        # Map residues to their helices
-        helix_map = {}
-        for i, helix in enumerate(helices):
-            for res in helix.get_residues():
-                helix_map[res.get_x3dna_str()] = i
-        # Look for consecutive residues that span different helices
-        for chain in self.chains.chains:
-            for i in range(len(chain) - 1):
-                res1 = chain[i]
-                res2 = chain[i + 1]
-                # Skip if either residue isn't in a helix
-                if (
-                    res1.get_x3dna_str() not in helix_map
-                    or res2.get_x3dna_str() not in helix_map
-                ):
-                    continue
-                # Check if residues are in different helices
-                if helix_map[res1.get_x3dna_str()] != helix_map[res2.get_x3dna_str()]:
-                    strands.append([res1, res2])
-
-        return strands
-
-    def get_missing_residues(
-        self,
-        motifs: List[Motif],
-        strands: List[List[Residue]] = None,
-    ) -> List[Residue]:
-        """Get residues not included in any motif or strand.
-
-        Args:
-            motifs: List of motifs to check
-            strands: Optional list of strands to check
-
-        Returns:
-            List of residues not in any motif or strand
-        """
-        motifs_residues = []
-        for m in motifs:
-            motifs_residues.extend(m.get_residues())
-
-        if strands is not None:
-            for strand in strands:
-                motifs_residues.extend(strand)
-
-        return [r for r in self.chains.get_residues() if r not in motifs_residues]
+            for res in strand:
+                if res.get_x3dna_str() in self.cww_residues_to_basepairs:
+                    basepairs.append(
+                        self.cww_residues_to_basepairs[res.get_x3dna_str()]
+                    )
+        return basepairs
 
     # hairpin functions ################################################################
 
-    def _get_possible_hairpins(self) -> List[List[Residue]]:
+    def get_looped_strands(self) -> List[List[Residue]]:
         """Find potential hairpin motifs in the RNA structure.
 
         Returns:
@@ -607,37 +662,6 @@ class MotifFactory:
         return hairpins
 
     # helix functions ##################################################################
-
-    def get_helices(self, hairpins: List[Motif]) -> List[Motif]:
-        """Find all possible helices in the structure."""
-        # Get residues already used in hairpins
-        # this avoids confusing pseudoknots with helices
-        hairpin_x3nda_strs = []
-        for h in hairpins:
-            # exclude first and last residue which are a cWW basepair
-            for res in h.strands[0][1:-1]:
-                hairpin_x3nda_strs.append(res.get_x3dna_str())
-        # Filter to only valid cWW basepairs not in hairpins
-        cww_basepairs = []
-        for bp in self.cww_basepairs:
-            if (
-                bp.res_1.get_str() in hairpin_x3nda_strs
-                or bp.res_2.get_str() in hairpin_x3nda_strs
-            ):
-                continue
-            cww_basepairs.append(bp)
-        helices = []
-        used_basepairs = set()
-        # Look for consecutive basepairs
-        for bp in cww_basepairs:
-            key = f"{bp.res_1.get_str()}-{bp.res_2.get_str()}"
-            if key in used_basepairs:
-                continue
-            helix = self._build_helix(bp, hairpin_x3nda_strs, used_basepairs)
-            if helix:
-                helices.append(helix)
-
-        return helices
 
     def _is_helix_start(
         self, bp: Basepair, cww_basepairs: Dict[str, Basepair], used_basepairs: Set[str]
@@ -744,28 +768,21 @@ class MotifFactory:
                     return False
         return True
 
-    def get_strands_between_helices(self, helices: List[Motif]) -> List[List[Residue]]:
-        strands = []
-        # Map residues to their helices
-        helix_map = {}
-        for i, helix in enumerate(helices):
-            for res in helix.get_residues():
-                helix_map[res.get_x3dna_str()] = i
-        # Look for consecutive residues that span different helices
-        for chain in self.chains.chains:
-            for i in range(len(chain) - 1):
-                res1 = chain[i]
-                res2 = chain[i + 1]
-                # Skip if either residue isn't in a helix
-                if (
-                    res1.get_x3dna_str() not in helix_map
-                    or res2.get_x3dna_str() not in helix_map
-                ):
-                    continue
-                # Check if residues are in different helices
-                if helix_map[res1.get_x3dna_str()] != helix_map[res2.get_x3dna_str()]:
-                    strands.append([res1, res2])
-        return strands
+    def _extend_strands_with_basepairs(
+        self, strands: List[List[Residue]]
+    ) -> List[List[Residue]]:
+        extended_strands = []
+        for strand in strands:
+            first_res = strand[0]
+            last_res = strand[-1]
+            prev_res = self.chains.get_previous_residue_in_chain(first_res)
+            if prev_res and prev_res.get_x3dna_str() in self.cww_residues_to_basepairs:
+                strand.insert(0, prev_res)
+            next_res = self.chains.get_next_residue_in_chain(last_res)
+            if next_res and next_res.get_x3dna_str() in self.cww_residues_to_basepairs:
+                strand.append(next_res)
+            extended_strands.append(strand)
+        return extended_strands
 
     # all non-helical motifs ##########################################################
     def get_non_helical_strands(self, helices: List[Motif]) -> List[List[Residue]]:
@@ -794,17 +811,35 @@ class MotifFactory:
 
         # Add flanking basepairs to strands this makes significantly easier to combine
         # strands together
-        for strand in strands:
-            first_res = strand[0]
-            last_res = strand[-1]
-            prev_res = self.chains.get_previous_residue_in_chain(first_res)
-            if prev_res and prev_res.get_x3dna_str() in self.cww_residues_to_basepairs:
-                strand.insert(0, prev_res)
-            next_res = self.chains.get_next_residue_in_chain(last_res)
-            if next_res and next_res.get_x3dna_str() in self.cww_residues_to_basepairs:
-                strand.append(next_res)
+        strands = self._extend_strands_with_basepairs(strands)
 
         return strands
+
+    def _is_multi_strand_motif_valid(
+        self, strands: List[List[Residue]], end_basepairs: List[Basepair]
+    ) -> bool:
+        end_bp_res = {}
+        for i, bp in enumerate(end_basepairs):
+            end_bp_res[bp.res_1.get_str()] = 0
+            end_bp_res[bp.res_2.get_str()] = 0
+
+        chain_ends_in_bp = {}
+        for strand in strands:
+            for res in [strand[0], strand[-1]]:
+                chain_ends_in_bp[res.get_x3dna_str()] = 0
+
+        for strand in strands:
+            for res in [strand[0], strand[-1]]:
+                if res.get_x3dna_str() in end_bp_res:
+                    end_bp_res[res.get_x3dna_str()] = 1
+                    chain_ends_in_bp[res.get_x3dna_str()] = 1
+
+        if len(end_bp_res) != sum(end_bp_res.values()):
+            return False
+        if len(chain_ends_in_bp) != sum(chain_ends_in_bp.values()):
+            return False
+
+        return True
 
     def _find_connected_strands(
         self,
@@ -855,77 +890,69 @@ class MotifFactory:
 
         return current_motif_strands, current_basepair_ends
 
-    def get_non_canonical_motifs(
+    def _get_non_canonical_motif_from_strands(
         self,
-        non_helical_strands: List[List[Residue]],
+        initial_strand: List[Residue],
+        count: int,
+        unprocessed_strands: List[List[Residue]],
     ) -> List[Motif]:
+        current_motif_strands = [initial_strand]
+        current_basepair_ends = []
+        for res in [initial_strand[0], initial_strand[-1]]:
+            if res.get_x3dna_str() in self.cww_residues_to_basepairs:
+                bp = self.cww_residues_to_basepairs[res.get_x3dna_str()]
+                if bp not in current_basepair_ends:
+                    current_basepair_ends.append(bp)
 
-        # Group strands that share basepairs
-        motifs = []
-        unprocessed_strands = non_helical_strands.copy()
-        count = 0
+        current_motif_strands, current_basepair_ends = self._find_connected_strands(
+            unprocessed_strands,
+            current_motif_strands,
+            current_basepair_ends,
+        )
 
-        while unprocessed_strands:
-            # Start a new motif with the first unprocessed strand
-            count += 1
-            current_motif_strands = [unprocessed_strands[0]]
-            current_basepair_ends = []
-            for strand in current_motif_strands:
-                for res in [strand[0], strand[-1]]:
-                    if res.get_x3dna_str() in self.cww_residues_to_basepairs:
-                        bp = self.cww_residues_to_basepairs[res.get_x3dna_str()]
-                        if bp not in current_basepair_ends:
-                            current_basepair_ends.append(bp)
+        for strand in current_motif_strands:
+            if strand in unprocessed_strands:
+                unprocessed_strands.remove(strand)
 
-            current_motif_strands, current_basepair_ends = self._find_connected_strands(
-                unprocessed_strands,
-                current_motif_strands,
-                current_basepair_ends,
-            )
-
-            for strand in current_motif_strands:
-                if strand in unprocessed_strands:
-                    unprocessed_strands.remove(strand)
-
-            if len(current_motif_strands) > 1:
-                if not self._is_multi_strand_motif_valid(
-                    current_motif_strands, current_basepair_ends
-                ):
-                    pos = 0
-                    # break strands back up
-                    for strand in current_motif_strands:
-                        motifs.append(
-                            Motif(
-                                f"UNKNOWN-{count}-{pos}",
-                                "UNKNOWN",
-                                "",
-                                "",
-                                "",
-                                [strand],
-                                self._get_basepairs_for_strands([strand]),
-                                self._get_basepair_ends_for_strands([strand]),
-                                [],
-                            )
+        if len(current_motif_strands) > 1:
+            if not self._is_multi_strand_motif_valid(
+                current_motif_strands, current_basepair_ends
+            ):
+                pos = 0
+                # break strands back up
+                motifs = []
+                for strand in current_motif_strands:
+                    motifs.append(
+                        Motif(
+                            f"UNKNOWN-{count}-{pos}",
+                            "UNKNOWN",
+                            "",
+                            "",
+                            "",
+                            [strand],
+                            self._get_basepairs_for_strands([strand]),
+                            self._get_basepair_ends_for_strands([strand]),
+                            [],
                         )
-                        pos += 1
-                    continue
+                    )
+                    pos += 1
+                return motifs
 
-            motifs.append(
-                Motif(
-                    f"UNKNOWN-{count}",
-                    "UNKNOWN",
-                    "",
-                    "",
-                    "",
-                    current_motif_strands,
-                    self._get_basepairs_for_strands(current_motif_strands),
-                    self._get_basepair_ends_for_strands(current_motif_strands),
-                    [],
-                )
+        return [
+            Motif(
+                f"UNKNOWN-{count}",
+                "UNKNOWN",
+                "",
+                "",
+                "",
+                current_motif_strands,
+                self._get_basepairs_for_strands(current_motif_strands),
+                self._get_basepair_ends_for_strands(current_motif_strands),
+                [],
             )
+        ]
 
-        return motifs
-
+    # finalizing motifs ################################################################
     def _name_motif(self, motif: Motif) -> str:
         name = f"{motif.mtype}-{motif.size}-{motif.sequence}-{self.pdb_id}"
         if name not in self.motif_name_count:
@@ -1105,7 +1132,23 @@ class MotifFactory:
 
     # debug functions #################################################################
 
-    def inspect_motif(self, motif: Motif):
+    def _get_end_basepair_overlaps(
+        self, motif: Motif, motifs: List[Motif]
+    ) -> List[Motif]:
+        motif_ends = []
+        for end in motif.basepair_ends:
+            motif_ends.append(end.res_1.get_str())
+            motif_ends.append(end.res_2.get_str())
+        for m in motifs:
+            if m.name == motif.name:
+                continue
+            for strand in m.strands:
+                for res in [strand[0], strand[-1]]:
+                    if res.get_x3dna_str() in motif_ends:
+                        m.to_cif()
+                        print(f"Residue: {res.get_x3dna_str()} in motif: {m.name}")
+
+    def inspect_motif(self, motif: Motif, motifs: List[Motif] = None):
         print(f"Motif: {motif.name}")
         print(f"Type: {motif.mtype}")
         print(f"Size: {motif.size}")
@@ -1120,3 +1163,60 @@ class MotifFactory:
                     print(
                         f"Residue: {res.get_x3dna_str()} in End Basepair: {bp.res_1.get_str()} {bp.res_2.get_str()}"
                     )
+        if motifs is None:
+            return
+        print("overlaps with other motifs:")
+        self._get_end_basepair_overlaps(motif, motifs)
+        for strand in motif.strands:
+            for res in strand:
+                print(res.get_x3dna_str(), end=" ")
+            print()
+
+        if motif.mtype != "SSTRAND":
+            return
+        print("extending strands with basepairs")
+        motif.strands = self._extend_strands_with_basepairs(motif.strands)
+        motif.basepair_ends = self._get_potential_basepair_ends_for_strands(
+            motif.strands
+        )
+        for strand in motif.strands:
+            for res in strand:
+                print(res.get_x3dna_str(), end=" ")
+            print()
+        self._get_end_basepair_overlaps(motif, motifs)
+
+    def inspect_motif_neighbors(self, motif: Motif, motifs: List[Motif]):
+        pass
+
+    def find_motif_interactions(
+        self, motifs: List[Motif]
+    ) -> List[Tuple[Motif, Motif, int]]:
+        """Find pairs of motifs that share basepairs between their residues.
+
+        Args:
+            motifs: List of motifs to check for interactions
+
+        Returns:
+            List of tuples containing pairs of interacting motifs and number of shared basepairs
+        """
+        interactions = []
+        # Check each pair of motifs
+        for i, motif1 in enumerate(motifs):
+            for motif2 in motifs[i + 1 :]:
+                # Get all residues in each motif
+                residues1 = set(motif1.get_residues())
+                residues2 = set(motif2.get_residues())
+
+                # Count basepairs between the motifs
+                num_shared_bps = 0
+                for bp in self.basepairs:
+                    res1 = self.chains.get_residue(bp.res_1.get_str())
+                    res2 = self.chains.get_residue(bp.res_2.get_str())
+                    if (res1 in residues1 and res2 in residues2) or (
+                        res1 in residues2 and res2 in residues1
+                    ):
+                        num_shared_bps += 1
+
+                if num_shared_bps > 0:
+                    interactions.append((motif1, motif2, num_shared_bps))
+        return interactions
