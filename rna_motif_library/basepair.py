@@ -43,6 +43,7 @@ class Basepair:
     bp_type: str
     lw: str
     pdb_id: str
+    ref_frame: np.ndarray
     hbond_score: float
     bp_params: BasepairParameters
 
@@ -62,6 +63,7 @@ class Basepair:
         data["res_2"] = X3DNAResidue.from_dict(data["res_2"])
         # Convert list of Hbond objects
         data["hbonds"] = [Hbond.from_dict(hbond) for hbond in data["hbonds"]]
+        data["ref_frame"] = np.array(data["ref_frame"])
         data["bp_params"] = BasepairParameters.from_dict(data["bp_params"])
         return cls(**data)
 
@@ -81,6 +83,7 @@ class Basepair:
         data["res_2"] = self.res_2.to_dict()
         data["hbonds"] = [hbond.to_dict() for hbond in self.hbonds]
         data["bp_params"] = self.bp_params.to_dict()
+        data["ref_frame"] = self.ref_frame.tolist()
         return data
 
     def get_partner(self, x3dna_id: str):
@@ -186,6 +189,13 @@ class BasepairFactory:
                     hbonds = other_hbonds
         hbond_score = self._get_hbond_score(hbonds)
         bp_params = BasepairParameters(*pair.bp_params)
+        ref_frame = np.array(
+            [
+                pair.frame["x_axis"],
+                pair.frame["y_axis"],
+                pair.frame["z_axis"],
+            ]
+        )
         bp = Basepair(
             res_1.get_x3dna_residue(),
             res_2.get_x3dna_residue(),
@@ -193,6 +203,7 @@ class BasepairFactory:
             bp_type,
             pair.LW,
             pdb_name,
+            ref_frame,
             hbond_score,
             bp_params,
         )
