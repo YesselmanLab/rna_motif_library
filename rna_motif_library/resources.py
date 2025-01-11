@@ -10,8 +10,8 @@ from biopandas.pdb import PandasPdb
 from rna_motif_library.basepair import Basepair, get_basepairs_from_json
 from rna_motif_library.residue import (
     Residue,
-    get_residues_from_json,
     get_residues_from_cif,
+    get_cached_residues,
 )
 from rna_motif_library.settings import DATA_PATH
 from rna_motif_library.util import (
@@ -30,9 +30,11 @@ class ResidueManager:
 
     def get_residue(self, x3dna_res_code: str, pdb_code: str) -> Residue:
         if pdb_code not in self.residues:
-            self.residues[pdb_code] = get_residues_from_json(
-                os.path.join(DATA_PATH, "jsons", "residues", f"{pdb_code}.json")
-            )
+            try:
+                self.residues[pdb_code] = get_cached_residues(pdb_code)
+            except Exception as e:
+                print(f"Error getting residues for {pdb_code}: {e}")
+                return None
         if x3dna_res_code not in self.residues[pdb_code]:
             return None
         else:

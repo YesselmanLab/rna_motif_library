@@ -81,10 +81,11 @@ def cli():
 
 
 @cli.command()
+@click.argument("csv_path", type=click.Path(exists=True))
 @click.option("--threads", default=1, help="Number of threads to use.")
 @click.option("--debug", is_flag=True, help="Enable debugging.")
 @time_func
-def download_cifs(threads, debug):
+def download_cifs(csv_path, threads, debug):
     """
     Downloads CIFs specified in the CSV from the RCSB PDB database.
 
@@ -98,13 +99,6 @@ def download_cifs(threads, debug):
     """
     setup_logging(debug=debug)
     warnings.filterwarnings("ignore")
-    csv_directory = os.path.join(LIB_PATH, "data/csvs/")
-    csv_files = [file for file in os.listdir(csv_directory) if file.endswith(".csv")]
-    # TODO specify which CSV to use
-    if len(csv_files) == 0:
-        log.error(f"No CSV files found in directory: {csv_directory}")
-        return
-    csv_path = os.path.join(csv_directory, csv_files[0])
     download_cif_files(csv_path, threads)
 
 

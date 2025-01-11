@@ -1,6 +1,7 @@
 import pandas as pd
 import glob
 import os
+import time
 from biopandas.mmcif import PandasMmcif
 import multiprocessing
 
