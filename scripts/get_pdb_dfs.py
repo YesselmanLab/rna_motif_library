@@ -92,6 +92,21 @@ def process_chunk(cif_files):
 def main():
     glob_path = os.path.join("data/pdbs", "*.cif")
     cif_files = glob.glob(glob_path)
+    # Filter out files that already have parquet output
+    filtered_cif_files = []
+    for cif_file in cif_files:
+        pdb_name = os.path.basename(cif_file).split(".")[0]
+        parquet_path = f"data/pdbs_dfs/{pdb_name}.parquet"
+        if not os.path.exists(parquet_path):
+            filtered_cif_files.append(cif_file)
+
+    print(f"Found {len(cif_files)} total CIF files")
+    print(f"Processing {len(filtered_cif_files)} files that need conversion")
+    if len(filtered_cif_files) == 0:
+        print("No files need conversion")
+        return
+
+    cif_files = filtered_cif_files
 
     # Split files into chunks for parallel processing
     num_processes = 8  # Reduced from 20 to lower system load

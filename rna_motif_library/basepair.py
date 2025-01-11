@@ -224,6 +224,11 @@ class BasepairFactory:
 
     def _get_potential_hbonds(self, res_1: Residue, res_2: Residue, pdb_name: str):
         hbond_atom_pairs = []
+        if (
+            res_1.res_id not in self.hbond_acceptors
+            or res_2.res_id not in self.hbond_donors
+        ):
+            return []
         acceptors = self.hbond_acceptors[res_1.res_id]
         donors = self.hbond_donors[res_2.res_id]
         for acceptor in acceptors:

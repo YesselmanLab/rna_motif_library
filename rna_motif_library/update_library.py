@@ -38,9 +38,7 @@ def download_cif_files(csv_path: str, threads: int) -> None:
     """
     pdb_dir = DATA_PATH + "/pdbs/"
     os.makedirs(pdb_dir, exist_ok=True)
-    df = pd.read_csv(
-        csv_path, header=None, names=["equivalence_class", "represent", "class_members"]
-    )
+    df = pd.read_csv(csv_path)
 
     def download_pdbs(row):
         """
@@ -56,17 +54,15 @@ def download_cif_files(csv_path: str, threads: int) -> None:
             Exception: If there is an error while downloading the PDB file.
 
         """
-        pdb_code = row.represent.split("|")[0]
-        out_path = os.path.join(pdb_dir, f"{pdb_code}.cif")
+        pdb_id = row.pdb_id
+        out_path = os.path.join(pdb_dir, f"{pdb_id}.cif")
 
         if os.path.isfile(out_path):
             return  # Skip this row because the file is already downloaded
         try:
-            wget.download(
-                f"https://files.rcsb.org/download/{pdb_code}.cif", out=out_path
-            )
+            wget.download(f"https://files.rcsb.org/download/{pdb_id}.cif", out=out_path)
         except Exception as e:
-            tqdm.write(f"Failed to download {pdb_code}: {e}")
+            tqdm.write(f"Failed to download {pdb_id}: {e}")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
         list(

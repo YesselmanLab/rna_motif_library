@@ -3,9 +3,9 @@ import numpy as np
 import pandas as pd
 import os
 
-from rna_motif_library.classes import (
+from rna_motif_library.residue import (
     Residue,
-    get_residues_from_json,
+    get_cached_residues,
     get_residues_from_pdb,
 )
 from rna_motif_library.settings import DATA_PATH
@@ -100,14 +100,17 @@ def identify_potential_sites(residue: Residue) -> Tuple[List[str], List[str]]:
 def generate_residues_with_hydrogen():
     pdb_codes = get_pdb_ids()
     seen = []
-
+    os.makedirs(os.path.join(DATA_PATH, "residues_w_h_pdbs"), exist_ok=True)
     for pdb_code in pdb_codes:
-        json_path = os.path.join(DATA_PATH, "jsons", "residues", f"{pdb_code}.json")
-        residues = get_residues_from_json(json_path)
+        residues = get_cached_residues(pdb_code)
         for residue in residues.values():
             if residue.res_id in seen:
                 continue
             seen.append(residue.res_id)
+            if os.path.exists(
+                os.path.join(DATA_PATH, "residues_w_h_pdbs", f"{residue.res_id}.pdb")
+            ):
+                continue
             s = residue.to_pdb_str()
             with open("test.pdb", "w") as f:
                 f.write(s)
@@ -117,13 +120,13 @@ def generate_residues_with_hydrogen():
 
 
 def main():
-    pdb_codes = get_pdb_ids()
+    # generate_residues_with_hydrogen()
     seen = []
     acceptor_donor_data = []
+    pdb_codes = get_pdb_ids()
     for pdb_code in pdb_codes:
-        json_path = os.path.join(DATA_PATH, "jsons", "residues", f"{pdb_code}.json")
-        residues = get_residues_from_json(json_path)
-        print(pdb_code)
+        residues = get_cached_residues(pdb_code)
+        # print(pdb_code)
         for residue in residues.values():
             if residue.res_id in seen:
                 continue
@@ -137,7 +140,11 @@ def main():
             except:
                 print(f"No h-residue found for {residue.res_id}")
                 continue
-            h_residue = list(h_residues.values())[0]
+            try:
+                h_residue = list(h_residues.values())[0]
+            except:
+                print(f"cannot load h-residue for {residue.res_id}")
+                continue
             donors, acceptors = identify_potential_sites(h_residue)
             acceptor_donor_data.append(
                 {

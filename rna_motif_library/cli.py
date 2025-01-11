@@ -159,9 +159,15 @@ def process_snap(threads, directory, debug):
     type=str,
     help="The directory where the PDBs are located",
 )
+@click.option(
+    "-se",
+    "--skip_existing",
+    is_flag=True,
+    help="Skip existing residues",
+)
 @click.option("--debug", is_flag=True, help="Run in debug mode")
 @time_func
-def process_residues(pdb, directory, debug):
+def process_residues(pdb, directory, debug, skip_existing):
     """
     Processes residues from source PDB using data from DSSR.
     """
@@ -171,6 +177,9 @@ def process_residues(pdb, directory, debug):
     pdb_ids = get_pdb_ids(pdb, directory)
     log.info(f"Processing {len(pdb_ids)} PDBs")
     for pdb_id in pdb_ids:
+        if skip_existing and os.path.exists(get_cached_path(pdb_id, "residues")):
+            log.info(f"Skipping {pdb_id} because it already exists")
+            continue
         df_atoms = pd.read_parquet(
             os.path.join(DATA_PATH, "pdbs_dfs", f"{pdb_id}.parquet")
         )
