@@ -170,14 +170,15 @@ class BasepairFactory:
             return None
         bp_type = get_bp_type(pair.bp)
         bp_type_short = bp_type.replace("-", "")
-        if pair.nt1.nt_id != res_1.res_id:
+        nuc_names = bp_type.split("-")
+        if nuc_names[0] != res_1.res_id:
             res_1, res_2 = res_2, res_1
         df_sub = self.df_bp_hbonds[
             self.df_bp_hbonds["basepair_type"] == f"{bp_type_short}_{pair.LW}"
         ]
         if len(df_sub) == 0:
             hbonds = self._get_potential_hbonds(res_1, res_2, pdb_name)
-        for _, row in df_sub.iterrows():
+        else:
             hbonds = self._get_hbonds_from_known_iteractions(
                 res_1, res_2, df_sub, pdb_name
             )

@@ -105,7 +105,11 @@ def get_dssr_files(threads: int, directory: str) -> None:
         json_out_path = os.path.join(out_path, name + ".json")
 
         if os.path.isfile(json_out_path):
-            return 0  # File already processed, no need to increment count
+            try:
+                data = json.load(open(json_out_path))
+                return 0  # File already processed, no need to increment count
+            except Exception as e:
+                pass
         write_dssr_json_output_to_file(DSSR_EXE, pdb_path, json_out_path)
 
         with lock:

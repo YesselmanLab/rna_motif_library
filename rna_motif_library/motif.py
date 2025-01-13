@@ -14,7 +14,11 @@ from rna_motif_library.hbond import Hbond
 from rna_motif_library.logger import get_logger
 from rna_motif_library.residue import Residue, get_cached_residues
 from rna_motif_library.settings import RESOURCES_PATH
-from rna_motif_library.util import get_cif_header_str, get_cached_path
+from rna_motif_library.util import (
+    get_cif_header_str,
+    get_cached_path,
+    wc_basepairs_w_gu,
+)
 
 log = get_logger("motif")
 
@@ -424,6 +428,8 @@ class MotifFactory:
             allowed_pairs.append(line.strip())
         f.close()
         cww_basepairs = {}
+        two_hbond_pairs = ["A-U", "U-A", "G-U", "U-G"]
+        three_hbond_pairs = ["G-C", "C-G"]
         for bp in basepairs:
             if bp.lw != "cWW" or bp.bp_type not in allowed_pairs:
                 continue
@@ -431,6 +437,11 @@ class MotifFactory:
                 self.chains.get_residue(bp.res_1.get_str()) is None
                 or self.chains.get_residue(bp.res_2.get_str()) is None
             ):
+                continue
+            # stops a lot of bad basepairs from being included
+            if bp.bp_type in two_hbond_pairs and bp.hbond_score < 1.0:
+                continue
+            if bp.bp_type in three_hbond_pairs and bp.hbond_score < 1.5:
                 continue
             key1 = f"{bp.res_1.get_str()}-{bp.res_2.get_str()}"
             key2 = f"{bp.res_2.get_str()}-{bp.res_1.get_str()}"
