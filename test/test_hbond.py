@@ -2,7 +2,7 @@ from rna_motif_library.hbond import HbondFactory
 from rna_motif_library.resources import load_ideal_basepairs
 
 
-def _test_hbond():
+def test_hbond():
     basepairs = load_ideal_basepairs()
     bp = basepairs["AU_cWW"]
     hf = HbondFactory()

@@ -26,6 +26,9 @@ class X3DNAResidue:
         return vars(self)
 
     def get_str(self):
+        return f"{self.chain_id}-{self.res_id}-{self.num}-{self.ins_code}"
+
+    def get_x3dna_str(self):
         res_id = self.res_id
         if self.res_id[-1].isdigit():
             res_id = res_id[:-1]
@@ -36,6 +39,26 @@ class X3DNAResidue:
 
     def __str__(self):
         return self.get_str()
+
+
+def get_residue_type(res_id: str) -> str:
+    """
+    Determines the type of residue from its ID.
+
+    Args:
+        res_id (str): Residue identifier (e.g. "A", "DA", "GLY")
+
+    Returns:
+        str: Type of residue ("rna", "dna", "aa", or "unknown")
+    """
+    if res_id in ["A", "C", "G", "U"]:
+        return "rna"
+    elif res_id in ["DA", "DC", "DG", "DT"]:
+        return "dna"
+    elif res_id in canon_amino_acid_list:
+        return "aa"
+    else:
+        return "unknown"
 
 
 class X3DNAResidueFactory:

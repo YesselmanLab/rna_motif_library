@@ -36,7 +36,11 @@ from rna_motif_library.util import (
     get_x3dna_res_id,
     get_cached_path,
 )
-from rna_motif_library.x3dna import X3DNAResidueFactory, get_cached_dssr_output
+from rna_motif_library.x3dna import (
+    X3DNAResidueFactory,
+    get_cached_dssr_output,
+    get_residue_type,
+)
 
 
 log = get_logger("cli")
@@ -193,11 +197,16 @@ def process_residues(pdb, directory, debug, skip_existing):
             chain_id, res_num, res_name, ins_code = i
             if ins_code == "None" or ins_code is None:
                 ins_code = ""
-            x3dna_res_id = get_x3dna_res_id(res_name, res_num, chain_id, ins_code)
-            x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
-            residues[x3dna_res_id] = Residue.from_x3dna_residue(
-                x3dna_res, atom_names, coords
+            res = Residue(
+                chain_id,
+                res_name,
+                int(res_num),
+                ins_code,
+                get_residue_type(res_name),
+                atom_names,
+                coords,
             )
+            residues[res.get_str()] = res
         # Save residues to json file
         save_residues_to_json(residues, get_cached_path(pdb_id, "residues"))
 

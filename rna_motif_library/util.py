@@ -1,6 +1,8 @@
 import numpy as np
 import glob
 import os
+from typing import Optional
+import pandas as pd
 
 
 from rna_motif_library.settings import DATA_PATH
@@ -74,7 +76,7 @@ def get_cached_path(pdb_id: str, name: str) -> str:
         return os.path.join(DATA_PATH, "jsons", name, f"{pdb_id}.json")
 
 
-def get_pdb_ids(pdb_id: str = None, directory: str = None) -> list:
+def get_pdb_ids(pdb_id: Optional[str] = None, directory: Optional[str] = None) -> list:
     """
     Get list of PDB codes based on input parameters.
 
@@ -151,6 +153,146 @@ def get_cif_header_str() -> str:
     s += "_atom_site.Cartn_y\n"
     s += "_atom_site.Cartn_z\n"
     return s
+
+
+class CifParser:
+    def __init__(self):
+        self.loops = {}
+        self.df = None
+
+    def _find_loops(self, lines: list) -> None:
+        """Find all loop_ sections and their fields in the CIF file."""
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            # Skip empty lines and comments
+            if not line or line.startswith("#"):
+                i += 1
+                continue
+            # Found a loop
+            if line == "loop_":
+                loop_fields = []
+                i += 1
+                # Collect all fields that start with underscore
+                while i < len(lines) and lines[i].strip().startswith("_"):
+                    field = lines[i].strip()
+                    loop_fields.append(field)
+                    i += 1
+                # Get first data line after field names
+                # Save all data until next loop
+                first_data = None
+                data_lines = []
+                j = i
+                while j < len(lines):
+                    line = lines[j].strip()
+                    if not line or line.startswith("#"):
+                        j += 1
+                        continue
+                    if line == "loop_" or line.startswith("#"):
+                        break
+                    if first_data is None:
+                        first_data = line
+                    data_lines.append(line)
+                    j += 1
+                # Determine loop type from the first field
+                if loop_fields:
+                    loop_type = loop_fields[0].split(".")[0].replace("_", "")
+                    self.loops[loop_type] = {
+                        "fields": loop_fields,
+                        "first_data": first_data,
+                        "data_lines": data_lines,
+                    }
+            else:
+                i += 1
+
+    def _get_atom_loop_fields(self, file_path: str) -> list:
+        """Get the field names for the atom site loop."""
+        required_fields = [
+            "Cartn_x",
+            "Cartn_y",
+            "Cartn_z",
+        ]
+
+        data_loop = None
+        for key, loop in self.loops.items():
+            first_data = loop["first_data"]
+            fields = loop["fields"]
+            if first_data and first_data.startswith("ATOM"):
+                # Check if all required coordinate fields are present
+                if not all(
+                    any(field.endswith(coord) for field in fields)
+                    for coord in required_fields
+                ):
+                    raise ValueError(
+                        f"Missing required coordinate fields in {file_path}"
+                    )
+                data_loop = loop
+
+        if data_loop is not None:
+            return data_loop
+
+        for key, loop in self.loops.items():
+            fields = loop["fields"]
+            contains = 0
+            for field in fields:
+                for required_field in required_fields:
+                    if field.find(required_field) != -1:
+                        contains += 1
+            if contains >= len(required_fields):
+                data_loop = loop
+                break
+        if data_loop is None:
+            raise ValueError(f"No atom records found in {file_path}")
+
+        return data_loop
+
+    def _parse_atom_records(self, data_loop: dict) -> pd.DataFrame:
+        """Parse atom records into a DataFrame."""
+        atoms = []
+        for line in data_loop["data_lines"]:
+            values = [v.strip('"') for v in line.split()]
+            atoms.append(values)
+
+        if not atoms:
+            raise ValueError("No valid atom records found")
+
+        return pd.DataFrame(atoms, columns=data_loop["fields"])
+
+    def parse(self, file_path: str) -> pd.DataFrame:
+        """
+        Parse a CIF file and return a DataFrame of atom records.
+
+        Args:
+            file_path: Path to the CIF file
+
+        Returns:
+            pd.DataFrame containing the atom records
+        """
+        with open(file_path, "r") as f:
+            lines = f.readlines()
+
+        self._find_loops(lines)
+        data_loop = self._get_atom_loop_fields(file_path)
+        # Remove '_atom_site.' prefix from field names
+        data_loop["fields"] = [name.split(".")[-1] for name in data_loop["fields"]]
+        fields = []
+        for field in data_loop["fields"]:
+            if field.endswith("Cartn_x"):
+                fields.append("Cartn_x")
+            elif field.endswith("Cartn_y"):
+                fields.append("Cartn_y")
+            elif field.endswith("Cartn_z"):
+                fields.append("Cartn_z")
+            else:
+                fields.append(field)
+        data_loop["fields"] = fields
+        self.df = self._parse_atom_records(data_loop)
+        # Convert coordinate columns to float
+        # self.df[["Cartn_x", "Cartn_y", "Cartn_z"]] = self.df[
+        #    ["Cartn_x", "Cartn_y", "Cartn_z"]
+        # ].astype(float)
+
+        return self.df
 
 
 def calculate_angle(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> float:

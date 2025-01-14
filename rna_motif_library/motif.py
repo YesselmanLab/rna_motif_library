@@ -175,23 +175,21 @@ class Motif:
             "hbonds": [hb.to_dict() for hb in self.hbonds],
         }
 
-    def to_cif(self, cif_path: str = None):
+    def to_cif(self, cif_path: Optional[str] = None):
         if cif_path is None:
             cif_path = f"{self.name}.cif"
         f = open(cif_path, "w")
         f.write(get_cif_header_str())
         acount = 1
-        for residue in self.get_residues():
-            s, acount = residue.to_cif_str(acount)
-            f.write(s)
+        f.write(self.to_cif_str(acount))
         f.close()
 
     def to_cif_str(self, acount: int):
         s = ""
         for residue in self.get_residues():
             s += residue.to_cif_str(acount)
-            acount += 1
-        return s, acount
+            acount += len(residue.atom_names)
+        return s
 
 
 def get_motifs_from_json(json_path: str) -> List[Motif]:
@@ -439,9 +437,9 @@ class MotifFactory:
             ):
                 continue
             # stops a lot of bad basepairs from being included
-            if bp.bp_type in two_hbond_pairs and bp.hbond_score < 1.0:
+            if bp.bp_type in two_hbond_pairs and bp.hbond_score < 1.3:
                 continue
-            if bp.bp_type in three_hbond_pairs and bp.hbond_score < 1.5:
+            if bp.bp_type in three_hbond_pairs and bp.hbond_score < 2.0:
                 continue
             key1 = f"{bp.res_1.get_str()}-{bp.res_2.get_str()}"
             key2 = f"{bp.res_2.get_str()}-{bp.res_1.get_str()}"

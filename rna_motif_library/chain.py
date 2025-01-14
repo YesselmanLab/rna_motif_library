@@ -413,7 +413,8 @@ def write_chain_to_cif(chain: List[Residue], filename: str):
         f.write(get_cif_header_str())
         acount = 1
         for res in chain:
-            s, acount = res.to_cif_str(acount)
+            s = res.to_cif_str(acount)
+            acount += len(res.atom_names)
             f.write(s)
 
 

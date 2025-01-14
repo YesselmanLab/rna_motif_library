@@ -1,6 +1,6 @@
 import json
 import os
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 
 import pandas as pd
 import numpy as np
@@ -8,12 +8,13 @@ import numpy as np
 from biopandas.pdb import PandasPdb
 from biopandas.mmcif import PandasMmcif
 
-from rna_motif_library.x3dna import X3DNAResidue, X3DNAResidueFactory
+from rna_motif_library.x3dna import X3DNAResidue, X3DNAResidueFactory, get_residue_type
 from rna_motif_library.util import (
     sanitize_x3dna_atom_name,
     get_x3dna_res_id,
     get_cif_header_str,
     get_cached_path,
+    CifParser,
 )
 
 
@@ -59,6 +60,9 @@ class Residue:
     def from_dict(cls, data: dict):
         data["coords"] = np.array(data["coords"])
         return cls(**data)
+
+    def get_str(self):
+        return f"{self.chain_id}-{self.res_id}-{self.num}-{self.ins_code}"
 
     def __hash__(self):
         """Make Residue hashable by using immutable attributes."""
@@ -168,6 +172,29 @@ class Residue:
             and self.rtype == other.rtype
         )
 
+    def move(self, vector: Tuple[float, float, float]):
+        """
+        Moves the residue by adding the given vector to all atom coordinates.
+
+        Args:
+            vector (Tuple[float, float, float]): 3D vector to add to coordinates
+        """
+        self.coords = [
+            (x + vector[0], y + vector[1], z + vector[2]) for x, y, z in self.coords
+        ]
+
+    def get_center_of_mass(self) -> np.ndarray:
+        """
+        Computes and returns the center of mass of the residue.
+
+        Returns:
+            np.ndarray: The x,y,z coordinates of the center of mass as a numpy array
+        """
+        coords = np.array(self.coords)
+        return np.mean(coords, axis=0)
+
+    # to different file formats #######################################################
+
     def to_dict(self) -> dict:
         """
         Converts residue information to a dictionary.
@@ -203,12 +230,11 @@ class Residue:
             )
             acount += 1
 
-        return s, acount
+        return s
 
     def to_cif(self, file_path: str):
         s = get_cif_header_str()
-        cif_str, _ = self.to_cif_str()
-        s += cif_str
+        s += self.to_cif_str()
         with open(file_path, "w") as f:
             f.write(s)
         f.close()
@@ -234,7 +260,7 @@ class Residue:
             if len(chain_id) > 1:
                 chain_id = chain_id[0]
             s += (
-                f"ATOM  {i:5d} {atom_name} {self.res_id:>3} {chain_id}"
+                f"ATOM  {i:5d} {atom_name} {self.res_id:<3} {chain_id}"
                 f"{self.num:4d}{ins_code:1}   "
                 f"{coord[0]:8.3f}{coord[1]:8.3f}{coord[2]:8.3f}"
                 f"  1.00  0.00           {atom_name[0]:>2}\n"
@@ -282,8 +308,12 @@ def get_residues_from_pdb(pdb_path: str) -> Dict[str, Residue]:
 
 
 def get_residues_from_cif(cif_path: str) -> Dict[str, Residue]:
-    ppdb = PandasMmcif().read_mmcif(cif_path)
-    df = pd.concat([ppdb.df["ATOM"], ppdb.df["HETATM"]])
+    try:
+        ppdb = PandasMmcif().read_mmcif(cif_path)
+        df = pd.concat([ppdb.df["ATOM"], ppdb.df["HETATM"]])
+    except Exception as e:
+        parser = CifParser()
+        df = parser.parse(cif_path)
     residues = {}
     for i, g in df.groupby(
         ["auth_asym_id", "auth_seq_id", "auth_comp_id", "pdbx_PDB_ins_code"]
@@ -292,9 +322,12 @@ def get_residues_from_cif(cif_path: str) -> Dict[str, Residue]:
         atom_names = g["auth_atom_id"].tolist()
         atom_names = [sanitize_x3dna_atom_name(name) for name in atom_names]
         chain_id, res_num, res_name, ins_code = i
-        x3dna_res_id = get_x3dna_res_id(res_name, res_num, chain_id, ins_code)
-        x3dna_res = X3DNAResidueFactory.create_from_string(x3dna_res_id)
-        residues[x3dna_res_id] = Residue.from_x3dna_residue(
+        if ins_code == "?":
+            ins_code = ""
+        x3dna_res = X3DNAResidue(
+            chain_id, res_name, res_num, ins_code, get_residue_type(res_name)
+        )
+        residues[x3dna_res.get_str()] = Residue.from_x3dna_residue(
             x3dna_res, atom_names, coords
         )
     return residues
