@@ -14,6 +14,7 @@ from rna_motif_library.basepair import (
     generate_basepairs,
     save_basepairs_to_json,
 )
+from rna_motif_library.hbond import generate_hbonds_from_x3dna, save_hbonds_to_json
 from rna_motif_library.residue import (
     Residue,
     save_residues_to_json,
@@ -27,6 +28,7 @@ from rna_motif_library.update_library import (
 )
 from rna_motif_library.chain import (
     get_rna_chains,
+    get_protein_chains,
     save_chains_to_json,
     write_chain_to_cif,
 )
@@ -181,6 +183,7 @@ def process_residues(pdb, directory, debug, skip_existing):
     pdb_ids = get_pdb_ids(pdb, directory)
     log.info(f"Processing {len(pdb_ids)} PDBs")
     for pdb_id in pdb_ids:
+        print(pdb_id)
         if skip_existing and os.path.exists(get_cached_path(pdb_id, "residues")):
             log.info(f"Skipping {pdb_id} because it already exists")
             continue
@@ -225,6 +228,7 @@ def generate_chains(pdb, directory, debug):
     setup_logging(debug=debug)
     warnings.filterwarnings("ignore")
     os.makedirs(os.path.join(DATA_PATH, "jsons", "chains"), exist_ok=True)
+    os.makedirs(os.path.join(DATA_PATH, "jsons", "protein_chains"), exist_ok=True)
     pdb_ids = get_pdb_ids(pdb, directory)
     for pdb_id in pdb_ids:
         residues = get_cached_residues(pdb_id)
@@ -232,6 +236,8 @@ def generate_chains(pdb, directory, debug):
         for i, chain in enumerate(chains):
             write_chain_to_cif(chain, f"{pdb_id}_{i}.cif")
         save_chains_to_json(chains, get_cached_path(pdb_id, "chains"))
+        chains = get_protein_chains(list(residues.values()))
+        save_chains_to_json(chains, get_cached_path(pdb_id, "protein_chains"))
 
 
 @cli.command()
@@ -262,7 +268,7 @@ def process_interactions(pdb, directory, debug, overwrite):
     log.info(f"Processing {len(pdb_ids)} PDBs")
     for pdb_id in pdb_ids:
         # TODO fill in later
-        hbonds = []
+        hbonds = generate_hbonds_from_x3dna(pdb_id)
         dssr_output = get_cached_dssr_output(pdb_id)
         dssr_pairs = dssr_output.get_pairs()
         residues = get_cached_residues(pdb_id)
@@ -270,11 +276,7 @@ def process_interactions(pdb, directory, debug, overwrite):
         log.info(
             f"Processed {pdb_id} with {len(hbonds)} hbonds and {len(basepairs)} basepairs"
         )
-        # Save hbonds to json file
-        # hbonds_json_path = get_cached_path(pdb_id, "hbonds")
-        # save_hbonds_to_json(hbonds, hbonds_json_path)
-
-        # Save basepairs to json file
+        save_hbonds_to_json(hbonds, get_cached_path(pdb_id, "hbonds"))
         save_basepairs_to_json(basepairs, get_cached_path(pdb_id, "basepairs"))
 
 

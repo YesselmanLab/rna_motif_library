@@ -31,7 +31,7 @@ class X3DNAResidue:
     def get_x3dna_str(self):
         res_id = self.res_id
         if self.res_id[-1].isdigit():
-            res_id = res_id[:-1]
+            res_id = res_id + "/"
         if self.ins_code != "":
             return f"{self.chain_id}.{res_id}{self.num}^{self.ins_code}"
         else:
@@ -85,6 +85,8 @@ class X3DNAResidueFactory:
         # this is a negative number
         if res_id.endswith("-"):
             num = -num
+            res_id = res_id[:-1]
+        if res_id.endswith("/"):
             res_id = res_id[:-1]
         chain_id = spl[0]
         rtype = cls._get_residue_type(res_id)

@@ -9,7 +9,7 @@ import pandas as pd
 
 # Local imports
 from rna_motif_library.basepair import Basepair, get_cached_basepairs
-from rna_motif_library.chain import RNAChains, get_rna_chains
+from rna_motif_library.chain import Chains, get_rna_chains
 from rna_motif_library.hbond import Hbond
 from rna_motif_library.logger import get_logger
 from rna_motif_library.residue import Residue, get_cached_residues
@@ -26,7 +26,7 @@ log = get_logger("motif")
 def get_motifs(pdb_id: str) -> list:
     residues = get_cached_residues(pdb_id)
     basepairs = get_cached_basepairs(pdb_id)
-    chains = RNAChains(get_rna_chains(residues.values()))
+    chains = Chains(get_rna_chains(residues.values()))
     mf = MotifFactory(pdb_id, chains, basepairs)
     return mf.get_motifs()
 
@@ -218,7 +218,7 @@ def get_cached_motifs(pdb_id: str) -> List[Motif]:
 
 
 class MotifFactory:
-    def __init__(self, pdb_id: str, chains: RNAChains, basepairs: List[Basepair]):
+    def __init__(self, pdb_id: str, chains: Chains, basepairs: List[Basepair]):
         self.pdb_id = pdb_id
         self.chains = chains
         self.basepairs = basepairs

@@ -7,32 +7,8 @@ import pandas as pd
 
 from rna_motif_library.settings import DATA_PATH
 
-canon_res_list = [
-    "A",
-    "ALA",
-    "ARG",
-    "ASN",
-    "ASP",
-    "CYS",
-    "C",
-    "G",
-    "GLN",
-    "GLU",
-    "GLY",
-    "HIS",
-    "ILE",
-    "LEU",
-    "LYS",
-    "MET",
-    "PHE",
-    "PRO",
-    "SER",
-    "THR",
-    "TRP",
-    "TYR",
-    "U",
-    "VAL",
-]
+canon_rna_res_list = ["A", "U", "G", "C"]
+
 canon_amino_acid_list = [
     "ALA",
     "ARG",
@@ -56,6 +32,49 @@ canon_amino_acid_list = [
     "VAL",
 ]
 
+canon_res_list = canon_rna_res_list + canon_amino_acid_list
+
+ion_list = [
+    "2HP",
+    "3CO",
+    "AG",
+    "AL",
+    "AU",
+    "BA",
+    "BEF",
+    "BR",
+    "CA",
+    "CD",
+    "CL",
+    "CS",
+    "CO",
+    "CU",
+    "F",
+    "FE",
+    "FE2",
+    "HG",
+    "IOD",
+    "IR",
+    "IR3",
+    "K",
+    "LI",
+    "LU",
+    "MG",
+    "MN",
+    "NA",
+    "NH4",
+    "NI",
+    "OS",
+    "PB",
+    "PT",
+    "SM",
+    "SO4",
+    "SR",
+    "TB",
+    "TL",
+    "ZN",
+]
+
 purine_atom_names = ["C4", "N3", "C2", "N1", "C6", "C5", "N7", "C8", "N9"]
 pyrimidine_atom_names = ["C4", "N3", "C2", "N1", "C6", "C5"]
 
@@ -76,7 +95,11 @@ def get_cached_path(pdb_id: str, name: str) -> str:
         return os.path.join(DATA_PATH, "jsons", name, f"{pdb_id}.json")
 
 
-def get_pdb_ids(pdb_id: Optional[str] = None, directory: Optional[str] = None) -> list:
+def get_pdb_ids(
+    pdb_id: Optional[str] = None,
+    directory: Optional[str] = None,
+    pdb_list: Optional[list] = None,
+) -> list:
     """
     Get list of PDB codes based on input parameters.
 
@@ -90,6 +113,8 @@ def get_pdb_ids(pdb_id: Optional[str] = None, directory: Optional[str] = None) -
     pdb_ids = []
     if pdb_id is not None:
         pdb_ids.append(pdb_id)
+    elif pdb_list is not None:
+        pdb_ids = pdb_list
     elif directory is not None:
         pdb_ids = [os.path.basename(file)[:-4] for file in os.listdir(directory)]
     else:

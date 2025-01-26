@@ -10,7 +10,7 @@ from pydssr.dssr_classes import DSSR_HBOND, DSSR_PAIR
 
 from rna_motif_library.hbond import Hbond, HbondFactory, score_hbond
 from rna_motif_library.settings import DATA_PATH
-from rna_motif_library.x3dna import X3DNAResidue, X3DNAPair
+from rna_motif_library.x3dna import X3DNAResidue, X3DNAPair, X3DNAResidueFactory
 from rna_motif_library.residue import Residue
 from rna_motif_library.logger import get_logger
 from rna_motif_library.util import get_cached_path, get_cif_header_str
@@ -118,31 +118,22 @@ def basepair_to_cif(res1: Residue, res2: Residue, path: str):
 
 
 def get_basepair_info(
-    pair: DSSR_PAIR,
-    pdb_name: str,
-    hbond_score: float,
+    basepair: Basepair,
 ):
     data = {
-        "res_1": pair.nt1.nt_id,
-        "res_2": pair.nt2.nt_id,
-        "bp_type": get_bp_type(pair.bp),
-        "bp_name": pair.name,
-        "lw": pair.LW,
-        "ref_frame": np.array(
-            [
-                pair.frame["x_axis"],
-                pair.frame["y_axis"],
-                pair.frame["z_axis"],
-            ]
-        ),
-        "shear": pair.bp_params[0],
-        "stretch": pair.bp_params[1],
-        "stagger": pair.bp_params[2],
-        "buckle": pair.bp_params[3],
-        "propeller": pair.bp_params[4],
-        "opening": pair.bp_params[5],
-        "hbond_score": hbond_score,
-        "pdb_name": pdb_name,
+        "res_1": basepair.res_1.get_str(),
+        "res_2": basepair.res_2.get_str(),
+        "bp_type": basepair.bp_type,
+        "lw": basepair.lw,
+        "ref_frame": basepair.ref_frame,
+        "shear": basepair.bp_params.shear,
+        "stretch": basepair.bp_params.stretch,
+        "stagger": basepair.bp_params.stagger,
+        "buckle": basepair.bp_params.buckle,
+        "propeller": basepair.bp_params.propeller,
+        "opening": basepair.bp_params.opening,
+        "hbond_score": basepair.hbond_score,
+        "pdb_id": basepair.pdb_id,
     }
     return data
 
@@ -213,9 +204,11 @@ class BasepairFactory:
     def _get_bp_residues(
         self, pdb_name: str, pair: X3DNAPair, residues: Dict[str, Residue]
     ):
+        res_1 = X3DNAResidueFactory.create_from_string(pair.nt1.nt_id)
+        res_2 = X3DNAResidueFactory.create_from_string(pair.nt2.nt_id)
         try:
-            res_1 = residues[pair.nt1.nt_id]
-            res_2 = residues[pair.nt2.nt_id]
+            res_1 = residues[res_1.get_str()]
+            res_2 = residues[res_2.get_str()]
         except KeyError:
             log.error(
                 f"Residue not found in residues: {pdb_name}, {pair.nt1.nt_id}, {pair.nt2.nt_id}"
@@ -331,7 +324,7 @@ def generate_basepairs(
             )
             continue
         basepairs.append(basepair)
-        data = get_basepair_info(pair, pdb_name, basepair.hbond_score)
+        data = get_basepair_info(basepair)
         all_data.append(data)
 
     # write data to json

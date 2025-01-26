@@ -3,16 +3,15 @@ import json
 import pickle
 import pandas as pd
 from multiprocessing import Pool
-from functools import partial
 from pydssr.dssr import DSSROutput
-from rna_motif_library.classes import Basepair
+from rna_motif_library.basepair import Basepair, get_basepairs_from_json
+from rna_motif_library.hbond import get_hbonds_from_json, score_hbond
 from rna_motif_library.cli import get_pdb_ids
-from rna_motif_library.interactions import get_hbonds_and_basepairs
 from rna_motif_library.motif import (
     get_motifs_from_json,
     MotifFactory,
-    are_residues_connected,
 )
+from rna_motif_library.chain import are_residues_connected
 from rna_motif_library.settings import DATA_PATH
 
 
@@ -213,16 +212,6 @@ def write_interactions_to_cif(motifs, dir_name, pos):
         print(motif.name, end=" ")
         motif.to_cif(os.path.join(dir_name, str(pos), f"{motif.name}.cif"))
     print()
-
-
-def find_pair():
-    dssr_output = DSSROutput(
-        json_path=os.path.join(DATA_PATH, "dssr_output", "6RM3.json")
-    )
-    pairs = dssr_output.get_pairs()
-    for pair in pairs.values():
-        if pair.nt1.nt_id == "S60.U11" or pair.nt2.nt_id == "S60.U11":
-            print(pair.nt1.nt_id, pair.nt2.nt_id)
 
 
 def are_motifs_connected(motif_1, motif_2):
@@ -453,16 +442,17 @@ def find_tertiary_contact_interactions():
 
 
 def find_rna_protein_interactions():
-    pdb_codes = get_pdb_ids()
+    df = pd.read_csv("non_redundant_set.csv")
+    pdb_codes = df["pdb_id"].to_list()
     count = 0
     csv_hbond_data = []
     for pdb_code in pdb_codes:
-        json_path = os.path.join(DATA_PATH, "jsons", "motifs", f"{pdb_code}.json")
+        json_path = os.path.join(DATA_PATH, "jsons", "hbonds", f"{pdb_code}.json")
         if not os.path.exists(json_path):
             continue
-        hbonds, _ = get_hbonds_and_basepairs(pdb_code)
+        hbonds = get_hbonds_from_json(json_path)
         for hbond in hbonds:
-            if hbond.hbond_type != "RNA/PROTEIN":
+            if not (hbond.atom_type_1 == "aa" or hbond.atom_type_2 == "aa"):
                 continue
             if hbond.atom_type_1 == "aa":
                 res1, res2 = hbond.res_2, hbond.res_1
@@ -484,9 +474,17 @@ def find_rna_protein_interactions():
                     "atom_type1": atom_type1,
                     "atom_type2": atom_type2,
                     "distance": hbond.distance,
-                    "angle": hbond.angle,
+                    "dihedral_angle": hbond.dihedral_angle,
+                    "angle1": hbond.angle_1,
+                    "angle2": hbond.angle_2,
                     "res1": res1.get_str(),
                     "res2": res2.get_str(),
+                    "score": score_hbond(
+                        hbond.distance,
+                        hbond.angle_1,
+                        hbond.angle_2,
+                        hbond.dihedral_angle,
+                    ),
                 }
             )
     df = pd.DataFrame(csv_hbond_data)
@@ -575,7 +573,7 @@ def find_overlapping_motifs():
 
 
 def main():
-    process_motifs_2()
+    find_rna_protein_interactions()
     exit()
     df = pd.read_csv("unknown_motifs.csv")
     df = df.sort_values(by="count", ascending=False)

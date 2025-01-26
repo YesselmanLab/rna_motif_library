@@ -2,15 +2,15 @@ import os
 import json
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
-from rna_motif_library.classes import (
-    get_residues_from_json,
+from rna_motif_library.motif import (
     Hbond,
     Residue,
-    NucleotideAminoAcidHbond,
-    X3DNAResidueFactory,
 )
+from rna_motif_library.residue import get_residues_from_json
 from rna_motif_library.settings import DATA_PATH
+from rna_motif_library.x3dna import X3DNAResidueFactory
 
 import numpy as np
 from typing import Tuple, List, Optional
@@ -136,50 +136,39 @@ def align_residues(mobile: Residue, target: Residue) -> Tuple[np.ndarray, Residu
     return transform, aligned_residue
 
 
+def generate_summary(df):
+    """
+    Generate summary statistics for RNA-protein interactions.
+
+    Args:
+        df: DataFrame containing interaction data
+
+    Returns:
+        DataFrame with summary statistics grouped by residue and atom pairs
+    """
+    # Group and calculate summary statistics using agg
+    summary = (
+        df.groupby(["res1_id", "res2_id", "atom1", "atom2"])
+        .agg(
+            count=("distance", "size"),
+            distance_mean=("distance", "mean"),
+            distance_std=("distance", "std"),
+            dihedral_mean=("dihedral_angle", "mean"),
+            dihedral_std=("dihedral_angle", "std"),
+            score_mean=("score", "mean"),
+            score_std=("score", "std"),
+        )
+        .reset_index()
+    )
+
+    return summary
+
+
 def main():
     df = pd.read_csv("rna_protein_interactions.csv")
-    df = df.query(
-        "res1_id == 'A' and res2_id == 'LYS' and atom1 == 'N7' and atom2 == 'NZ'"
-    ).copy()
-    print(len(df))
-    residues = {}
-    count = 0
-    interactions = []
-    for i, row in df.iterrows():
-        if count % 100 == 0:
-            print(count)
-        if row["pdb_code"] not in residues:
-            residues[row["pdb_code"]] = get_residues_from_json(
-                os.path.join(DATA_PATH, "jsons", "residues", f"{row['pdb_code']}.json")
-            )
-        res1 = residues[row["pdb_code"]][row["res1"]]
-        res2 = residues[row["pdb_code"]][row["res2"]]
-        current_frame = create_nucleotide_frame(res1)
-        transform = np.linalg.inv(current_frame)  # always to indentity / origin?
-        transformed_res1 = get_transformed_residue(res1, transform)
-        transformed_res2 = get_transformed_residue(res2, transform)
-        res1 = X3DNAResidueFactory.create_from_string(row["res1"])
-        res2 = X3DNAResidueFactory.create_from_string(row["res2"])
-        hbond = Hbond(
-            res1,
-            res2,
-            row["atom1"],
-            row["atom2"],
-            row["atom_type1"],
-            row["atom_type2"],
-            row["distance"],
-            row["angle"],
-            "RNA/PROTEIN",
-            row["pdb_code"],
-        )
-        interaction = NucleotideAminoAcidHbond(
-            transformed_res1, transformed_res2, hbond
-        )
-        interactions.append(interaction)
-        count += 1
-    data = [interaction.to_dict() for interaction in interactions]
-    with open("rna_protein_interactions.json", "w") as f:
-        json.dump(data, f)
+    nucs = ["A", "C", "G", "U"]
+    df = df.query("res1_id.isin(@nucs)").copy()
+    df_sum = generate_summary(df)
 
 
 if __name__ == "__main__":

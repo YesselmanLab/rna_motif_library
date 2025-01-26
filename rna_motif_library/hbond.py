@@ -7,9 +7,14 @@ from dataclasses import dataclass
 import pandas as pd
 from pydssr.dssr_classes import DSSR_HBOND
 
-from rna_motif_library.residue import Residue, get_cached_residues
-from rna_motif_library.settings import LIB_PATH
+from rna_motif_library.residue import (
+    Residue,
+    get_cached_residues,
+    are_residues_connected,
+)
+from rna_motif_library.settings import LIB_PATH, DATA_PATH
 from rna_motif_library.snap import parse_snap_output
+from rna_motif_library.logger import get_logger
 from rna_motif_library.util import (
     calculate_dihedral_angle,
     calculate_angle,
@@ -18,7 +23,14 @@ from rna_motif_library.util import (
     canon_amino_acid_list,
     get_cached_path,
 )
-from rna_motif_library.x3dna import X3DNAResidue, X3DNAInteraction, X3DNAResidueFactory
+from rna_motif_library.x3dna import (
+    X3DNAResidue,
+    X3DNAInteraction,
+    X3DNAResidueFactory,
+    get_cached_dssr_output,
+)
+
+log = get_logger("hbond")
 
 
 def get_closest_atoms_dict():
@@ -104,6 +116,10 @@ class HbondFactory:
         angle_2 = calculate_angle(atom1_coords, atom2_coords, closest_atom2_coords)
         atom_type_1 = get_nucleotide_atom_type(atom1)
         atom_type_2 = get_nucleotide_atom_type(atom2)
+        if res1.res_id in canon_amino_acid_list:
+            atom_type_1 = "aa"
+        if res2.res_id in canon_amino_acid_list:
+            atom_type_2 = "aa"
         hbond_type = self._assign_hbond_type(atom_type_1, atom_type_2)
         return Hbond(
             res1.get_x3dna_residue(),
@@ -218,8 +234,46 @@ def get_cached_hbonds(pdb_id: str) -> List[Hbond]:
 # parsing x3dna stuff #################################################################
 
 
-def generate_hbonds_from_x3dna(pdb_name: str):
+def generate_hbonds_from_x3dna(pdb_name: str) -> List[Hbond]:
     residues = get_cached_residues(pdb_name)
+    dssr_output = get_cached_dssr_output(pdb_name)
+    dssr_hbonds = dssr_output.get_hbonds()
+    all_dssr_hbonds = get_hbonds_from_x3dna_interactions(pdb_name, dssr_hbonds)
+    hf = HbondFactory()
+    df = pd.read_json(
+        os.path.join(DATA_PATH, "resources", "small_molecule_instances.json")
+    )
+    print(len(df))
+    exit()
+    hbonds = []
+    data = []
+    for xhbond in all_dssr_hbonds:
+        try:
+            hbond = hf.get_hbond(
+                residues[xhbond.res_1.get_str()],
+                residues[xhbond.res_2.get_str()],
+                xhbond.atom_1,
+                xhbond.atom_2,
+                pdb_name,
+            )
+        except KeyError:
+            log.error(
+                f"KeyError for {xhbond.res_1.get_x3dna_str()} {xhbond.res_2.get_x3dna_str()}"
+            )
+            log.error(
+                f"KeyError for {xhbond.res_1.get_str()} {xhbond.res_2.get_str()} {pdb_name}"
+            )
+            continue
+        if hbond is None:
+            continue
+        hbonds.append(hbond)
+        h_data = hbond.to_dict()
+        h_data["res_1"] = hbond.res_1.get_str()
+        h_data["res_2"] = hbond.res_2.get_str()
+        data.append(h_data)
+    df = pd.DataFrame(data)
+    df.to_csv(os.path.join(DATA_PATH, "csvs", "hbonds", f"{pdb_name}.csv"), index=False)
+    return hbonds
 
 
 def get_hbonds_from_x3dna_interactions(pdb_name: str, hbonds: List[DSSR_HBOND]):
@@ -273,7 +327,6 @@ def convert_x3dna_hbonds_to_interactions(
                 type_1 = "aa"
             if aa in res_2:
                 type_2 = "aa"
-
         if type_1 == "aa" and type_2 == "aa":
             continue
         # Swap if res_1 is larger than res_2
@@ -310,8 +363,8 @@ def merge_hbond_interaction_data(
     # Create a list of interactions, excluding protein-protein interactions
     unique_interactions = set()
     for interaction in all_interactions:
-        # Skip if distance is greater than 3.3 this is not a real hbond
-        if interaction.distance > 3.3:
+        # Skip if distance is greater than 3.5 this is not a real hbond
+        if interaction.distance > 3.5:
             continue
         # Only keep interactions that aren't between two proteins
         is_protein_protein = (

@@ -216,36 +216,42 @@ def convert_pdbs_to_cif():
         )
 
 
+def set_column_to_float(df: pd.DataFrame, column: str):
+    df[column] = df[column].astype(float)
+
+
 def get_residue_from_h_cif(cif_path: str):
-    print(cif_path)
-    parser = CifParser()
-    df_atoms = parser.parse(cif_path)
+    try:
+        parser = CifParser()
+        df_atoms = parser.parse(cif_path)
+    except:
+        return None
     res_id = df_atoms.iloc[0]["comp_id"]
     atom_names = [
         sanitize_x3dna_atom_name(name) for name in df_atoms["atom_id"].tolist()
     ]
-    df_atoms[
-        [
-            "pdbx_model_Cartn_x_ideal",
-            "pdbx_model_Cartn_y_ideal",
-            "pdbx_model_Cartn_z_ideal",
-        ]
-    ] = df_atoms[
-        [
-            "pdbx_model_Cartn_x_ideal",
-            "pdbx_model_Cartn_y_ideal",
-            "pdbx_model_Cartn_z_ideal",
-        ]
-    ].astype(
-        float
-    )
-    coords = df_atoms[
-        [
-            "pdbx_model_Cartn_x_ideal",
-            "pdbx_model_Cartn_y_ideal",
-            "pdbx_model_Cartn_z_ideal",
-        ]
-    ].values
+    try:
+        set_column_to_float(df_atoms, "pdbx_model_Cartn_x_ideal")
+        set_column_to_float(df_atoms, "pdbx_model_Cartn_y_ideal")
+        set_column_to_float(df_atoms, "pdbx_model_Cartn_z_ideal")
+        coords = df_atoms[
+            [
+                "pdbx_model_Cartn_x_ideal",
+                "pdbx_model_Cartn_y_ideal",
+                "pdbx_model_Cartn_z_ideal",
+            ]
+        ].values
+    except:
+        set_column_to_float(df_atoms, "Cartn_x")
+        set_column_to_float(df_atoms, "Cartn_y")
+        set_column_to_float(df_atoms, "Cartn_z")
+        coords = df_atoms[
+            [
+                "Cartn_x",
+                "Cartn_y",
+                "Cartn_z",
+            ]
+        ].values
 
     return Residue("A", res_id, 1, "", "N/A", atom_names, coords)
 
@@ -269,34 +275,14 @@ def find_empty_files(directory: str) -> List[str]:
 
 
 def main():
-    residue = get_cached_residues("5HAB")
-    unique_res = []
-    for res in residue.values():
-        if res.res_id not in unique_res:
-            unique_res.append(res.res_id)
-    print(unique_res)
-    exit()
-    empty_files = find_empty_files(os.path.join(DATA_PATH, "residues_w_h_cifs"))
-    empty_res = [os.path.basename(file)[:-4] for file in empty_files]
-    print(empty_res)
-    pdb_codes = get_pdb_ids()
-    for pdb_code in pdb_codes:
-        residues = get_cached_residues(pdb_code)
-        for res in residues.values():
-            if res.res_id in empty_res:
-                print(res.res_id, pdb_code)
-                exit()
-    exit()
-
     # generate_residues_with_hydrogen()
     seen = []
     acceptor_donor_data = []
     cif_files = glob.glob(os.path.join(DATA_PATH, "residues_w_h_cifs", "*.cif"))
     for cif_file in cif_files:
-        base_name = os.path.basename(cif_file)
-        try:
-            h_residue = get_residue_from_h_cif(cif_file)
-        except Exception as e:
+        base_name = os.path.basename(cif_file)[:-4]
+        h_residue = get_residue_from_h_cif(cif_file)
+        if h_residue is None:
             print(base_name)
             continue
         donors, acceptors = identify_potential_sites(h_residue)

@@ -3,26 +3,32 @@ import os
 import numpy as np
 from typing import Set, List, Dict, Tuple, Optional
 
-from rna_motif_library.residue import Residue
+from rna_motif_library.residue import (
+    Residue,
+    are_residues_connected,
+    are_protein_residues_connected,
+)
 from rna_motif_library.basepair import Basepair
 from rna_motif_library.util import (
     get_cif_header_str,
     wc_basepairs_w_gu,
     get_cached_path,
+    canon_amino_acid_list,
 )
 from rna_motif_library.logger import get_logger
 
 log = get_logger("chain")
 
 
-class RNAChains:
-    def __init__(self, chains: List[List[Residue]]):
-        """Initialize RNAChains with a list of residue chains.
+class Chains:
+    def __init__(self, chains: List[List[Residue]], ctype: str = "RNA"):
+        """Initialize Chains with a list of residue chains.
 
         Args:
-            chains: List of lists of Residue objects representing RNA chains
+            chains: List of lists of Residue objects representing chains of residues
         """
         self.chains = chains
+        self.ctype = ctype
         # Create lookup dict for O(1) residue access by x3dna string
         self.residue_dict = {
             res.get_x3dna_str(): res for chain in chains for res in chain
@@ -59,6 +65,13 @@ class RNAChains:
             return None
         else:
             return self.residue_dict[x3dna_str]
+
+    def get_chain_for_residue(self, res: Residue) -> Optional[List[Residue]]:
+        try:
+            chain_num, pos = self.position_dict[res]
+            return self.chains[chain_num]
+        except KeyError:
+            return None
 
     def get_next_residue_in_chain(self, res: Residue) -> Optional[Residue]:
         """Get next residue in chain after given residue.
@@ -169,39 +182,6 @@ def p5_to_p3_connection_distance(res1: Residue, res2: Residue) -> Optional[float
     return None
 
 
-def are_residues_connected(
-    source_residue: Residue,
-    residue_in_question: Residue,
-    cutoff: float = 2.75,
-) -> int:
-    """Determine if another residue is connected to this residue"""
-    # Get O3' coordinates from source residue
-    o3_coords_1 = source_residue.get_atom_coords("O3'")
-    p_coords_2 = residue_in_question.get_atom_coords("P")
-    # check for Triphosphates
-    if p_coords_2 is None:
-        p_coords_2 = residue_in_question.get_atom_coords("PA")
-
-    # Check 5' to 3' connection
-    if o3_coords_1 is not None and p_coords_2 is not None:
-        distance = np.linalg.norm(np.array(p_coords_2) - np.array(o3_coords_1))
-        if distance < cutoff:
-            return 1
-
-    # Check 3' to 5' connection
-    o3_coords_2 = residue_in_question.get_atom_coords("O3'")
-    p_coords_1 = source_residue.get_atom_coords("P")
-    if p_coords_1 is None:
-        p_coords_1 = source_residue.get_atom_coords("PA")
-
-    if o3_coords_2 is not None and p_coords_1 is not None:
-        distance = np.linalg.norm(np.array(o3_coords_2) - np.array(p_coords_1))
-        if distance < cutoff:
-            return -1
-
-    return 0
-
-
 def find_chain_ends(res_list: List[Residue]) -> List[Residue]:
     """
     Find the root residues that start each RNA chain.
@@ -234,6 +214,60 @@ def find_chain_ends(res_list: List[Residue]) -> List[Residue]:
         if not has_incoming:
             roots.append(source_res)
     return roots
+
+
+def sort_rna_residues_by_chain_and_num(residues: List[Residue]) -> List[Residue]:
+    """
+    Sort residues first by chain ID and then by residue number within each chain.
+
+    Args:
+        residues (List[Residue]): List of residues to sort
+
+    Returns:
+        List[Residue]: Sorted list of residues
+    """
+    # Sort using chain ID as primary key and residue number as secondary key
+    removed_ids = []
+    rna_residues = ["A", "U", "G", "C"]
+    keep_residues = []
+    for res in residues:
+        if res.res_id in rna_residues:
+            keep_residues.append(res)
+        elif res.get_atom_coords("P") is not None:
+            keep_residues.append(res)
+        elif res.get_atom_coords("C1'") is not None:
+            keep_residues.append(res)
+        else:
+            if res.res_id not in removed_ids:
+                removed_ids.append(res.res_id)
+    sorted_residues = sorted(keep_residues, key=lambda x: (x.chain_id, x.num))
+    return sorted_residues
+
+
+def sort_protein_residues_by_chain_and_num(residues: List[Residue]) -> List[Residue]:
+    """
+    Sort protein residues first by chain ID and then by residue number within each chain.
+
+    Args:
+        residues (List[Residue]): List of residues to sort
+
+    Returns:
+        List[Residue]: Sorted list of residues
+    """
+    # Sort using chain ID as primary key and residue number as secondary key
+    keep_residues = []
+    for res in residues:
+        if res.res_id in canon_amino_acid_list:
+            keep_residues.append(res)
+            continue
+        # Check for protein backbone atoms
+        if (
+            res.get_atom_coords("C") is not None
+            and res.get_atom_coords("N") is not None
+        ):
+            keep_residues.append(res)
+    sorted_residues = sorted(keep_residues, key=lambda x: (x.chain_id, x.num))
+    return sorted_residues
 
 
 def sort_rna_residues_by_chain_and_num(residues: List[Residue]) -> List[Residue]:
@@ -357,6 +391,46 @@ def get_rna_chains(residues: List[Residue]) -> List[List[Residue]]:
     return chains
 
 
+def get_protein_chains(residues: List[Residue]) -> List[List[Residue]]:
+    """Group protein residues into connected chains.
+
+    Takes a list of residues and groups them into chains based on connectivity.
+    Residues are considered connected if they share a peptide bond.
+
+    Args:
+        residues: List of RNA residues to group into chains
+
+    Returns:
+        RNAChains object containing the grouped chains
+    """
+    residues = sort_protein_residues_by_chain_and_num(residues)
+    chains = []
+    while residues:
+        # Start a new chain with first remaining residue
+        current_chain = [residues.pop(0)]
+        chains.append(current_chain)
+        # Keep extending chain until no more connections found
+        while True:
+            found_connection = False
+            # Try to extend chain in both directions
+            for res in residues:
+                if res.chain_id != current_chain[0].chain_id:
+                    continue
+                if are_protein_residues_connected(current_chain[-1], res) == 1:
+                    current_chain.append(res)
+                    residues.remove(res)
+                    found_connection = True
+                    break
+                if are_protein_residues_connected(current_chain[0], res) == -1:
+                    current_chain.insert(0, res)
+                    residues.remove(res)
+                    found_connection = True
+                    break
+            if not found_connection:
+                break
+    return chains
+
+
 def save_chains_to_json(chains: List[List[Residue]], output_path: str) -> None:
     """Save RNA chains to JSON file.
 
@@ -422,4 +496,11 @@ def get_cached_chains(pdb_id: str) -> List[List[Residue]]:
     json_path = get_cached_path(pdb_id, "chains")
     if not os.path.exists(json_path):
         raise FileNotFoundError(f"Chains file not found for {pdb_id}")
+    return get_chains_from_json(json_path)
+
+
+def get_cached_protein_chains(pdb_id: str) -> List[List[Residue]]:
+    json_path = get_cached_path(pdb_id, "protein_chains")
+    if not os.path.exists(json_path):
+        raise FileNotFoundError(f"Protein chains file not found for {pdb_id}")
     return get_chains_from_json(json_path)

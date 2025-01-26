@@ -286,6 +286,79 @@ def get_residues_from_json(json_path: str) -> Dict[str, Residue]:
     return {k: Residue.from_dict(v) for k, v in residue_data.items()}
 
 
+def are_residues_connected(
+    source_residue: Residue,
+    residue_in_question: Residue,
+    cutoff: float = 2.75,
+) -> int:
+    """Determine if another residue is connected to this residue"""
+    # Get O3' coordinates from source residue
+    o3_coords_1 = source_residue.get_atom_coords("O3'")
+    p_coords_2 = residue_in_question.get_atom_coords("P")
+    # check for Triphosphates
+    if p_coords_2 is None:
+        p_coords_2 = residue_in_question.get_atom_coords("PA")
+
+    # Check 5' to 3' connection
+    if o3_coords_1 is not None and p_coords_2 is not None:
+        distance = np.linalg.norm(np.array(p_coords_2) - np.array(o3_coords_1))
+        if distance < cutoff:
+            return 1
+
+    # Check 3' to 5' connection
+    o3_coords_2 = residue_in_question.get_atom_coords("O3'")
+    p_coords_1 = source_residue.get_atom_coords("P")
+    if p_coords_1 is None:
+        p_coords_1 = source_residue.get_atom_coords("PA")
+
+    if o3_coords_2 is not None and p_coords_1 is not None:
+        distance = np.linalg.norm(np.array(o3_coords_2) - np.array(p_coords_1))
+        if distance < cutoff:
+            return -1
+
+    return 0
+
+
+def are_protein_residues_connected(
+    source_residue: Residue,
+    residue_in_question: Residue,
+    cutoff: float = 2.0,
+) -> int:
+    """Determine if two protein residues are connected via peptide bond.
+
+    Args:
+        source_residue: First residue to check
+        residue_in_question: Second residue to check
+        cutoff: Maximum distance in Angstroms for residues to be considered connected
+
+    Returns:
+        int: Direction of connection
+            1: source_residue -> residue_in_question (N-term to C-term)
+            -1: residue_in_question -> source_residue (C-term to N-term)
+            0: Not connected
+    """
+    # Get C and N coordinates from both residues
+    c_coords_1 = source_residue.get_atom_coords("C")
+    n_coords_2 = residue_in_question.get_atom_coords("N")
+
+    # Check N-term to C-term connection
+    if c_coords_1 is not None and n_coords_2 is not None:
+        distance = np.linalg.norm(np.array(n_coords_2) - np.array(c_coords_1))
+        if distance < cutoff:
+            return 1
+
+    # Check C-term to N-term connection
+    c_coords_2 = residue_in_question.get_atom_coords("C")
+    n_coords_1 = source_residue.get_atom_coords("N")
+
+    if c_coords_2 is not None and n_coords_1 is not None:
+        distance = np.linalg.norm(np.array(n_coords_1) - np.array(c_coords_2))
+        if distance < cutoff:
+            return -1
+
+    return 0
+
+
 def get_residues_from_pdb(pdb_path: str) -> Dict[str, Residue]:
     ppdb = PandasPdb().read_pdb(pdb_path)
     df_atom = pd.concat([ppdb.df["ATOM"], ppdb.df["HETATM"]])
