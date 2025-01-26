@@ -299,7 +299,9 @@ def generate_hbonds_from_x3dna(pdb_name: str) -> List[Hbond]:
         h_data["res_2"] = hbond.res_2.get_str()
         data.append(h_data)
     df = pd.DataFrame(data)
-    df.to_csv(os.path.join(DATA_PATH, "csvs", "hbonds", f"{pdb_name}.csv"), index=False)
+    df.to_csv(
+        os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_name}.csv"), index=False
+    )
     return hbonds
 
 
