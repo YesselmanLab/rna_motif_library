@@ -264,6 +264,8 @@ def process_interactions(pdb, directory, debug, overwrite):
     warnings.filterwarnings("ignore")
     os.makedirs(os.path.join(DATA_PATH, "jsons", "hbonds"), exist_ok=True)
     os.makedirs(os.path.join(DATA_PATH, "jsons", "basepairs"), exist_ok=True)
+    os.makedirs(os.path.join(DATA_PATH, "dataframes", "hbonds"), exist_ok=True)
+    os.makedirs(os.path.join(DATA_PATH, "dataframes", "basepairs"), exist_ok=True)
     pdb_ids = get_pdb_ids(pdb, directory)
     log.info(f"Processing {len(pdb_ids)} PDBs")
     for pdb_id in pdb_ids:

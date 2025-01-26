@@ -231,6 +231,24 @@ def get_cached_hbonds(pdb_id: str) -> List[Hbond]:
     return get_hbonds_from_json(json_path)
 
 
+def get_flipped_hbond(hbond: Hbond) -> Hbond:
+    flipped_hbond = Hbond(
+        hbond.res_2,
+        hbond.res_1,
+        hbond.atom_2,
+        hbond.atom_1,
+        hbond.atom_type_2,
+        hbond.atom_type_1,
+        hbond.distance,
+        hbond.angle_2,
+        hbond.angle_1,
+        hbond.dihedral_angle,
+        hbond.hbond_type,
+        hbond.pdb_name,
+    )
+    return flipped_hbond
+
+
 # parsing x3dna stuff #################################################################
 
 
@@ -241,10 +259,12 @@ def generate_hbonds_from_x3dna(pdb_name: str) -> List[Hbond]:
     all_dssr_hbonds = get_hbonds_from_x3dna_interactions(pdb_name, dssr_hbonds)
     hf = HbondFactory()
     df = pd.read_json(
-        os.path.join(DATA_PATH, "resources", "small_molecule_instances.json")
+        os.path.join(
+            LIB_PATH, "rna_motif_library", "resources", "small_molecule_instances.json"
+        )
     )
-    print(len(df))
-    exit()
+    df = df.query("pdb_id == @pdb_name")
+    small_molecules_res_ids = df["res_id"].unique()
     hbonds = []
     data = []
     for xhbond in all_dssr_hbonds:
@@ -266,6 +286,13 @@ def generate_hbonds_from_x3dna(pdb_name: str) -> List[Hbond]:
             continue
         if hbond is None:
             continue
+        if hbond.res_1.get_str() in small_molecules_res_ids:
+            hbond.atom_type_1 = "small_molecule"
+        if hbond.res_2.get_str() in small_molecules_res_ids:
+            hbond.atom_type_2 = "small_molecule"
+        # rna should always be res_1
+        if hbond.atom_type_1 == "aa" or hbond.atom_type_1 == "small_molecule":
+            hbond = get_flipped_hbond(hbond)
         hbonds.append(hbond)
         h_data = hbond.to_dict()
         h_data["res_1"] = hbond.res_1.get_str()
