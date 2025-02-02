@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import os
 import glob
-import wget
+import json
 
 from rna_motif_library.residue import (
     Residue,
@@ -12,8 +12,8 @@ from rna_motif_library.residue import (
     get_residues_from_cif,
 )
 from rna_motif_library.chain import write_chain_to_cif
-from rna_motif_library.settings import DATA_PATH
-from rna_motif_library.util import canon_res_list, get_pdb_ids, CifParser
+from rna_motif_library.settings import DATA_PATH, RESOURCES_PATH
+from rna_motif_library.util import canon_rna_res_list, get_pdb_ids, CifParser
 from rna_motif_library.x3dna import X3DNAResidue, get_residue_type
 from rna_motif_library.residue import sanitize_x3dna_atom_name, Residue
 
@@ -48,31 +48,13 @@ def identify_potential_sites(residue: Residue) -> Tuple[List[str], List[str]]:
     Returns:
         Tuple[List[str], List[str]]: Lists of donor and acceptor atom names
     """
-    donors = []
-    acceptors = []
+    donors = {}
+    acceptors = {}
 
     # Convert coordinates to numpy arrays
     coords = [np.array(coord) for coord in residue.coords]
 
-    # Get all base atoms (excluding sugar/phosphate)
-    base_indices = [
-        i
-        for i, name in enumerate(residue.atom_names)
-        if not name.startswith(
-            (
-                "C2'",
-                "C3'",
-                "C4'",
-                "C5'",
-                "P",
-                "O3'",
-                "O4'",
-                "O1P",
-                "O2P",
-                "O3P",
-            )
-        )
-    ]
+    base_indices = [i for i, name in enumerate(residue.atom_names)]
 
     potential_atoms = [(residue.atom_names[i], coords[i]) for i in base_indices]
 
@@ -86,19 +68,24 @@ def identify_potential_sites(residue: Residue) -> Tuple[List[str], List[str]]:
         )
         if not connected:
             continue
-        # Check for connected hydrogens
-        has_hydrogen = any(n.startswith("H") for n, _ in connected)
+        # Count number of attached hydrogens
+        num_hydrogens = sum(1 for n, _ in connected if n.startswith("H"))
 
         if atom_name.startswith("N"):
-            if has_hydrogen and len(connected) == 3:  # N-H group - donor
-                donors.append(atom_name)
-            elif len(connected) == 2:  # sp2 N without H - acceptor
-                acceptors.append(atom_name)
+            # handle donors
+            if num_hydrogens > 0:
+                donors[atom_name] = num_hydrogens
+            # excludes NH4+
+            if len(connected) != 4:
+                acceptors[atom_name] = 1
 
         elif atom_name.startswith("O"):
-            if has_hydrogen:  # O-H group - donor
-                donors.append(atom_name)
-            acceptors.append(atom_name)
+            if num_hydrogens > 0:  # O-H group - donor
+                donors[atom_name] = num_hydrogens
+            acceptors[atom_name] = 2
+
+        elif atom_name.startswith("F"):
+            acceptors[atom_name] = 3
 
     return donors, acceptors
 
@@ -277,25 +264,30 @@ def find_empty_files(directory: str) -> List[str]:
 def main():
     # generate_residues_with_hydrogen()
     seen = []
-    acceptor_donor_data = []
+    acceptors = {}
+    donors = {}
     cif_files = glob.glob(os.path.join(DATA_PATH, "residues_w_h_cifs", "*.cif"))
     for cif_file in cif_files:
         base_name = os.path.basename(cif_file)[:-4]
+        # if base_name != "ARG":
+        #    continue
         h_residue = get_residue_from_h_cif(cif_file)
         if h_residue is None:
             print(base_name)
             continue
-        donors, acceptors = identify_potential_sites(h_residue)
-        acceptor_donor_data.append(
-            {
-                "residue_id": base_name,
-                "donors": donors,
-                "acceptors": acceptors,
-            }
-        )
+        donors_res, acceptors_res = identify_potential_sites(h_residue)
+        if base_name in canon_rna_res_list:
+            remove = ["O1P", "O2P", "O3P", "O3'"]
+            for r in remove:
+                if r in donors_res:
+                    del donors_res[r]
+        acceptors[base_name] = acceptors_res
+        donors[base_name] = donors_res
 
-    df = pd.DataFrame(acceptor_donor_data)
-    df.to_json("hbond_acceptor_and_donors.json", orient="records")
+    with open(os.path.join(RESOURCES_PATH, "hbond_acceptors.json"), "w") as f:
+        json.dump(acceptors, f)
+    with open(os.path.join(RESOURCES_PATH, "hbond_donors.json"), "w") as f:
+        json.dump(donors, f)
 
 
 if __name__ == "__main__":

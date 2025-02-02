@@ -14,7 +14,7 @@ from rna_motif_library.basepair import (
     generate_basepairs,
     save_basepairs_to_json,
 )
-from rna_motif_library.hbond import generate_hbonds_from_x3dna, save_hbonds_to_json
+from rna_motif_library.hbond import generate_hbonds, save_hbonds_to_json
 from rna_motif_library.residue import (
     Residue,
     save_residues_to_json,
@@ -270,7 +270,7 @@ def process_interactions(pdb, directory, debug, overwrite):
     log.info(f"Processing {len(pdb_ids)} PDBs")
     for pdb_id in pdb_ids:
         # TODO fill in later
-        hbonds = generate_hbonds_from_x3dna(pdb_id)
+        hbonds = generate_hbonds(pdb_id)
         dssr_output = get_cached_dssr_output(pdb_id)
         dssr_pairs = dssr_output.get_pairs()
         residues = get_cached_residues(pdb_id)

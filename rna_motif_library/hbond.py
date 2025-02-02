@@ -1,8 +1,10 @@
 import os
 import json
 import numpy as np
+import networkx as nx
 from typing import Tuple, Dict, Any, List
 from dataclasses import dataclass
+from collections import defaultdict
 
 import pandas as pd
 from pydssr.dssr_classes import DSSR_HBOND
@@ -12,7 +14,7 @@ from rna_motif_library.residue import (
     get_cached_residues,
     are_residues_connected,
 )
-from rna_motif_library.settings import LIB_PATH, DATA_PATH
+from rna_motif_library.settings import LIB_PATH, DATA_PATH, RESOURCES_PATH
 from rna_motif_library.snap import parse_snap_output
 from rna_motif_library.logger import get_logger
 from rna_motif_library.util import (
@@ -21,6 +23,8 @@ from rna_motif_library.util import (
     get_nucleotide_atom_type,
     sanitize_x3dna_atom_name,
     canon_amino_acid_list,
+    canon_rna_res_list,
+    ion_list,
     get_cached_path,
 )
 from rna_motif_library.x3dna import (
@@ -90,8 +94,115 @@ class Hbond:
 
 class HbondFactory:
     def __init__(self):
+        self.distance_cutoff = 4.0
         self.closest_atoms = get_closest_atoms_dict()
-        self.distance_cutoff = 5.0
+        self.hbond_acceptors = json.load(
+            open(os.path.join(RESOURCES_PATH, "hbond_acceptors.json"))
+        )
+        self.hbond_donors = json.load(
+            open(os.path.join(RESOURCES_PATH, "hbond_donors.json"))
+        )
+        del self.hbond_acceptors["A"]["N6"]
+
+    def _find_hbonds_for_res_pair(
+        self, res_1: Residue, res_2: Residue, pdb_name: str
+    ) -> List[Hbond]:
+        if (
+            res_1.res_id not in self.hbond_acceptors
+            or res_2.res_id not in self.hbond_donors
+        ):
+            return []
+        potential_hbonds = []
+        acceptors = self.hbond_acceptors[res_1.res_id]
+        donors = self.hbond_donors[res_2.res_id]
+        hbond_atom_pairs = []
+        for acceptor in acceptors.keys():
+            for donor in donors.keys():
+                hbond_atom_pairs.append((acceptor, donor))
+        for res1_atom, res2_atom in hbond_atom_pairs:
+            hbond = self.get_hbond(res_1, res_2, res1_atom, res2_atom, pdb_name)
+            if hbond is None:
+                continue
+            potential_hbonds.append(hbond)
+        return potential_hbonds
+
+    def _find_capacity_constrained_hbonds(self, scored_hbonds):
+        """
+        Find optimal H-bonds considering capacity constraints for donors and acceptors.
+
+        Args:
+            scored_hbonds: List of (score, hbond) tuples
+
+        Returns:
+            List of selected Hbond objects that satisfy capacity constraints
+        """
+        # Sort hbonds by score in descending order
+        scored_hbonds = sorted(scored_hbonds, key=lambda x: x[0], reverse=True)
+
+        # Track acceptor and donor capacities
+        acceptor_capacities = {}
+        donor_capacities = {}
+        edge_lookup = {}
+
+        # First pass: Track capacities
+        for idx, (score, hbond) in enumerate(scored_hbonds):
+            acceptor_key = f"{hbond.res_1.get_str()}_{hbond.atom_1}"
+            donor_key = f"{hbond.res_2.get_str()}_{hbond.atom_2}"
+
+            if acceptor_key not in acceptor_capacities:
+                acceptor_capacities[acceptor_key] = self.hbond_acceptors[
+                    hbond.res_1.res_id
+                ][hbond.atom_1]
+            if donor_key not in donor_capacities:
+                donor_capacities[donor_key] = self.hbond_donors[hbond.res_2.res_id][
+                    hbond.atom_2
+                ]
+
+            edge_lookup[idx] = (score, hbond, acceptor_key, donor_key)
+
+        # Keep track of used capacities
+        used_acceptors = defaultdict(int)
+        used_donors = defaultdict(int)
+
+        selected_hbonds = []
+
+        # Process h-bonds in order of decreasing score
+        for idx in range(len(scored_hbonds)):
+            if idx not in edge_lookup:
+                continue
+
+            score, hbond, acceptor_key, donor_key = edge_lookup[idx]
+            # Check if we can still use this h-bond
+            if (
+                used_acceptors[acceptor_key] < acceptor_capacities[acceptor_key]
+                and used_donors[donor_key] < donor_capacities[donor_key]
+            ):
+                selected_hbonds.append(hbond)
+                used_acceptors[acceptor_key] += 1
+                used_donors[donor_key] += 1
+
+        return selected_hbonds
+
+    def find_hbonds(self, res_1: Residue, res_2: Residue, pdb_name: str) -> List[Hbond]:
+        potential_hbonds = self._find_hbonds_for_res_pair(res_1, res_2, pdb_name)
+        potential_hbonds += self._find_hbonds_for_res_pair(res_2, res_1, pdb_name)
+        # Score all potential hbonds
+        scored_hbonds = []
+        seen = []
+        for hbond in potential_hbonds:
+            score = score_hbond(
+                hbond.distance, hbond.angle_1, hbond.angle_2, hbond.dihedral_angle
+            )
+            hbond_str = f"{hbond.res_1.get_str()}_{hbond.res_2.get_str()}_{hbond.atom_1}_{hbond.atom_2}"
+            hbond_str_flipped = f"{hbond.res_2.get_str()}_{hbond.res_1.get_str()}_{hbond.atom_2}_{hbond.atom_1}"
+            # if hbond_str in seen or hbond_str_flipped in seen:
+            #    continue
+            seen.append(hbond_str)
+            seen.append(hbond_str_flipped)
+            scored_hbonds.append((score, hbond))
+
+        hbonds = self._find_capacity_constrained_hbonds(scored_hbonds)
+        return hbonds
 
     def get_hbond(
         self, res1: Residue, res2: Residue, atom1: str, atom2: str, pdb_code: str
@@ -250,6 +361,34 @@ def get_flipped_hbond(hbond: Hbond) -> Hbond:
 
 
 # parsing x3dna stuff #################################################################
+
+
+def generate_hbonds(pdb_name: str) -> List[Hbond]:
+    residues = get_cached_residues(pdb_name)
+    hf = HbondFactory()
+    hbonds = []
+    res_coms = {}
+    seen = []
+    for res in residues.values():
+        res_coms[res.get_str()] = res.get_center_of_mass()
+    for i, r1 in enumerate(residues.values()):
+        if r1.res_id not in canon_rna_res_list:
+            continue
+        res_1_com = res_coms[r1.get_str()]
+        for j, r2 in enumerate(residues.values()):
+            res_2_com = res_coms[r2.get_str()]
+            com_dist = np.linalg.norm(res_1_com - res_2_com)
+            if com_dist > 15.0:
+                continue
+            if f"{r2.get_str()}_{r1.get_str()}" in seen:
+                continue
+            if f"{r1.get_str()}_{r2.get_str()}" in seen:
+                continue
+            seen.append(f"{r1.get_str()}_{r2.get_str()}")
+            seen.append(f"{r2.get_str()}_{r1.get_str()}")
+            hbonds += hf.find_hbonds(r1, r2, pdb_name)
+
+    return hbonds
 
 
 def generate_hbonds_from_x3dna(pdb_name: str) -> List[Hbond]:

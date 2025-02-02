@@ -168,7 +168,7 @@ class BasepairFactory:
             self.df_bp_hbonds["basepair_type"] == f"{bp_type_short}_{pair.LW}"
         ]
         if len(df_sub) == 0:
-            hbonds = self._get_potential_hbonds(res_1, res_2, pdb_name)
+            hbonds = self.hf.find_hbonds(res_1, res_2, pdb_name)
         else:
             hbonds = self._get_hbonds_from_known_iteractions(
                 res_1, res_2, df_sub, pdb_name
@@ -215,58 +215,6 @@ class BasepairFactory:
             )
             return None, None
         return res_1, res_2
-
-    def _get_potential_hbonds(self, res_1: Residue, res_2: Residue, pdb_name: str):
-        hbond_atom_pairs = []
-        if (
-            res_1.res_id not in self.hbond_acceptors
-            or res_2.res_id not in self.hbond_donors
-        ):
-            return []
-        acceptors = self.hbond_acceptors[res_1.res_id]
-        donors = self.hbond_donors[res_2.res_id]
-        for acceptor in acceptors:
-            for donor in donors:
-                hbond_atom_pairs.append((acceptor, donor))
-        acceptors = self.hbond_acceptors[res_2.res_id]
-        donors = self.hbond_donors[res_1.res_id]
-        for acceptor in acceptors:
-            for donor in donors:
-                hbond_atom_pairs.append((acceptor, donor))
-        potential_hbonds = []
-        for res1_atom, res2_atom in hbond_atom_pairs:
-            hbond = self.hf.get_hbond(res_1, res_2, res1_atom, res2_atom, pdb_name)
-            if hbond is None:
-                continue
-            potential_hbonds.append(hbond)
-        # Score all potential hbonds
-        scored_hbonds = []
-        for hbond in potential_hbonds:
-            score = score_hbond(
-                hbond.distance, hbond.angle_1, hbond.angle_2, hbond.dihedral_angle
-            )
-            scored_hbonds.append((score, hbond))
-
-        # Sort by score descending
-        scored_hbonds.sort(reverse=True, key=lambda x: x[0])
-
-        # Track which atoms have been used
-        used_atoms_res1 = set()
-        used_atoms_res2 = set()
-
-        # Pick best scoring hbonds where atoms haven't been used
-        final_hbonds = []
-        for score, hbond in scored_hbonds:
-            if (
-                hbond.atom_1 not in used_atoms_res1
-                and hbond.atom_2 not in used_atoms_res2
-            ):
-                final_hbonds.append(hbond)
-                used_atoms_res1.add(hbond.atom_1)
-                used_atoms_res2.add(hbond.atom_2)
-
-        potential_hbonds = final_hbonds
-        return potential_hbonds
 
     def _get_hbonds_from_known_iteractions(
         self, res_1: Residue, res_2: Residue, df_sub: pd.DataFrame, pdb_name: str

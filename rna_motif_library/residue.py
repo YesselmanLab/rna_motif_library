@@ -392,6 +392,7 @@ def get_residues_from_cif(cif_path: str) -> Dict[str, Residue]:
         ["auth_asym_id", "auth_seq_id", "auth_comp_id", "pdbx_PDB_ins_code"]
     ):
         coords = g[["Cartn_x", "Cartn_y", "Cartn_z"]].values
+        coords = coords.astype(float)
         atom_names = g["auth_atom_id"].tolist()
         atom_names = [sanitize_x3dna_atom_name(name) for name in atom_names]
         chain_id, res_num, res_name, ins_code = i
