@@ -26,7 +26,7 @@ log = get_logger("motif")
 def get_motifs(pdb_id: str) -> list:
     residues = get_cached_residues(pdb_id)
     basepairs = get_cached_basepairs(pdb_id)
-    chains = RNAChains(get_rna_chains(residues.values()))
+    chains = Chains(get_rna_chains(residues.values()))
     mf = MotifFactory(pdb_id, chains, basepairs)
     return mf.get_motifs()
 

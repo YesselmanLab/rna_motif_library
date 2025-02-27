@@ -233,8 +233,8 @@ def generate_chains(pdb, directory, debug):
     for pdb_id in pdb_ids:
         residues = get_cached_residues(pdb_id)
         chains = get_rna_chains(list(residues.values()))
-        for i, chain in enumerate(chains):
-            write_chain_to_cif(chain, f"{pdb_id}_{i}.cif")
+        # for i, chain in enumerate(chains):
+        #    write_chain_to_cif(chain, f"{pdb_id}_{i}.cif")
         save_chains_to_json(chains, get_cached_path(pdb_id, "chains"))
         chains = get_protein_chains(list(residues.values()))
         save_chains_to_json(chains, get_cached_path(pdb_id, "protein_chains"))

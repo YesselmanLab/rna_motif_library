@@ -262,7 +262,8 @@ def find_empty_files(directory: str) -> List[str]:
 
 
 def main():
-    # generate_residues_with_hydrogen()
+    # get_residues_with_hydrogen()
+    # exit()
     seen = []
     acceptors = {}
     donors = {}
@@ -271,9 +272,12 @@ def main():
         base_name = os.path.basename(cif_file)[:-4]
         # if base_name != "ARG":
         #    continue
-        h_residue = get_residue_from_h_cif(cif_file)
+        try:
+            h_residue = get_residue_from_h_cif(cif_file)
+        except:
+            print("cannot parse", base_name)
+            continue
         if h_residue is None:
-            print(base_name)
             continue
         donors_res, acceptors_res = identify_potential_sites(h_residue)
         if base_name in canon_rna_res_list:

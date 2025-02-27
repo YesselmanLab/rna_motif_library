@@ -18,10 +18,6 @@ In the directory `data/csvs`, delete the default CSV file and replace with your 
 git clone https://github.com/YesselmanLab/rna_motif_library.git
 cd rna_motif_library
 
-# reduce for adding hydrogens to residues
-conda install reduce -c bioconda
-
-
 
 # Create and activate new conda environment
 conda create --name rna_motif_env python=3.8
@@ -33,10 +29,6 @@ pip install .
 ```
 
 ## Creating the library
-
-
-### download CIF files
-
 ```bash
 # Make sure you put the downloaded CSV in the right place or you will get errors
 # Put the CSV where the default CSV is and delete the default
@@ -51,22 +43,20 @@ python rna_motif_library/cli.py download-cifs --threads 8
 # Expect a progress bar when it's working
 
 # After downloading we need to process with DSSR
+# need DSSR installed which is not included here 
 python rna_motif_library/cli.py process-dssr --threads 8
 # Replace "8" with the number of CPU cores you want to use
-# Estimated time: 90 minutes for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will consist of the path to the PDB/CIF files
 
 # After processing with DSSR we need to process with SNAP
 python rna_motif_library/cli.py process-snap --threads 8
 # Replace "8" with the number of CPU cores you want to use
-# Estimated time: 9 hours for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will consist of the path + other information on nucleotides/etc
 
 # After processing with SNAP we need to generate motif files
 python rna_motif_library/cli.py generate-motifs
-# Estimated time: 5 days for around 2000 .cifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will display the names of the motifs being processed
 
