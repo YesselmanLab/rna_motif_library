@@ -452,17 +452,17 @@ def find_rna_protein_interactions():
             continue
         hbonds = get_hbonds_from_json(json_path)
         for hbond in hbonds:
-            if not (hbond.atom_type_1 == "aa" or hbond.atom_type_2 == "aa"):
+            if not (hbond.res_type_1 == "aa" or hbond.res_type_2 == "aa"):
                 continue
-            if hbond.atom_type_1 == "aa":
+            if hbond.res_type_1 == "aa":
                 res1, res2 = hbond.res_2, hbond.res_1
                 atom1, atom2 = hbond.atom_2, hbond.atom_1
-                atom_type1, atom_type2 = hbond.atom_type_2, hbond.atom_type_1
+                atom_type1, atom_type2 = hbond.res_type_2, hbond.res_type_1
                 res1_id, res2_id = hbond.res_2.res_id, hbond.res_1.res_id
             else:
                 res1, res2 = hbond.res_1, hbond.res_2
                 atom1, atom2 = hbond.atom_1, hbond.atom_2
-                atom_type1, atom_type2 = hbond.atom_type_1, hbond.atom_type_2
+                atom_type1, atom_type2 = hbond.res_type_1, hbond.res_type_2
                 res1_id, res2_id = hbond.res_1.res_id, hbond.res_2.res_id
             csv_hbond_data.append(
                 {

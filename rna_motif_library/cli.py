@@ -1,10 +1,13 @@
 import time
+import glob
 import warnings
 import os
 import click
 import sys
 import functools
 import pandas as pd
+import multiprocessing
+from biopandas.mmcif import PandasMmcif
 
 
 from rna_motif_library.settings import LIB_PATH, DATA_PATH
@@ -80,6 +83,67 @@ def time_func(func):
 
     return wrapper
 
+def get_new_pdb_ids():
+    df = pd.read_csv("/Users/jyesselman2/Documents/new_pdb_list.txt")
+    pdb_ids = df["pdb_id"].tolist()
+    keep_ids = []
+    for pdb_id in pdb_ids:
+        residues = get_cached_residues(pdb_id)
+        if len(residues) < 1000:
+            keep_ids.append(pdb_id)
+    return keep_ids
+
+def get_non_redundant_pdb_ids():
+    df = pd.read_csv("data/csvs/non_redundant_set.csv")
+    pdb_ids = df["pdb_id"].tolist()
+    return pdb_ids
+
+def process_cif(cif_file):
+    cols = [
+        "group_PDB",
+        "id",
+        "auth_atom_id",
+        "auth_comp_id",
+        "auth_asym_id",
+        "auth_seq_id",
+        "pdbx_PDB_ins_code",
+        "Cartn_x",
+        "Cartn_y",
+        "Cartn_z",
+    ]
+
+    pdb_name = os.path.basename(cif_file).split(".")[0]
+    try:
+        ppdb = PandasMmcif().read_mmcif(cif_file)
+        df = pd.concat([ppdb.df["ATOM"], ppdb.df["HETATM"]])
+        df = df[cols]
+        # Write with retries
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                df.to_parquet(f"data/pdbs_dfs/{pdb_name}.parquet")
+                break
+            except TimeoutError:
+                if attempt == max_retries - 1:
+                    print(f"Failed to write {pdb_name} after {max_retries} attempts")
+                    raise
+                print(f"Timeout writing {pdb_name}, retrying...")
+                time.sleep(1)  # Wait before retry
+        return pdb_name
+    except Exception as e:
+        print(f"Error processing {pdb_name}: {str(e)}")
+        return None
+
+
+def process_chunk(cif_files):
+    for cif_file in cif_files:
+        try:
+            pdb_name = process_cif(cif_file)
+            if pdb_name:
+                print(f"Processed: {pdb_name}")
+        except Exception as e:
+            print(f"Failed to process {cif_file}: {str(e)}")
+
 
 @click.group()
 def cli():
@@ -153,6 +217,41 @@ def process_snap(threads, directory, debug):
 
 
 @cli.command()
+@click.option("--threads", default=1, help="Number of threads to use.")
+@click.option("--debug", is_flag=True, help="Enable debugging.")
+@time_func
+def get_pdb_dfs(threads, debug):
+    glob_path = os.path.join("data/pdbs", "*.cif")
+    cif_files = glob.glob(glob_path)
+    # Filter out files that already have parquet output
+    filtered_cif_files = []
+    for cif_file in cif_files:
+        pdb_name = os.path.basename(cif_file).split(".")[0]
+        parquet_path = f"data/pdbs_dfs/{pdb_name}.parquet"
+        if not os.path.exists(parquet_path):
+            filtered_cif_files.append(cif_file)
+
+    print(f"Found {len(cif_files)} total CIF files")
+    print(f"Processing {len(filtered_cif_files)} files that need conversion")
+    if len(filtered_cif_files) == 0:
+        print("No files need conversion")
+        return
+
+    cif_files = filtered_cif_files
+
+    # Split files into chunks for parallel processing
+    num_processes = 8  # Reduced from 20 to lower system load
+    chunk_size = len(cif_files) // num_processes
+    chunks = [
+        cif_files[i : i + chunk_size] for i in range(0, len(cif_files), chunk_size)
+    ]
+
+    # Create pool and run processes
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        pool.map(process_chunk, chunks)
+
+
+@cli.command()
 @click.option(
     "--pdb",
     default=None,
@@ -167,7 +266,7 @@ def process_snap(threads, directory, debug):
 )
 @click.option(
     "-se",
-    "--skip_existing",
+    "--skip-existing",
     is_flag=True,
     help="Skip existing residues",
 )
@@ -183,13 +282,13 @@ def process_residues(pdb, directory, debug, skip_existing):
     pdb_ids = get_pdb_ids(pdb, directory)
     log.info(f"Processing {len(pdb_ids)} PDBs")
     for pdb_id in pdb_ids:
-        print(pdb_id)
         if skip_existing and os.path.exists(get_cached_path(pdb_id, "residues")):
             log.info(f"Skipping {pdb_id} because it already exists")
             continue
         df_atoms = pd.read_parquet(
             os.path.join(DATA_PATH, "pdbs_dfs", f"{pdb_id}.parquet")
         )
+        print(pdb_id)
         residues = {}
         for i, g in df_atoms.groupby(
             ["auth_asym_id", "auth_seq_id", "auth_comp_id", "pdbx_PDB_ins_code"]
@@ -231,6 +330,9 @@ def generate_chains(pdb, directory, debug):
     os.makedirs(os.path.join(DATA_PATH, "jsons", "protein_chains"), exist_ok=True)
     pdb_ids = get_pdb_ids(pdb, directory)
     for pdb_id in pdb_ids:
+        if os.path.exists(get_cached_path(pdb_id, "chains")):
+            log.info(f"Skipping {pdb_id} because it already exists")
+            continue
         residues = get_cached_residues(pdb_id)
         chains = get_rna_chains(list(residues.values()))
         # for i, chain in enumerate(chains):
@@ -267,13 +369,16 @@ def process_interactions(pdb, directory, debug, overwrite):
     os.makedirs(os.path.join(DATA_PATH, "dataframes", "hbonds"), exist_ok=True)
     os.makedirs(os.path.join(DATA_PATH, "dataframes", "basepairs"), exist_ok=True)
     pdb_ids = get_pdb_ids(pdb, directory)
+    pdb_ids = get_non_redundant_pdb_ids()
+    count = 0
     log.info(f"Processing {len(pdb_ids)} PDBs")
     for pdb_id in pdb_ids:
-        # TODO fill in later
+        count += 1
+        print(pdb_id, count)
         hbonds = generate_hbonds(pdb_id)
+        residues = get_cached_residues(pdb_id)
         dssr_output = get_cached_dssr_output(pdb_id)
         dssr_pairs = dssr_output.get_pairs()
-        residues = get_cached_residues(pdb_id)
         basepairs = generate_basepairs(pdb_id, dssr_pairs, residues)
         log.info(
             f"Processed {pdb_id} with {len(hbonds)} hbonds and {len(basepairs)} basepairs"

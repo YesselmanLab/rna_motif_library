@@ -25,6 +25,7 @@ from rna_motif_library.util import (
     canon_amino_acid_list,
     canon_rna_res_list,
     ion_list,
+    ResidueTypeAssigner,
     get_cached_path,
 )
 from rna_motif_library.x3dna import (
@@ -53,13 +54,13 @@ class Hbond:
     res_2: X3DNAResidue
     atom_1: str
     atom_2: str
-    atom_type_1: str
-    atom_type_2: str
+    res_type_1: str
+    res_type_2: str
     distance: float
     angle_1: float
     angle_2: float
     dihedral_angle: float
-    hbond_type: str
+    score: float
     pdb_name: str
 
     @classmethod
@@ -94,7 +95,7 @@ class Hbond:
 
 class HbondFactory:
     def __init__(self):
-        self.distance_cutoff = 4.0
+        self.distance_cutoff = 3.7
         self.closest_atoms = get_closest_atoms_dict()
         self.hbond_acceptors = json.load(
             open(os.path.join(RESOURCES_PATH, "hbond_acceptors.json"))
@@ -103,6 +104,7 @@ class HbondFactory:
             open(os.path.join(RESOURCES_PATH, "hbond_donors.json"))
         )
         del self.hbond_acceptors["A"]["N6"]
+        self.residue_type_assigner = ResidueTypeAssigner()
 
     def _find_hbonds_for_res_pair(
         self, res_1: Residue, res_2: Residue, pdb_name: str
@@ -126,26 +128,29 @@ class HbondFactory:
             potential_hbonds.append(hbond)
         return potential_hbonds
 
-    def _find_capacity_constrained_hbonds(self, scored_hbonds):
+    def _find_capacity_constrained_hbonds(self, unique_hbonds, res_1, res_2):
         """
         Find optimal H-bonds considering capacity constraints for donors and acceptors.
+        For atoms with capacity 2, checks if the two best bonds are within 60 degrees
+        using the dot product of the H-bond vectors.
 
         Args:
-            scored_hbonds: List of (score, hbond) tuples
+            unique_hbonds: List of Hbond objects
 
         Returns:
             List of selected Hbond objects that satisfy capacity constraints
         """
         # Sort hbonds by score in descending order
-        scored_hbonds = sorted(scored_hbonds, key=lambda x: x[0], reverse=True)
+        unique_hbonds = sorted(unique_hbonds, key=lambda x: x.score, reverse=True)
 
         # Track acceptor and donor capacities
         acceptor_capacities = {}
         donor_capacities = {}
         edge_lookup = {}
+        hbond_vectors = {}
 
-        # First pass: Track capacities
-        for idx, (score, hbond) in enumerate(scored_hbonds):
+        # First pass: Track capacities and calculate H-bond vectors
+        for idx, hbond in enumerate(unique_hbonds):
             acceptor_key = f"{hbond.res_1.get_str()}_{hbond.atom_1}"
             donor_key = f"{hbond.res_2.get_str()}_{hbond.atom_2}"
 
@@ -158,50 +163,81 @@ class HbondFactory:
                     hbond.atom_2
                 ]
 
-            edge_lookup[idx] = (score, hbond, acceptor_key, donor_key)
+            # Calculate H-bond vector (from acceptor to donor)
+            if hbond.res_1.get_str() == res_1.get_str():
+                acceptor_coords = res_1.get_atom_coords(hbond.atom_1)
+                donor_coords = res_2.get_atom_coords(hbond.atom_2)
+            else:
+                acceptor_coords = res_2.get_atom_coords(hbond.atom_1)
+                donor_coords = res_1.get_atom_coords(hbond.atom_2)
+            hbond_vector = donor_coords - acceptor_coords
+            hbond_vector = hbond_vector / np.linalg.norm(hbond_vector)
+            hbond_vectors[idx] = hbond_vector
 
-        # Keep track of used capacities
+            edge_lookup[idx] = (hbond.score, hbond, acceptor_key, donor_key)
+
+        # Keep track of used capacities and vectors
         used_acceptors = defaultdict(int)
         used_donors = defaultdict(int)
-
+        acceptor_vectors = defaultdict(list)  # key -> [(idx, vector)]
+        donor_vectors = defaultdict(list)  # key -> [(idx, vector)]
         selected_hbonds = []
 
         # Process h-bonds in order of decreasing score
-        for idx in range(len(scored_hbonds)):
+        for idx in range(len(unique_hbonds)):
             if idx not in edge_lookup:
                 continue
 
             score, hbond, acceptor_key, donor_key = edge_lookup[idx]
-            # Check if we can still use this h-bond
+            hbond_vector = hbond_vectors[idx]
+
+            # Check capacity constraints
+            if used_acceptors[acceptor_key] >= acceptor_capacities[acceptor_key]:
+                continue
+            if used_donors[donor_key] >= donor_capacities[donor_key]:
+                continue
+
+            # For capacity 2, check angle constraints using dot product
             if (
-                used_acceptors[acceptor_key] < acceptor_capacities[acceptor_key]
-                and used_donors[donor_key] < donor_capacities[donor_key]
+                acceptor_capacities[acceptor_key] == 2
+                and used_acceptors[acceptor_key] == 1
             ):
-                selected_hbonds.append(hbond)
-                used_acceptors[acceptor_key] += 1
-                used_donors[donor_key] += 1
+                prev_vector = acceptor_vectors[acceptor_key][0][1]
+                angle = np.arccos(np.clip(np.dot(hbond_vector, prev_vector), -1.0, 1.0))
+                angle_deg = np.degrees(angle)
+                if angle_deg < 60:
+                    continue
+
+            if donor_capacities[donor_key] == 2 and used_donors[donor_key] == 1:
+                prev_vector = donor_vectors[donor_key][0][1]
+                angle = np.arccos(np.clip(np.dot(hbond_vector, prev_vector), -1.0, 1.0))
+                angle_deg = np.degrees(angle)
+                if angle_deg < 60:
+                    continue
+
+            selected_hbonds.append(hbond)
+            used_acceptors[acceptor_key] += 1
+            used_donors[donor_key] += 1
+            acceptor_vectors[acceptor_key].append((idx, hbond_vector))
+            donor_vectors[donor_key].append((idx, hbond_vector))
 
         return selected_hbonds
 
     def find_hbonds(self, res_1: Residue, res_2: Residue, pdb_name: str) -> List[Hbond]:
         potential_hbonds = self._find_hbonds_for_res_pair(res_1, res_2, pdb_name)
         potential_hbonds += self._find_hbonds_for_res_pair(res_2, res_1, pdb_name)
-        # Score all potential hbonds
-        scored_hbonds = []
+        unique_hbonds = []
         seen = []
         for hbond in potential_hbonds:
-            score = score_hbond(
-                hbond.distance, hbond.angle_1, hbond.angle_2, hbond.dihedral_angle
-            )
             hbond_str = f"{hbond.res_1.get_str()}_{hbond.res_2.get_str()}_{hbond.atom_1}_{hbond.atom_2}"
             hbond_str_flipped = f"{hbond.res_2.get_str()}_{hbond.res_1.get_str()}_{hbond.atom_2}_{hbond.atom_1}"
-            # if hbond_str in seen or hbond_str_flipped in seen:
-            #    continue
+            if hbond_str in seen or hbond_str_flipped in seen:
+                continue
             seen.append(hbond_str)
             seen.append(hbond_str_flipped)
-            scored_hbonds.append((score, hbond))
+            unique_hbonds.append(hbond)
 
-        hbonds = self._find_capacity_constrained_hbonds(scored_hbonds)
+        hbonds = self._find_capacity_constrained_hbonds(unique_hbonds, res_1, res_2)
         return hbonds
 
     def get_hbond(
@@ -225,13 +261,13 @@ class HbondFactory:
         )
         angle_1 = calculate_angle(closest_atom1_coords, atom1_coords, atom2_coords)
         angle_2 = calculate_angle(atom1_coords, atom2_coords, closest_atom2_coords)
-        atom_type_1 = get_nucleotide_atom_type(atom1)
-        atom_type_2 = get_nucleotide_atom_type(atom2)
-        if res1.res_id in canon_amino_acid_list:
-            atom_type_1 = "aa"
-        if res2.res_id in canon_amino_acid_list:
-            atom_type_2 = "aa"
-        hbond_type = self._assign_hbond_type(atom_type_1, atom_type_2)
+
+        atom_type_1 = self.residue_type_assigner.get_residue_type(
+            res1.get_str(), pdb_code
+        )
+        atom_type_2 = self.residue_type_assigner.get_residue_type(
+            res2.get_str(), pdb_code
+        )
         return Hbond(
             res1.get_x3dna_residue(),
             res2.get_x3dna_residue(),
@@ -243,17 +279,9 @@ class HbondFactory:
             round(angle_1, 2),
             round(angle_2, 2),
             round(dihedral_angle, 2),
-            hbond_type,
+            score_hbond(distance, angle_1, angle_2, dihedral_angle),
             pdb_code,
         )
-
-    def _assign_hbond_type(self, atom_type_1: str, atom_type_2: str) -> str:
-        if atom_type_1 == "aa" or atom_type_2 == "aa":
-            return "RNA/PROTEIN"
-        else:
-            if atom_type_1 > atom_type_2:
-                atom_type_1, atom_type_2 = atom_type_2, atom_type_1
-            return f"{atom_type_1}/{atom_type_2}"
 
     def _get_closest_atom(self, atom_name: str, residue: Residue) -> str:
         key = f"{residue.res_id}-{atom_name}"
@@ -272,6 +300,152 @@ class HbondFactory:
                 min_dist = dist
                 closest_atom = aname
         return closest_atom
+
+
+class CapacityConstrainedHbondFinder:
+    def __init__(self):
+        self.hbond_acceptors = json.load(
+            open(os.path.join(RESOURCES_PATH, "hbond_acceptors.json"))
+        )
+        self.hbond_donors = json.load(
+            open(os.path.join(RESOURCES_PATH, "hbond_donors.json"))
+        )
+
+    def find_hbonds(self, unique_hbonds, residues):
+        """
+        Find optimal H-bonds considering capacity constraints for donors and acceptors.
+        For atoms with capacity 2, checks if the two best bonds are within 60 degrees
+        using the dot product of the H-bond vectors.
+
+        Args:
+            unique_hbonds: List of Hbond objects
+            residues: List of Residue objects containing all residues involved in H-bonds
+        Returns:
+            List of selected Hbond objects that satisfy capacity constraints
+        """
+        unique_hbonds = sorted(unique_hbonds, key=lambda x: x.score, reverse=True)
+
+        # Initialize tracking dictionaries
+        acceptor_capacities, donor_capacities = self._initialize_capacities(
+            unique_hbonds
+        )
+        edge_lookup, hbond_vectors = self._calculate_vectors(
+            unique_hbonds, residues
+        )
+
+        return self._select_hbonds(
+            unique_hbonds,
+            acceptor_capacities,
+            donor_capacities,
+            edge_lookup,
+            hbond_vectors,
+        )
+
+    def _initialize_capacities(self, unique_hbonds):
+        """Initialize capacity tracking dictionaries for acceptors and donors"""
+        acceptor_capacities = {}
+        donor_capacities = {}
+
+        for hbond in unique_hbonds:
+            acceptor_key = f"{hbond.res_1.get_str()}_{hbond.atom_1}"
+            donor_key = f"{hbond.res_2.get_str()}_{hbond.atom_2}"
+
+            if acceptor_key not in acceptor_capacities:
+                acceptor_capacities[acceptor_key] = self.hbond_acceptors[
+                    hbond.res_1.res_id
+                ][hbond.atom_1]
+            if donor_key not in donor_capacities:
+                donor_capacities[donor_key] = self.hbond_donors[hbond.res_2.res_id][
+                    hbond.atom_2
+                ]
+
+        return acceptor_capacities, donor_capacities
+
+    def _calculate_vectors(self, unique_hbonds, residues):
+        """Calculate H-bond vectors and create edge lookup dictionary"""
+        edge_lookup = {}
+        hbond_vectors = {}
+        
+        # Create lookup dict for residues
+        res_lookup = {res.get_str(): res for res in residues}
+
+        for idx, hbond in enumerate(unique_hbonds):
+            acceptor_key = f"{hbond.res_1.get_str()}_{hbond.atom_1}"
+            donor_key = f"{hbond.res_2.get_str()}_{hbond.atom_2}"
+
+            # Get residues from lookup
+            res1 = res_lookup[hbond.res_1.get_str()]
+            res2 = res_lookup[hbond.res_2.get_str()]
+
+            # Calculate H-bond vector (from acceptor to donor)
+            acceptor_coords = res1.get_atom_coords(hbond.atom_1)
+            donor_coords = res2.get_atom_coords(hbond.atom_2)
+
+            hbond_vector = donor_coords - acceptor_coords
+            hbond_vector = hbond_vector / np.linalg.norm(hbond_vector)
+            hbond_vectors[idx] = hbond_vector
+
+            edge_lookup[idx] = (hbond.score, hbond, acceptor_key, donor_key)
+
+        return edge_lookup, hbond_vectors
+
+    def _check_angle_constraint(self, vector1, vector2):
+        """Check if angle between two vectors satisfies the 60 degree constraint"""
+        angle = np.arccos(np.clip(np.dot(vector1, vector2), -1.0, 1.0))
+        angle_deg = np.degrees(angle)
+        return angle_deg >= 60
+
+    def _select_hbonds(
+        self,
+        unique_hbonds,
+        acceptor_capacities,
+        donor_capacities,
+        edge_lookup,
+        hbond_vectors,
+    ):
+        """Select H-bonds that satisfy capacity and angle constraints"""
+        used_acceptors = defaultdict(int)
+        used_donors = defaultdict(int)
+        acceptor_vectors = defaultdict(list)
+        donor_vectors = defaultdict(list)
+        selected_hbonds = []
+
+        for idx in range(len(unique_hbonds)):
+            if idx not in edge_lookup:
+                continue
+
+            score, hbond, acceptor_key, donor_key = edge_lookup[idx]
+            hbond_vector = hbond_vectors[idx]
+
+            # Check capacity constraints
+            if used_acceptors[acceptor_key] >= acceptor_capacities[acceptor_key]:
+                continue
+            if used_donors[donor_key] >= donor_capacities[donor_key]:
+                continue
+
+            # Check angle constraints for capacity 2
+            if (
+                acceptor_capacities[acceptor_key] == 2
+                and used_acceptors[acceptor_key] == 1
+            ):
+                if not self._check_angle_constraint(
+                    hbond_vector, acceptor_vectors[acceptor_key][0][1]
+                ):
+                    continue
+
+            if donor_capacities[donor_key] == 2 and used_donors[donor_key] == 1:
+                if not self._check_angle_constraint(
+                    hbond_vector, donor_vectors[donor_key][0][1]
+                ):
+                    continue
+
+            selected_hbonds.append(hbond)
+            used_acceptors[acceptor_key] += 1
+            used_donors[donor_key] += 1
+            acceptor_vectors[acceptor_key].append((idx, hbond_vector))
+            donor_vectors[donor_key].append((idx, hbond_vector))
+
+        return selected_hbonds
 
 
 def get_hbonds_from_json(json_path: str) -> List[Hbond]:
@@ -348,13 +522,13 @@ def get_flipped_hbond(hbond: Hbond) -> Hbond:
         hbond.res_1,
         hbond.atom_2,
         hbond.atom_1,
-        hbond.atom_type_2,
-        hbond.atom_type_1,
+        hbond.res_type_2,
+        hbond.res_type_1,
         hbond.distance,
         hbond.angle_2,
         hbond.angle_1,
         hbond.dihedral_angle,
-        hbond.hbond_type,
+        hbond.score,
         hbond.pdb_name,
     )
     return flipped_hbond
@@ -371,11 +545,14 @@ def generate_hbonds(pdb_name: str) -> List[Hbond]:
     seen = []
     for res in residues.values():
         res_coms[res.get_str()] = res.get_center_of_mass()
+    data = []
     for i, r1 in enumerate(residues.values()):
         if r1.res_id not in canon_rna_res_list:
             continue
         res_1_com = res_coms[r1.get_str()]
         for j, r2 in enumerate(residues.values()):
+            if r1.res_id == r2.res_id:
+                continue
             res_2_com = res_coms[r2.get_str()]
             com_dist = np.linalg.norm(res_1_com - res_2_com)
             if com_dist > 15.0:
@@ -388,7 +565,24 @@ def generate_hbonds(pdb_name: str) -> List[Hbond]:
             seen.append(f"{r2.get_str()}_{r1.get_str()}")
             hbonds += hf.find_hbonds(r1, r2, pdb_name)
 
-    return hbonds
+    print(len(hbonds))
+    cchf = CapacityConstrainedHbondFinder()
+    hbonds = cchf.find_hbonds(hbonds, residues.values())
+    print(len(hbonds))
+    final_hbonds = []
+    for hbond in hbonds:
+        if hbond.res_type_1 != "RNA":
+            hbond = get_flipped_hbond(hbond)
+        final_hbonds.append(hbond)
+        h_data = hbond.to_dict()
+        h_data["res_1"] = hbond.res_1.get_str()
+        h_data["res_2"] = hbond.res_2.get_str()
+        data.append(h_data)
+    df = pd.DataFrame(data)
+    df.to_csv(
+        os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_name}.csv"), index=False
+    )
+    return final_hbonds
 
 
 def generate_hbonds_from_x3dna(pdb_name: str) -> List[Hbond]:
@@ -426,11 +620,11 @@ def generate_hbonds_from_x3dna(pdb_name: str) -> List[Hbond]:
         if hbond is None:
             continue
         if hbond.res_1.get_str() in small_molecules_res_ids:
-            hbond.atom_type_1 = "small_molecule"
+            hbond.res_type_1 = "small_molecule"
         if hbond.res_2.get_str() in small_molecules_res_ids:
-            hbond.atom_type_2 = "small_molecule"
+            hbond.res_type_2 = "small_molecule"
         # rna should always be res_1
-        if hbond.atom_type_1 == "aa" or hbond.atom_type_1 == "small_molecule":
+        if hbond.res_type_1 == "aa" or hbond.res_type_1 == "small_molecule":
             hbond = get_flipped_hbond(hbond)
         hbonds.append(hbond)
         h_data = hbond.to_dict()

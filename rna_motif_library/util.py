@@ -35,6 +35,8 @@ canon_amino_acid_list = [
 canon_res_list = canon_rna_res_list + canon_amino_acid_list
 
 ion_list = [
+    "V",
+    "CR",
     "2HP",
     "3CO",
     "AG",
@@ -396,3 +398,39 @@ def calculate_dihedral_angle(
     if np.dot(np.cross(n1, n2), b2) < 0:
         angle = -angle
     return round(np.degrees(angle), 1)
+
+
+class ResidueTypeAssigner:
+    def __init__(self):
+        df = pd.read_csv(
+            os.path.join(DATA_PATH, "ligands", "single_type_res_identities.csv")
+        )
+        self.single_type_res_identities = {}
+        for _, row in df.iterrows():
+            self.single_type_res_identities[row["res_id"]] = row["type"]
+        df = pd.read_csv(
+            os.path.join(DATA_PATH, "ligands", "multi_type_res_identities.csv")
+        )
+        self.multi_type_res_identities = {}
+        for _, row in df.iterrows():
+            self.multi_type_res_identities[row["res_str"] + row["pdb_id"]] = row["type"]
+        self.dna = ["DA", "DC", "DT", "DG"]
+
+    def get_residue_type(self, res_str: str, pdb_id: str) -> str:
+        res_id = res_str.split("-")[1]
+        key = res_str + pdb_id
+        if res_id in canon_rna_res_list:
+            return "RNA"
+        elif res_id in canon_amino_acid_list:
+            return "PROTEIN"
+        elif res_id in self.dna:
+            return "DNA"
+        elif res_id in ion_list:
+            return "ION"
+        # check exceptions first
+        elif key in self.multi_type_res_identities:
+            return self.multi_type_res_identities[key]
+        elif res_id in self.single_type_res_identities:
+            return self.single_type_res_identities[res_id]
+        else:
+            return "UNKNOWN"

@@ -30,9 +30,7 @@ class Chains:
         self.chains = chains
         self.ctype = ctype
         # Create lookup dict for O(1) residue access by x3dna string
-        self.residue_dict = {
-            res.get_x3dna_str(): res for chain in chains for res in chain
-        }
+        self.residue_dict = {res.get_str(): res for chain in chains for res in chain}
 
         # Create lookup dict for O(1) residue position access
         self.position_dict = {}
@@ -41,8 +39,8 @@ class Chains:
                 self.position_dict[res] = (chain_num, pos)
         self.chain_ends = {}
         for chain in self.chains:
-            self.chain_ends[chain[0].get_x3dna_str()] = 1
-            self.chain_ends[chain[-1].get_x3dna_str()] = 1
+            self.chain_ends[chain[0].get_str()] = 1
+            self.chain_ends[chain[-1].get_str()] = 1
 
     def get_residues(self) -> List[Residue]:
         """Get all residues across all chains.
