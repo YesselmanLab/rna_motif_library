@@ -101,6 +101,7 @@ def get_pdb_ids(
     pdb_id: Optional[str] = None,
     directory: Optional[str] = None,
     pdb_list: Optional[list] = None,
+    csv_path: Optional[str] = None,
 ) -> list:
     """
     Get list of PDB codes based on input parameters.
@@ -119,6 +120,9 @@ def get_pdb_ids(
         pdb_ids = pdb_list
     elif directory is not None:
         pdb_ids = [os.path.basename(file)[:-4] for file in os.listdir(directory)]
+    elif csv_path is not None:
+        df = pd.read_csv(csv_path)
+        pdb_ids = df["pdb_id"].tolist()
     else:
         files = glob.glob(os.path.join(DATA_PATH, "pdbs", "*.cif"))
         for file in files:

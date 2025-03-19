@@ -263,6 +263,22 @@ def get_pdb_dfs(threads, debug):
 
 
 @cli.command()
+@click.argument("n_splits", type=int)
+def generate_splits(n_splits):
+    os.makedirs("splits", exist_ok=True)
+    pdb_ids = get_pdb_ids()
+    # Create n_splits CSV files containing evenly distributed PDB IDs
+    split_size = len(pdb_ids) // n_splits
+    for i in range(n_splits):
+        start_idx = i * split_size
+        end_idx = start_idx + split_size if i < n_splits - 1 else len(pdb_ids)
+        split_pdb_ids = pdb_ids[start_idx:end_idx]
+
+        df = pd.DataFrame({"pdb_id": split_pdb_ids})
+        df.to_csv(f"splits/split_{i}.csv", index=False)
+
+
+@cli.command()
 @click.option(
     "--pdb",
     default=None,
@@ -366,10 +382,11 @@ def generate_chains(pdb, directory, debug):
     type=str,
     help="The directory where the PDBs are located",
 )
+@click.option("--csv", default=None, type=str, help="CSV file with PDB IDs")
 @click.option("--debug", is_flag=True, help="Run in debug mode")
 @click.option("--overwrite", is_flag=True, help="Overwrite existing interactions")
 @time_func
-def process_interactions(pdb, directory, debug, overwrite):
+def process_interactions(pdb, directory, debug, overwrite, csv):
     """
     Processes interactions from source PDB using data from DSSR and interactions using data from SNAP.
     """
@@ -379,8 +396,7 @@ def process_interactions(pdb, directory, debug, overwrite):
     os.makedirs(os.path.join(DATA_PATH, "jsons", "basepairs"), exist_ok=True)
     os.makedirs(os.path.join(DATA_PATH, "dataframes", "hbonds"), exist_ok=True)
     os.makedirs(os.path.join(DATA_PATH, "dataframes", "basepairs"), exist_ok=True)
-    pdb_ids = get_pdb_ids(pdb, directory)
-    pdb_ids = get_non_redundant_pdb_ids()
+    pdb_ids = get_pdb_ids(pdb, directory, csv_path=csv)
     count = 0
     log.info(f"Processing {len(pdb_ids)} PDBs")
     for pdb_id in pdb_ids:
@@ -411,9 +427,10 @@ def process_interactions(pdb, directory, debug, overwrite):
     type=str,
     help="The directory where the PDBs are located",
 )
+@click.option("--csv", default=None, type=str, help="CSV file with PDB IDs")
 @click.option("--debug", is_flag=True, help="Run in debug mode")
 @time_func
-def generate_motifs(pdb, directory, debug):
+def generate_motifs(pdb, directory, debug, csv):
     """
     Extracts motifs from source PDB using data from DSSR, and interactions using data from DSSR and SNAP.
 
@@ -428,12 +445,7 @@ def generate_motifs(pdb, directory, debug):
     """
     setup_logging(debug=debug)
     warnings.filterwarnings("ignore")
-    pdb_ids = get_pdb_ids(pdb, directory)
-    pdb_ids = []
-    files = glob.glob(os.path.join(DATA_PATH, "jsons", "hbonds", "*.json"))
-    for file in files:
-        pdb_id = os.path.basename(file).split(".")[0]
-        pdb_ids.append(pdb_id)
+    pdb_ids = get_pdb_ids(pdb, directory, csv_path=csv)
     generate_motif_files(pdb_ids)
 
 
