@@ -3,7 +3,6 @@ import json
 import os
 
 from rna_motif_library.cli import get_pdb_ids
-from rna_motif_library.classes import Basepair, Hbond
 from rna_motif_library.motif import get_motifs_from_json
 from rna_motif_library.settings import DATA_PATH
 

@@ -83,6 +83,7 @@ def time_func(func):
 
     return wrapper
 
+
 def get_new_pdb_ids():
     df = pd.read_csv("/Users/jyesselman2/Documents/new_pdb_list.txt")
     pdb_ids = df["pdb_id"].tolist()
@@ -93,10 +94,20 @@ def get_new_pdb_ids():
             keep_ids.append(pdb_id)
     return keep_ids
 
+
 def get_non_redundant_pdb_ids():
     df = pd.read_csv("data/csvs/non_redundant_set.csv")
+    df_count = pd.read_csv("rna_residue_counts.csv")
+    count = {row["pdb_id"]: row["count"] for _, row in df_count.iterrows()}
     pdb_ids = df["pdb_id"].tolist()
-    return pdb_ids
+    final_pdb_ids = []
+    for pdb_id in pdb_ids:
+        if pdb_id not in count:
+            continue
+        if count[pdb_id] < 500:
+            final_pdb_ids.append(pdb_id)
+    return final_pdb_ids
+
 
 def process_cif(cif_file):
     cols = [
@@ -418,6 +429,11 @@ def generate_motifs(pdb, directory, debug):
     setup_logging(debug=debug)
     warnings.filterwarnings("ignore")
     pdb_ids = get_pdb_ids(pdb, directory)
+    pdb_ids = []
+    files = glob.glob(os.path.join(DATA_PATH, "jsons", "hbonds", "*.json"))
+    for file in files:
+        pdb_id = os.path.basename(file).split(".")[0]
+        pdb_ids.append(pdb_id)
     generate_motif_files(pdb_ids)
 
 

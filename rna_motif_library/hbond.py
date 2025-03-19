@@ -329,9 +329,7 @@ class CapacityConstrainedHbondFinder:
         acceptor_capacities, donor_capacities = self._initialize_capacities(
             unique_hbonds
         )
-        edge_lookup, hbond_vectors = self._calculate_vectors(
-            unique_hbonds, residues
-        )
+        edge_lookup, hbond_vectors = self._calculate_vectors(unique_hbonds, residues)
 
         return self._select_hbonds(
             unique_hbonds,
@@ -365,7 +363,7 @@ class CapacityConstrainedHbondFinder:
         """Calculate H-bond vectors and create edge lookup dictionary"""
         edge_lookup = {}
         hbond_vectors = {}
-        
+
         # Create lookup dict for residues
         res_lookup = {res.get_str(): res for res in residues}
 

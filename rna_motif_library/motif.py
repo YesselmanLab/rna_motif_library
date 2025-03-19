@@ -309,11 +309,19 @@ class MotifFactory:
             else:
                 finished_motifs.append(new_motif)
         finalized_motifs = []
+        self.helical_residues = []
+        for m in helices:
+            for res in m.get_residues():
+                self.helical_residues.append(res.get_str())
         for m in finished_motifs + helices:
             new_m = self._finalize_motif(m)
             if new_m is None:
                 continue
             finalized_motifs.append(new_m)
+        missing_residues = self.get_missing_residues(finalized_motifs)
+        if len(missing_residues) > 0:
+            log.error(f"Missing residues: {[x.get_str() for x in missing_residues]}")
+            exit()
         return finalized_motifs
 
     def get_helices(self, hairpins: List[Motif]) -> List[Motif]:
@@ -1029,14 +1037,14 @@ class MotifFactory:
         # remove strand ends that are basepairs for single stranded motifs
         if motif.mtype == "SSTRAND":
             strand = motif.strands[0]
-            if strand[0].get_str() in self.cww_residues_to_basepairs:
+            if strand[0].get_str() in self.helical_residues:
                 if len(strand) > 1:
                     strand = strand[1:]
                 else:
                     strand = []
             if len(strand) == 0:
                 return None
-            if strand[-1].get_str() in self.cww_residues_to_basepairs:
+            if strand[-1].get_str() in self.helical_residues:
                 if len(strand) > 1:
                     strand = strand[:-1]
                 else:
