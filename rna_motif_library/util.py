@@ -438,3 +438,14 @@ class ResidueTypeAssigner:
             return self.single_type_res_identities[res_id]
         else:
             return "UNKNOWN"
+
+
+def get_non_redundant_sets(csv_path: str) -> list:
+    d = {}
+    df = pd.read_csv(csv_path, header=None, names=["set_id", "repr_id", "all_ids"])
+    for _, row in df.iterrows():
+        repr_id = row["repr_id"].split("|")[0]
+        all_ids = row["all_ids"].split(",")
+        all_pdb_ids = [id.split("|")[0] for id in all_ids]
+        d[repr_id] = all_pdb_ids
+    return d

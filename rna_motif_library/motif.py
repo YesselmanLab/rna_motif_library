@@ -567,7 +567,9 @@ class MotifFactory:
                 residues.append(res.get_str())
         for bp in self.basepairs:
             res1, res2 = self.chains.get_residues_in_basepair(bp)
-            if res1 in residues and res2 in residues:
+            if res1 is None or res2 is None:
+                continue
+            if res1.get_str() in residues and res2.get_str() in residues:
                 basepairs.append(bp)
         return basepairs
 

@@ -67,6 +67,12 @@ class Basepair:
         data["bp_params"] = BasepairParameters.from_dict(data["bp_params"])
         return cls(**data)
 
+    def __eq__(self, other):
+        return (
+            self.res_1.get_str() == other.res_1.get_str() and
+            self.res_2.get_str() == other.res_2.get_str() and
+            self.lw == other.lw)
+
     def __hash__(self):
         # Create a unique hash based on the residues and score
         return hash((self.res_1.get_str(), self.res_2.get_str(), self.hbond_score))

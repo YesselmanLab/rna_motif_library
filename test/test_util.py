@@ -1,7 +1,8 @@
 import os
 import pandas as pd
 
-from rna_motif_library.util import ResidueTypeAssigner
+from rna_motif_library.util import ResidueTypeAssigner, get_non_redundant_sets
+from rna_motif_library.settings import DATA_PATH
 
 
 def test_residue_type_assigner():
@@ -16,3 +17,13 @@ def test_residue_type_assigner():
     assert rta.get_residue_type("A-0DG-1-", "5VY7") == "OTHER-POLYMER"
     assert rta.get_residue_type("A-0DG-2-", "5VY7") == "NON-CANONICAL NA"
     assert rta.get_residue_type("A-UNK-2-", "5VY7") == "UNKNOWN"
+
+
+def test_get_non_redundant_sets():
+    sets = get_non_redundant_sets(
+        os.path.join(DATA_PATH, "csvs", "nrlist_3.369_3.5A.csv")
+    )
+    for k, v in sets.items():
+        if len(v) < 5:
+            continue
+        print(k, v)
