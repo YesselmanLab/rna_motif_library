@@ -38,7 +38,7 @@ def write_residues_to_cif(residues: List[Residue], output_path: str) -> None:
             acount += len(res.coords)
 
 
-def get_unique_res(pdb_id):
+def get_unique_res(pdb_id, motifs):
     path = os.path.join(DATA_PATH, "dataframes", "duplicate_motifs", f"{pdb_id}.csv")
     dup_motifs = []
     unique_res = []
@@ -48,10 +48,7 @@ def get_unique_res(pdb_id):
             dup_motifs = df_dup["dup_motif"].values
         except Exception as e:
             dup_motifs = []
-    try:
-        motifs = get_cached_motifs(pdb_id)
-    except Exception as e:
-        return []
+
     for m in motifs:
         if m.name in dup_motifs:
             continue
@@ -146,11 +143,28 @@ def cli():
 
 
 @cli.command()
-@click.option("--output", type=str, default="rna_protein_interactions.csv")
-def get_rna_prot_hbonds(output):
+@click.option("--output", type=str, default="rna_rna_interactions.csv")
+def get_rna_rna_hbonds(output):
+    count = 0
     pdb_ids = get_pdb_ids()
     dfs = []
     for pdb_id in pdb_ids:
+        try:
+            motifs = get_cached_motifs(pdb_id)
+        except Exception as e:
+            continue
+        helix_hbonds = {}
+        for m in motifs:
+            res = []
+            for r in m.get_residues():
+                res.append(r.get_str())
+            if m.mtype != "HELIX":
+                continue
+            for bp in m.basepairs:
+                if bp.lw != "cWW":
+                    continue
+                if bp.res_1.get_str() in res and bp.res_2.get_str() in res:
+                    helix_hbonds[bp.res_1.get_str() + "-" + bp.res_2.get_str()] = 1
         path = os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv")
         if not os.path.exists(path):
             continue
@@ -158,125 +172,36 @@ def get_rna_prot_hbonds(output):
             df = pd.read_csv(path)
         except Exception as e:
             continue
-        df = df[df["res_type_2"] == "PROTEIN"]
+        df = df[df["res_type_2"] == "RNA"]
         df = df.reset_index(drop=True)
         if len(df) == 0:
             continue
-        unique_res = get_unique_res(pdb_id)
+        unique_res = get_unique_res(pdb_id, motifs)
         has_uniq_res = [False] * len(df)
         for i, row in df.iterrows():
+            key = row["res_1"] + "-" + row["res_2"]
+            key_rev = row["res_2"] + "-" + row["res_1"]
+            if key in helix_hbonds or key_rev in helix_hbonds:
+                continue
             if row["res_1"] in unique_res:
                 has_uniq_res[i] = True
         df = df[has_uniq_res]
-        print(pdb_id, len(df))
+        count += len(df)
+        print(pdb_id, len(df), count)
         dfs.append(df)
     df = pd.concat(dfs)
     df.to_csv(output, index=False)
 
 
 @cli.command()
-def split_rna_prot_hbonds():
-    df = pd.read_csv("rna_protein_interactions.csv")
+def split_rna_rna_hbonds():
+    df = pd.read_csv("rna_rna_interactions.csv")
     df["res_1_type"] = df["res_1"].str.split("-").str[1]
     df["res_2_type"] = df["res_2"].str.split("-").str[1]
     for i, g in df.groupby(["res_1_type", "res_2_type"]):
         print(i, len(g))
         name = f"{i[0]}_{i[1]}.csv"
-        g.to_csv(f"data/protein_interactions/{name}", index=False)
-
-
-@cli.command()
-def analyze_rna_prot_hbonds():
-    csv_paths = glob.glob(os.path.join(DATA_PATH, "protein_interactions", "*.csv"))
-    print(len(csv_paths))
-    data = []
-    for csv_path in csv_paths:
-        df = pd.read_csv(csv_path)
-        spl = os.path.basename(csv_path)[:-4].split("_")
-        res_1, res_2 = spl[0], spl[1]
-        for i, g in df.groupby(["atom_1", "atom_2"]):
-            hist, x_edges, y_edges = make_2d_histogram(g, "angle_1", "dihedral_angle")
-            if len(g) < 500:
-                continue
-            mean_score = g["score"].mean()
-            print(i, len(g), normalized_gini_by_datapoints(hist))
-            data.append(
-                [
-                    res_1,
-                    res_2,
-                    i[0],
-                    i[1],
-                    len(g),
-                    normalized_gini_by_datapoints(hist),
-                    mean_score,
-                ]
-            )
-    df = pd.DataFrame(
-        data,
-        columns=[
-            "res_1",
-            "res_2",
-            "atom_1",
-            "atom_2",
-            "num_datapoints",
-            "normalized_gini",
-            "mean_score",
-        ],
-    )
-    df.sort_values(by="normalized_gini", ascending=False, inplace=True)
-    df.to_csv("rna_protein_hbonds_normalized_gini.csv", index=False)
-
-
-@cli.command()
-@click.argument("res_1")
-@click.argument("res_2")
-@click.argument("atom_1")
-@click.argument("atom_2")
-def plot_histogram(res_1, res_2, atom_1, atom_2):
-    df = pd.read_csv(f"data/protein_interactions/{res_1}_{res_2}.csv")
-    df = df.query(f"atom_1 == '{atom_1}' and atom_2 == '{atom_2}'")
-    plt.hist2d(df["angle_1"], df["dihedral_angle"], bins=30, cmap='viridis')
-    plt.colorbar(label="Frequency")
-    plt.xlabel("Angle 1")
-    plt.ylabel("Dihedral Angle")
-    plt.title(f"{res_1} {atom_1} - {res_2} {atom_2}")
-    plt.show()
-
-@cli.command()
-def plot_histograms():
-    csv_paths = glob.glob(os.path.join(DATA_PATH, "protein_interactions", "*.csv"))
-    for csv_path in csv_paths:
-        df = pd.read_csv(csv_path)
-        spl = os.path.basename(csv_path)[:-4].split("_")
-        res_1, res_2 = spl[0], spl[1]
-        for i, g in df.groupby(["atom_1", "atom_2"]):
-            if len(g) < 500:
-                continue
-            plt.hist2d(g["angle_1"], g["dihedral_angle"], bins=30, cmap='viridis')
-            plt.colorbar(label="Frequency")
-            plt.xlabel("Angle 1")
-            plt.ylabel("Dihedral Angle")
-            plt.title(f"{res_1} {i[0]} - {res_2} {i[1]}")
-            plt.savefig(f"plots/rna_protein_histograms/{res_1}_{res_2}_{i[0]}_{i[1]}.png", dpi=300)
-            plt.close()
-            plt.clf() # Clear the current figure
-
-@cli.command()
-@click.argument("res_1")
-@click.argument("res_2")
-@click.argument("atom_1")
-@click.argument("atom_2")
-def get_structures(res_1, res_2, atom_1, atom_2):
-    df = pd.read_csv(f"data/protein_interactions/{res_1}_{res_2}.csv")
-    df = df.query(f"atom_1 == '{atom_1}' and atom_2 == '{atom_2}'")
-    count = 0
-    for i, g in df.groupby("pdb_name"):
-        residues = get_cached_residues(i)
-        for j, row in g.iterrows():
-            res_1 = residues[row["res_1"]]
-            res_2 = residues[row["res_2"]]
-            write_residues_to_cif([res_1, res_2], "test.cif")
-            exit()
+        g.to_csv(f"data/rna_interactions/{name}", index=False)
 
 
 if __name__ == "__main__":

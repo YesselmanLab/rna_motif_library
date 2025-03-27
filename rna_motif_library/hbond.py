@@ -563,10 +563,8 @@ def generate_hbonds(pdb_name: str) -> List[Hbond]:
             seen.append(f"{r2.get_str()}_{r1.get_str()}")
             hbonds += hf.find_hbonds(r1, r2, pdb_name)
 
-    print(len(hbonds))
     cchf = CapacityConstrainedHbondFinder()
     hbonds = cchf.find_hbonds(hbonds, residues.values())
-    print(len(hbonds))
     final_hbonds = []
     for hbond in hbonds:
         if hbond.res_type_1 != "RNA":
@@ -576,6 +574,12 @@ def generate_hbonds(pdb_name: str) -> List[Hbond]:
         h_data["res_1"] = hbond.res_1.get_str()
         h_data["res_2"] = hbond.res_2.get_str()
         data.append(h_data)
+    if len(data) == 0:
+        f = open(os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_name}.csv"), "w")
+        f.write("res_1,res_2,atom_1,atom_2,res_type_1,res_type_2,distance,angle_1,angle_2,dihedral_angle,score,pdb_name\n")
+        f.close()
+        return final_hbonds
+
     df = pd.DataFrame(data)
     df.to_csv(
         os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_name}.csv"), index=False

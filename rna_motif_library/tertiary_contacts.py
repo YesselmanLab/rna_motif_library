@@ -4,13 +4,34 @@ import click
 
 from rna_motif_library.motif import get_cached_motifs, get_cached_hbonds
 from rna_motif_library.residue import are_residues_connected
-from rna_motif_library.util import get_nucleotide_atom_type
+from rna_motif_library.util import get_nucleotide_atom_type, get_pdb_ids
+from rna_motif_library.settings import DATA_PATH
 
 
 def get_non_redundant_pdb_ids():
     df = pd.read_csv("data/csvs/non_redundant_set.csv")
     pdb_ids = df["pdb_id"].tolist()
     return pdb_ids
+
+
+def get_unique_res(pdb_id, motifs):
+    path = os.path.join(DATA_PATH, "dataframes", "duplicate_motifs", f"{pdb_id}.csv")
+    dup_motifs = []
+    unique_res = []
+    if os.path.exists(path):
+        try:
+            df_dup = pd.read_csv(path)
+            dup_motifs = df_dup["dup_motif"].values
+        except Exception as e:
+            dup_motifs = []
+
+    for m in motifs:
+        if m.name in dup_motifs:
+            continue
+        for r in m.get_residues():
+            if r.get_str() not in unique_res:
+                unique_res.append(r.get_str())
+    return unique_res
 
 
 def are_motifs_connected(motif_1, motif_2):
@@ -164,34 +185,81 @@ def cli():
 
 @cli.command()
 def find_tc_hbonds():
-    os.makedirs("tcs", exist_ok=True)
-    pdb_ids = get_non_redundant_pdb_ids()
+    pdb_ids = get_pdb_ids()
     dfs = []
     for pdb_id in pdb_ids:
-        print(pdb_id)
+        if os.path.exists(
+            os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
+        ):
+            continue
         try:
             df_tc = find_tertiary_interactions(pdb_id)
+            df_tc.to_csv(
+                os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv"),
+                index=False,
+            )
             dfs.append(df_tc)
-        except:
-            pass
-    df = pd.concat(dfs)
-    df.to_csv("tertiary_contacts.csv", index=False)
+        except Exception as e:
+            print(pdb_id)
+            continue
+    # df = pd.concat(dfs)
+    # df.to_csv("tertiary_contacts_hbonds.csv", index=False)
 
 
 @cli.command()
 def find_tertiary_contacts():
+    all_motifs = {}
     os.makedirs("tcs", exist_ok=True)
-    df = pd.read_csv("tertiary_contacts.csv")
+    df = pd.read_csv("tertiary_contacts_hbonds.csv")
     count = 0
+    data = []
     for i, g in df.groupby(["motif_1", "motif_2"]):
         if len(g) < 3:
             continue
-        motifs = get_cached_motifs(g.iloc[0]["pdb_id"])
+        hbond_types = {
+            "base-base": 0,
+            "base-sugar": 0,
+            "base-phos": 0,
+            "sugar-sugar": 0,
+            "phos-sugar": 0,
+            "phos-phos": 0,
+        }
+        if g.iloc[0]["pdb_id"] not in all_motifs:
+            try:
+                motifs = get_cached_motifs(g.iloc[0]["pdb_id"])
+                all_motifs[g.iloc[0]["pdb_id"]] = motifs
+            except Exception as e:
+                continue
+        else:
+            motifs = all_motifs[g.iloc[0]["pdb_id"]]
         motifs_by_name = {m.name: m for m in motifs}
         motif_1 = motifs_by_name[g.iloc[0]["motif_1"]]
         motif_2 = motifs_by_name[g.iloc[0]["motif_2"]]
-        count += 1
-    print(count)
+        hbond_score = 0
+        for j, row in g.iterrows():
+            atom_types = sorted([row["atom_type_1"], row["atom_type_2"]])
+            hbond_types[atom_types[0] + "-" + atom_types[1]] += 1
+            hbond_score += row["score"]
+        data.append(
+            {
+                "motif_1": motif_1.name,
+                "motif_2": motif_2.name,
+                "mtype_1": motif_1.mtype,
+                "mtype_2": motif_2.mtype,
+                "m_size_1": motif_1.size,
+                "m_size_2": motif_2.size,
+                "num_hbonds": len(g),
+                "hbond_score": hbond_score,
+                "base-base": hbond_types["base-base"],
+                "base-sugar": hbond_types["base-sugar"],
+                "base-phos": hbond_types["base-phos"],
+                "phos-sugar": hbond_types["phos-sugar"],
+                "phos-phos": hbond_types["phos-phos"],
+                "pdb_id": g.iloc[0]["pdb_id"],
+            }
+        )
+    df = pd.DataFrame(data)
+    df.to_csv("tertiary_contacts_summary.csv", index=False)
 
 
 if __name__ == "__main__":

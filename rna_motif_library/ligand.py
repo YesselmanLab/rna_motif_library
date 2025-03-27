@@ -17,8 +17,10 @@ from rna_motif_library.util import (
 from rna_motif_library.residue import (
     get_cached_residues,
     sanitize_x3dna_atom_name,
+    residues_to_cif_file,
     Residue,
 )
+from rna_motif_library.motif import get_cached_motifs
 from rna_motif_library.chain import get_cached_protein_chains, get_cached_chains, Chains
 from rna_motif_library.logger import setup_logging, get_logger
 from rna_motif_library.settings import DATA_PATH, RESOURCES_PATH
@@ -921,6 +923,35 @@ def assign_final_indenties():
         os.path.join(DATA_PATH, "ligands", "multi_type_res_identities.csv"),
         index=False,
     )
+
+#STEP 12 get final analysis summaries
+@cli.command()
+def get_final_summaries():
+    pdb_ids = get_pdb_ids()
+    data = []
+    for pdb_id in pdb_ids:
+        df = pd.read_csv(os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv"))
+        df = df.query("res_type_2 == 'LIGAND'")
+        if len(df) == 0:
+            continue
+        residues = get_cached_residues(pdb_id)
+        for i, g in df.groupby("res_2"):
+            res_2 = g.iloc[0]["res_2"]
+            path = os.path.join(DATA_PATH, "ligand_binding_structures", f"{pdb_id}-{res_2}.cif")
+            res_1 = sorted(g["res_1"].unique())
+            res_objs = [residues[res_2]] + [residues[r] for r in res_1]
+            residues_to_cif_file(res_objs, path) 
+            data.append({
+                "pdb_id": pdb_id,
+                "ligand_id": res_2,
+                "interacting_residues": res_1,
+                "num_hbonds": len(g),
+                "hbond_score": g["score"].sum(),
+            })
+    df = pd.DataFrame(data)
+    df.sort_values(by="hbond_score", ascending=False, inplace=True)
+    print(len(df))
+    df.to_json("rna_ligand_interactions.json", orient="records")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,10 @@
 import os
 import pandas as pd
 
-from rna_motif_library.util import ResidueTypeAssigner, get_non_redundant_sets
+from rna_motif_library.util import (
+    ResidueTypeAssigner,
+    NonRedundantSetParser,
+)
 from rna_motif_library.settings import DATA_PATH
 
 
@@ -20,10 +23,12 @@ def test_residue_type_assigner():
 
 
 def test_get_non_redundant_sets():
-    sets = get_non_redundant_sets(
-        os.path.join(DATA_PATH, "csvs", "nrlist_3.369_3.5A.csv")
-    )
-    for k, v in sets.items():
-        if len(v) < 5:
-            continue
-        print(k, v)
+    path =  os.path.join(DATA_PATH, "csvs", "nrlist_3.262_3.5A.csv")
+    p = NonRedundantSetParser()
+    sets = p.parse(path)
+    for set in sets:
+        print(set[0], set[1])
+        return
+
+
+

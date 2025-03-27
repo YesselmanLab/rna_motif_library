@@ -405,3 +405,11 @@ def get_residues_from_cif(cif_path: str) -> Dict[str, Residue]:
             x3dna_res, atom_names, coords
         )
     return residues
+
+
+def residues_to_cif_file(residues: List[Residue], file_path: str):
+    s = get_cif_header_str()
+    for residue in residues:
+        s += residue.to_cif_str()
+    with open(file_path, "w") as f:
+        f.write(s)

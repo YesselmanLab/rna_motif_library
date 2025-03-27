@@ -111,6 +111,14 @@ class Motif:
     def get_residues(self):
         return [res for strand in self.strands for res in strand]
 
+    def get_phos_coords(self):
+        coords = []
+        for res in self.get_residues():
+            if res.get_atom_coords("P") is None:
+                continue
+            coords.append(res.get_atom_coords("P"))
+        return np.array(coords)
+
     def contains_residue(self, residue: Residue) -> bool:
         for strand in self.strands:
             for res in strand:
@@ -987,8 +995,10 @@ class MotifFactory:
     def _get_motif_topology(self, motif: Motif) -> str:
         if motif.mtype == "HELIX":
             return len(motif.strands[0])
+        elif motif.mtype == "SSTRAND":
+            return len(motif.strands[0])
         else:
-            return "-".join(str(len(strand)) for strand in motif.strands)
+            return "-".join(str(len(strand)-2) for strand in motif.strands)
 
     def _get_strand_sequence(self, strand: List[Residue]) -> str:
         seq = ""

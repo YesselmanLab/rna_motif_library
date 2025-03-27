@@ -1,8 +1,9 @@
 import numpy as np
 import glob
 import os
-from typing import Optional
+from typing import Optional, List
 import pandas as pd
+from dataclasses import dataclass
 
 
 from rna_motif_library.settings import DATA_PATH
@@ -440,7 +441,7 @@ class ResidueTypeAssigner:
             return "UNKNOWN"
 
 
-def get_non_redundant_sets(csv_path: str) -> list:
+def get_non_redundant_sets(csv_path: str) -> dict:
     d = {}
     df = pd.read_csv(csv_path, header=None, names=["set_id", "repr_id", "all_ids"])
     for _, row in df.iterrows():
@@ -449,3 +450,45 @@ def get_non_redundant_sets(csv_path: str) -> list:
         all_pdb_ids = [id.split("|")[0] for id in all_ids]
         d[repr_id] = all_pdb_ids
     return d
+
+
+# NRS : Non Redundant Set
+@dataclass(frozen=True, order=True)
+class NRSEntry:
+    pdb_id: str
+    model_id: str
+    chain_ids: List[str]
+
+
+class NonRedundantSetParser:
+    def __init__(self):
+        pass
+
+    def parse_nrs_entry(self, nrs_entry_str: str) -> NRSEntry:
+        spl = nrs_entry_str.split("|")
+        repr_pdb_id = spl[0]
+        model_id = spl[1]
+        chain_ids = []
+        if nrs_entry_str.find("+") == -1:
+            chain_ids.append(spl[-1])
+        else:
+            spl = nrs_entry_str.split("+")
+            for s in spl:
+                entry_spl = s.split("|")
+                chain_ids.append(entry_spl[-1])
+        return NRSEntry(repr_pdb_id, model_id, chain_ids)
+
+    def parse(self, path: str) -> list:
+        df = pd.read_csv(path, header=None, names=["set_id", "repr_id", "all_ids"])
+        sets = []
+        for _, row in df.iterrows():
+            repr_entry = self.parse_nrs_entry(row["repr_id"])
+            all_ids = row["all_ids"].split(",")
+            all_entries = []
+            for id in all_ids:
+                child_entry = self.parse_nrs_entry(id)
+                if child_entry == repr_entry:
+                    continue
+                all_entries.append(child_entry)
+            sets.append((row["set_id"], repr_entry, all_entries))
+        return sets

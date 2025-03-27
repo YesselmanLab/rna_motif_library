@@ -3,9 +3,9 @@ import json
 import numpy as np
 import pandas as pd
 
-from rna_motif_library.classes import Residue
 from rna_motif_library.settings import DATA_PATH
-from rna_motif_library.resources import load_ideal_bases
+from rna_motif_library.resources import Residue
+from rna_motif_library.resources import Residue
 from rna_motif_library.util import purine_atom_names, pyrimidine_atom_names
 import numpy as np
 from typing import Tuple, List, Optional
