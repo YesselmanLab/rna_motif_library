@@ -297,16 +297,17 @@ def generate_splits(n_splits):
     is_flag=True,
     help="Skip existing residues",
 )
+@click.option("--csv", default=None, type=str, help="CSV file with PDB IDs")
 @click.option("--debug", is_flag=True, help="Run in debug mode")
 @time_func
-def process_residues(pdb, directory, debug, skip_existing):
+def process_residues(pdb, directory, debug, skip_existing, csv):
     """
     Processes residues from source PDB using data from DSSR.
     """
     setup_logging(debug=debug)
     warnings.filterwarnings("ignore")
     os.makedirs(os.path.join(DATA_PATH, "jsons", "residues"), exist_ok=True)
-    pdb_ids = get_pdb_ids(pdb, directory)
+    pdb_ids = get_pdb_ids(pdb, directory, csv_path=csv)
     log.info(f"Processing {len(pdb_ids)} PDBs")
     for pdb_id in pdb_ids:
         if skip_existing and os.path.exists(get_cached_path(pdb_id, "residues")):
@@ -348,14 +349,15 @@ def process_residues(pdb, directory, debug, skip_existing):
     type=str,
     help="The directory where the PDBs are located",
 )
+@click.option("--csv", default=None, type=str, help="CSV file with PDB IDs")
 @click.option("--debug", is_flag=True, help="Run in debug mode")
 @time_func
-def generate_chains(pdb, directory, debug):
+def generate_chains(pdb, directory, debug, csv):
     setup_logging(debug=debug)
     warnings.filterwarnings("ignore")
     os.makedirs(os.path.join(DATA_PATH, "jsons", "chains"), exist_ok=True)
     os.makedirs(os.path.join(DATA_PATH, "jsons", "protein_chains"), exist_ok=True)
-    pdb_ids = get_pdb_ids(pdb, directory)
+    pdb_ids = get_pdb_ids(pdb, directory, csv_path=csv)
     for pdb_id in pdb_ids:
         if os.path.exists(get_cached_path(pdb_id, "chains")):
             log.info(f"Skipping {pdb_id} because it already exists")
