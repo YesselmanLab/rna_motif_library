@@ -6,7 +6,7 @@ import pandas as pd
 from dataclasses import dataclass
 
 
-from rna_motif_library.settings import DATA_PATH
+from rna_motif_library.settings import DATA_PATH, VERSION
 
 canon_rna_res_list = ["A", "U", "G", "C"]
 
@@ -408,13 +408,27 @@ def calculate_dihedral_angle(
 class ResidueTypeAssigner:
     def __init__(self):
         df = pd.read_csv(
-            os.path.join(DATA_PATH, "ligands", "single_type_res_identities.csv")
+            os.path.join(
+                DATA_PATH,
+                "ligands",
+                "summary",
+                "versions",
+                f"v{VERSION}",
+                "single_type_res_identities.csv",
+            )
         )
         self.single_type_res_identities = {}
         for _, row in df.iterrows():
             self.single_type_res_identities[row["res_id"]] = row["type"]
         df = pd.read_csv(
-            os.path.join(DATA_PATH, "ligands", "multi_type_res_identities.csv")
+            os.path.join(
+                DATA_PATH,
+                "ligands",
+                "summary",
+                "versions",
+                f"v{VERSION}",
+                "multi_type_res_identities.csv",
+            )
         )
         self.multi_type_res_identities = {}
         for _, row in df.iterrows():

@@ -2,9 +2,16 @@ import pandas as pd
 import os
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from rdkit.Chem.rdMolDescriptors import CalcNumHBD, CalcNumHBA, CalcNumAromaticRings
+from rdkit.Chem.rdMolDescriptors import (
+    CalcNumHBD,
+    CalcNumHBA,
+    CalcNumAromaticRings,
+    CalcNumRings,
+)
 
 from rna_motif_library.ligand import DATA_PATH
+
+LIGAND_DATA_PATH = os.path.join(DATA_PATH, "ligands")
 
 # pd.set_option("future.no_silent_downcasting", True)
 
@@ -89,31 +96,51 @@ def assign_ligand_type():
     )
 
 
-def assign_ligand_type_features():
+def assign_ligand_type_features(df):
     """
     Assign ligand type features to each row in the dataframe
     """
-    df = pd.read_json(
-        os.path.join(DATA_PATH, "ligands", "ligand_info_final_w_types.json")
-    )
     df["aromatic_rings"] = 0
     df["h_acceptors"] = 0
     df["h_donors"] = 0
+    df["rings"] = 0
+    count = 0
     for i, row in df.iterrows():
         try:
             mol = read_sdf_file(
-                os.path.join(DATA_PATH, "residues_w_h_sdfs", f"{row['id']}_ideal.sdf")
+                os.path.join(
+                    LIGAND_DATA_PATH,
+                    "residues_w_h_sdfs",
+                    f"{row['id']}_ideal.sdf",
+                )
             )[0]
             df.at[i, "aromatic_rings"] = CalcNumAromaticRings(mol)
+            df.at[i, "rings"] = CalcNumRings(mol)
             df.at[i, "h_acceptors"] = CalcNumHBA(mol)
             df.at[i, "h_donors"] = CalcNumHBD(mol)
         except Exception as e:
-            df.at[i, "aromatic_rings"] = -1
-            df.at[i, "h_acceptors"] = -1
-            df.at[i, "h_donors"] = -1
-    df.to_json(
-        os.path.join(DATA_PATH, "ligands", "ligand_info_final_w_types_features.json"),
-        orient="records",
+            print(f"Error reading SDF file: {e}")
+            print("Attempting to generate 3D structure from SMILES...")
+            try:
+                mol = Chem.MolFromSmiles(row["smiles"])
+                mol = Chem.AddHs(mol)
+                AllChem.EmbedMolecule(mol, randomSeed=42)
+                AllChem.MMFFOptimizeMolecule(mol)
+                df.at[i, "aromatic_rings"] = CalcNumAromaticRings(mol)
+                df.at[i, "rings"] = CalcNumRings(mol)
+                df.at[i, "h_acceptors"] = CalcNumHBA(mol)
+                df.at[i, "h_donors"] = CalcNumHBD(mol)
+            except Exception as e2:
+                print(f"Error generating 3D structure: {e2}")
+                df.at[i, "aromatic_rings"] = -1
+                df.at[i, "h_acceptors"] = -1
+                df.at[i, "h_donors"] = -1
+                df.at[i, "rings"] = -1
+                count += 1
+    print(f"Failed to generate 3D structure for {count} rows")
+    df.to_csv(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_features.csv"),
+        index=False,
     )
 
 
@@ -122,10 +149,15 @@ def main():
     main function for script
     """
     # manually edited to assign ligands with no aromatic rings to small-molecule
-    df = pd.read_json(
-        os.path.join(DATA_PATH, "ligands", "ligand_info_final_w_types_features.json")
-    )
-    df_sub = df[df["type"] == "small-molecule"]
+    df = pd.read_json(os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info.json"))
+    # Get unique ligand IDs
+    unique_ligands = df["id"].unique()
+    df_sub = df[df["id"].isin(unique_ligands)].copy()
+    assign_ligand_type_features(df_sub)
+    exit()
+    df["assigned_ligand"] = False
+    df["assigned_solvent"] = False
+    df["assigned_polymer"] = False
     # probably a ligand with aromatic rings
     df_sub = df_sub[df_sub["aromatic_rings"] > 0]
     df_sub["assigned_ligand"] = True

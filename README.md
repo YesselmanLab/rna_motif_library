@@ -60,4 +60,9 @@ python rna_motif_library/cli.py generate-motifs
 # There will be visual feedback in the terminal window if it's working properly
 # Feedback will display the names of the motifs being processed
 
-
+# ligand stuff 
+python rna_motif_library/ligand.py find-all-potential-ligands
+python rna_motif_library/ligand.py get-ligand-cifs
+python rna_motif_library/ligand.py get-hbond-donors-and-acceptors
+python rna_motif_library/ligand.py get-ligand-info
+python rna_motif_library/ligand.py get-ligand-polymer-instances

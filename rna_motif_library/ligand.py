@@ -27,6 +27,8 @@ from rna_motif_library.settings import DATA_PATH, RESOURCES_PATH
 
 log = get_logger("LIGAND")
 
+LIGAND_DATA_PATH = os.path.join(DATA_PATH, "ligands")
+
 
 class PDBQuery:
     BASE_URL = "https://search.rcsb.org/rcsbsearch/v2/query"
@@ -127,11 +129,35 @@ class PDBQuery:
     @staticmethod
     def submit_query(query: Dict) -> Optional[Dict[str, Any]]:
         try:
-            response = requests.post(PDBQuery.BASE_URL, json=query)
+            response = requests.post(PDBQuery.BASE_URL, json=query, timeout=30)
+            # Check if the response status is successful
             response.raise_for_status()
-            return response.json()
+
+            # Check if the response is not empty
+            if not response.text:
+                print("Received empty response from PDB API")
+                return None
+
+            # Try to parse JSON
+            try:
+                return response.json()
+            except json.JSONDecodeError as json_err:
+                print(f"Invalid JSON response: {json_err}")
+                print(
+                    f"Response content: {response.text[:100]}..."
+                )  # Print first 100 chars
+                return None
+
+        except requests.exceptions.Timeout:
+            print("Request timed out. The PDB server may be busy.")
+            return None
+        except requests.exceptions.HTTPError as e:
+            print(f"HTTP Error: {e}")
+            print(f"Response status: {e.response.status_code}")
+            print(f"Response content: {e.response.text[:100]}...")
+            return None
         except requests.exceptions.RequestException as e:
-            print(f"Error making request: {e}")
+            print(f"Request error: {e}")
             return None
 
     @staticmethod
@@ -492,36 +518,48 @@ def cli():
 def find_all_potential_ligands():
     setup_logging()
     pdb_ids = get_pdb_ids()
-    seen = []
+    dfs = []
     for pdb_id in pdb_ids:
+        seen = []
+        path = os.path.join(LIGAND_DATA_PATH, "potential_ligand_ids", f"{pdb_id}.csv")
+        if os.path.exists(path):
+            dfs.append(pd.read_csv(path))
+            continue
         residues = get_cached_residues(pdb_id)
         for residue in residues.values():
             if residue.res_id in seen:
                 continue
             seen.append(residue.res_id)
-    f = open("data/ligands/potential_ligands.csv", "w")
+        df = pd.DataFrame({"ligand_id": seen})
+        df.to_csv(path, index=False)
+        dfs.append(df)
+    df = pd.concat(dfs)
+    unique_ligands = df["ligand_id"].unique()
+    f = open(os.path.join(LIGAND_DATA_PATH, "summary", "potential_ligands.csv"), "w")
     f.write("ligand_id\n")
-    for residue in seen:
-        f.write(residue + "\n")
+    for residue in unique_ligands:
+        f.write(str(residue) + "\n")
     f.close()
 
 
 # STEP 2 get all cifs and sdfs for all potential ligands
 @cli.command()
 def get_ligand_cifs():
-    os.makedirs(os.path.join(DATA_PATH, "residues_w_h_cifs"), exist_ok=True)
-    df = pd.read_csv("data/ligands/potential_ligands.csv")
+    os.makedirs(os.path.join(LIGAND_DATA_PATH, "residues_w_h_cifs"), exist_ok=True)
+    df = pd.read_csv(os.path.join(LIGAND_DATA_PATH, "summary", "potential_ligands.csv"))
     for i, row in df.iterrows():
         ligand_id = row["ligand_id"]
         # Download CIF file for residue type
         cif_url = f"https://files.rcsb.org/ligands/download/{ligand_id}.cif"
-        cif_path = os.path.join(DATA_PATH, "residues_w_h_cifs", f"{ligand_id}.cif")
+        cif_path = os.path.join(
+            LIGAND_DATA_PATH, "residues_w_h_cifs", f"{ligand_id}.cif"
+        )
         if not os.path.exists(cif_path):
             print(cif_path)
             os.system(f"wget {cif_url} -O {cif_path}")
         sdf_url = f"https://files.rcsb.org/ligands/download/{ligand_id}_ideal.sdf"
         sdf_path = os.path.join(
-            DATA_PATH, "residues_w_h_sdfs", f"{ligand_id}_ideal.sdf"
+            LIGAND_DATA_PATH, "residues_w_h_sdfs", f"{ligand_id}_ideal.sdf"
         )
         if not os.path.exists(sdf_path):
             print(sdf_path)
@@ -533,7 +571,7 @@ def get_ligand_cifs():
 def get_hbond_donors_and_acceptors():
     acceptors = {}
     donors = {}
-    cif_files = glob.glob(os.path.join(DATA_PATH, "residues_w_h_cifs", "*.cif"))
+    cif_files = glob.glob(os.path.join(LIGAND_DATA_PATH, "residues_w_h_cifs", "*.cif"))
     for cif_file in cif_files:
         base_name = os.path.basename(cif_file)[:-4]
         # if base_name != "ARG":
@@ -566,7 +604,7 @@ def get_hbond_donors_and_acceptors():
 def get_ligand_info():
     get_ligand_info_from_pdb()
     has_phosphate = {}
-    json_files = glob.glob(os.path.join(DATA_PATH, "ligand_info", "*.json"))
+    json_files = glob.glob(os.path.join(LIGAND_DATA_PATH, "ligand_info", "*.json"))
     for json_file in json_files:
         mol_name = os.path.basename(json_file).split(".")[0]
         has_phosphate[mol_name] = False
@@ -601,56 +639,58 @@ def get_ligand_info():
             continue
         all_data.append(keep_data)
     df = pd.DataFrame(all_data)
-    df.to_json(os.path.join(DATA_PATH, "ligands", "ligand_info.json"), orient="records")
+    df.to_json(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info.json"), orient="records"
+    )
 
 
 # STEP 5 get ligand polymer instances
 @cli.command()
 def get_ligand_polymer_instances():
-    df = pd.read_json(os.path.join(DATA_PATH, "ligands", "ligand_info.json"))
-    df["noncovalent_results"] = [[] for _ in range(len(df))]
-    df["covalent_results"] = [[] for _ in range(len(df))]
-    df["polymer_results"] = [[] for _ in range(len(df))]
+    df = pd.read_json(os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info.json"))
+    pdb_ids = get_pdb_ids()
     for i, row in df.iterrows():
+        path = os.path.join(
+            LIGAND_DATA_PATH, "ligand_polymer_info", f"{row['id']}.json"
+        )
+        if os.path.exists(path):
+            continue
         ligand_id = row["id"]
         noncovalent_results = search_noncovalent_ligand(ligand_id) or []
         covalent_results = search_covalent_ligand(ligand_id) or []
         polymer_results = search_ligand_polymer_instances(ligand_id) or []
-        df.at[i, "noncovalent_results"] = noncovalent_results
-        df.at[i, "covalent_results"] = covalent_results
-        df.at[i, "polymer_results"] = polymer_results
+        noncovalent_results = remove_extra_pdbs(pdb_ids, noncovalent_results)
+        covalent_results = remove_extra_pdbs(pdb_ids, covalent_results)
+        polymer_results = remove_extra_pdbs(pdb_ids, polymer_results)
+        d = {
+            "id": ligand_id,
+            "noncovalent_results": noncovalent_results,
+            "covalent_results": covalent_results,
+            "polymer_results": polymer_results,
+        }
+        with open(path, "w") as f:
+            json.dump(d, f)
+    json_files = glob.glob(
+        os.path.join(LIGAND_DATA_PATH, "ligand_polymer_info", "*.json")
+    )
+    all_data = []
+    for json_file in json_files:
+        f = open(json_file, "r")
+        data = json.load(f)
+        f.close()
+        all_data.append(data)
+    df = pd.DataFrame(all_data)
+    df.rename(columns={"id": "res_id"}, inplace=True)
     df.to_json(
-        os.path.join(DATA_PATH, "ligands", "ligand_info_filtered.json"),
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_polymer_info.json"),
         orient="records",
     )
 
 
-# STEP 6 filter to only our pdbs
-@cli.command()
-def filter_pdbs():
-    df = pd.read_json(os.path.join(DATA_PATH, "ligands", "ligand_info_filtered.json"))
-    df_ligs = pd.read_csv(os.path.join(DATA_PATH, "ligands", "ligand_instances.csv"))
-    df_ligs = df_ligs.query("res_id == 'MLA'")
-    pdb_ids = get_pdb_ids()
-    for i, row in df.iterrows():
-        noncovalent_results = row["noncovalent_results"]
-        covalent_results = row["covalent_results"]
-        polymer_results = row["polymer_results"]
-        df.at[i, "noncovalent_results"] = remove_extra_pdbs(
-            pdb_ids, noncovalent_results
-        )
-        df.at[i, "covalent_results"] = remove_extra_pdbs(pdb_ids, covalent_results)
-        df.at[i, "polymer_results"] = remove_extra_pdbs(pdb_ids, polymer_results)
-    df.to_json(
-        os.path.join(DATA_PATH, "ligands", "ligand_info_final.json"),
-        orient="records",
-    )
-
-
-# STEP 7 get ligand instances
+# STEP 6 get ligand instances
 @cli.command()
 def get_ligand_instances():
-    df = pd.read_json(os.path.join(DATA_PATH, "ligands", "ligand_info_filtered.json"))
+    df = pd.read_json(os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info.json"))
     exclude = (
         canon_res_list
         + ion_list
@@ -658,8 +698,11 @@ def get_ligand_instances():
         + ["UNK", "UNX", "N", "DN"]  # unknown residues
     )
     pdb_ids = get_pdb_ids()
-    data = []
     for pdb_id in pdb_ids:
+        path = os.path.join(LIGAND_DATA_PATH, "ligand_instances", f"{pdb_id}.csv")
+        if os.path.exists(path):
+            continue
+        data = []
         pchains = Chains(get_cached_protein_chains(pdb_id))
         rchains = Chains(get_cached_chains(pdb_id))
         residues = get_cached_residues(pdb_id)
@@ -729,44 +772,86 @@ def get_ligand_instances():
                         is_aa,
                     ]
                 )
-    df = pd.DataFrame(
-        data, columns=["pdb_id", "res_id", "res_str", "type", "is_nuc", "is_aa"]
+        df = pd.DataFrame(
+            data, columns=["pdb_id", "res_id", "res_str", "type", "is_nuc", "is_aa"]
+        )
+        df.to_csv(path, index=False)
+    csv_files = glob.glob(os.path.join(LIGAND_DATA_PATH, "ligand_instances", "*.csv"))
+    dfs = []
+    for csv_file in csv_files:
+        df = pd.read_csv(csv_file)
+        dfs.append(df)
+    df = pd.concat(dfs)
+    df = df.query("type == 'SMALL-MOLECULE'")
+    df.to_csv(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_instances.csv"), index=False
     )
-    path = os.path.join(DATA_PATH, "ligands", "ligand_instances.csv")
-    df.to_csv(path, index=False)
 
 
-# STEP 8 get ligand instances with bonds
+# STEP 7 get ligand instances with bonds
 @cli.command()
 def get_ligand_instances_with_bonds():
-    df = pd.read_csv(os.path.join(DATA_PATH, "ligands", "ligand_instances.csv"))
-    df["bonded_residues"] = [[] for _ in range(len(df))]
-    df = df.query("type == 'SMALL-MOLECULE'")
+    csv_files = glob.glob(os.path.join(LIGAND_DATA_PATH, "ligand_instances", "*.csv"))
     exclude = ion_list + ["HOH"]
-    for i, g in df.groupby("pdb_id"):
-        residues = get_cached_residues(i)
+    for csv_file in csv_files:
+        pdb_id = os.path.basename(csv_file).split(".")[0]
+        print(pdb_id)
+        if os.path.exists(
+            os.path.join(LIGAND_DATA_PATH, "ligand_instances_w_bonds", f"{pdb_id}.json")
+        ):
+            continue
+        df = pd.read_csv(csv_file)
+        df = df.query("type == 'SMALL-MOLECULE'").copy()
+        df["bonded_residues"] = [[] for _ in range(len(df))]
+        if len(df) == 0:
+            path = os.path.join(
+                LIGAND_DATA_PATH, "ligand_instances_w_bonds", f"{pdb_id}.json"
+            )
+            df.to_json(path, orient="records")
+            continue
+        residues = get_cached_residues(pdb_id)
         keep_residues = {}
         for id, res in residues.items():
             if res.res_id in exclude:
                 continue
             keep_residues[id] = res
-        for index, row in g.iterrows():
+        for index, row in df.iterrows():
             res = residues[row["res_str"]]
             bonds = check_residue_bonds(res, keep_residues)
             df.at[index, "bonded_residues"] = bonds
+        path = os.path.join(
+            LIGAND_DATA_PATH, "ligand_instances_w_bonds", f"{pdb_id}.json"
+        )
+        df.to_json(path, orient="records")
+    json_files = glob.glob(
+        os.path.join(LIGAND_DATA_PATH, "ligand_instances_w_bonds", "*.json")
+    )
+    dfs = []
+    for json_file in json_files:
+        df = pd.read_json(json_file)
+        dfs.append(df)
+    df = pd.concat(dfs)
     df.to_json(
-        os.path.join(DATA_PATH, "ligands", "ligand_instances_w_bonds.json"),
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_instances_w_bonds.json"),
         orient="records",
     )
 
 
-# STEP 9 get final ligand instances
+# STEP 8 get final ligand instances
 @cli.command()
 def filter_ligands():
-    df = pd.read_json(os.path.join(DATA_PATH, "ligands", "ligand_info_final.json"))
-    df_solvent = pd.read_csv("solvent_and_buffers.csv")
-    df_likely_polymer = pd.read_csv("likely_polymer.csv")
-    df_likely_ligand = pd.read_csv("likely_ligands.csv")
+    df = pd.read_json(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info_final.json")
+    )
+    df_solvent = pd.read_csv(
+        os.path.join(LIGAND_DATA_PATH, "summary", "manual", "solvent_and_buffers.csv")
+    )
+    df_likely_polymer = pd.read_csv(
+        os.path.join(LIGAND_DATA_PATH, "summary", "manual", "polymers.csv")
+    )
+    df_likely_ligand = pd.read_csv(
+        os.path.join(LIGAND_DATA_PATH, "summary", "manual", "ligands.csv")
+    )
     exclude = (
         df_solvent["id"].tolist()
         + df_likely_polymer["id"].tolist()
@@ -778,6 +863,7 @@ def filter_ligands():
     )
     df = df[~df["id"].isin(exclude)]
     df = df.sort_values("formula_weight", ascending=True)
+    print(len(df))
     df.to_json("sorted_ligand_info.json", orient="records")
     # df = df.query("formula_weight < 200")
     print(
@@ -789,17 +875,11 @@ def filter_ligands():
         num_polymer = len(row["polymer_results"])
         if num_noncovalent > 0 and num_covalent == 0 and num_polymer == 0:
             print(
-                f"{row['id']}\t{row['name']}\t{row['formula']}\t{row['formula_weight']}\t{num_noncovalent}\t{num_covalent}\t{num_polymer}"
+                f"{row['id']}\t{row['formula']}\t{row['formula_weight']}\t{num_noncovalent}\t{num_covalent}\t{num_polymer}"
             )
-    exit()
-
-    # greater than 700 is a ligand
-    df = df.query("600 < formula_weight < 700")
-    for i, row in df.iterrows():
-        print(f"{row['id']}\t{row['name']}\t{row['formula']}\t{row['formula_weight']}")
 
 
-# STEP 10 get final ligand instances
+# STEP 9 get final ligand instances
 @cli.command()
 def get_final_ligand_instances():
     df = pd.read_json(
@@ -860,7 +940,7 @@ def get_final_ligand_instances():
     )
 
 
-# STEP 11 assign identies to all non canonical residues
+# STEP 10 assign identies to all non canonical residues
 @cli.command()
 def assign_final_indenties():
     df_sm = pd.read_json(
@@ -924,30 +1004,37 @@ def assign_final_indenties():
         index=False,
     )
 
-#STEP 12 get final analysis summaries
+
+# STEP 11 get final analysis summaries
 @cli.command()
 def get_final_summaries():
     pdb_ids = get_pdb_ids()
     data = []
     for pdb_id in pdb_ids:
-        df = pd.read_csv(os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv"))
+        df = pd.read_csv(
+            os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv")
+        )
         df = df.query("res_type_2 == 'LIGAND'")
         if len(df) == 0:
             continue
         residues = get_cached_residues(pdb_id)
         for i, g in df.groupby("res_2"):
             res_2 = g.iloc[0]["res_2"]
-            path = os.path.join(DATA_PATH, "ligand_binding_structures", f"{pdb_id}-{res_2}.cif")
+            path = os.path.join(
+                DATA_PATH, "ligand_binding_structures", f"{pdb_id}-{res_2}.cif"
+            )
             res_1 = sorted(g["res_1"].unique())
             res_objs = [residues[res_2]] + [residues[r] for r in res_1]
-            residues_to_cif_file(res_objs, path) 
-            data.append({
-                "pdb_id": pdb_id,
-                "ligand_id": res_2,
-                "interacting_residues": res_1,
-                "num_hbonds": len(g),
-                "hbond_score": g["score"].sum(),
-            })
+            residues_to_cif_file(res_objs, path)
+            data.append(
+                {
+                    "pdb_id": pdb_id,
+                    "ligand_id": res_2,
+                    "interacting_residues": res_1,
+                    "num_hbonds": len(g),
+                    "hbond_score": g["score"].sum(),
+                }
+            )
     df = pd.DataFrame(data)
     df.sort_values(by="hbond_score", ascending=False, inplace=True)
     print(len(df))
