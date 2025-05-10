@@ -38,29 +38,6 @@ def write_residues_to_cif(residues: List[Residue], output_path: str) -> None:
             acount += len(res.coords)
 
 
-def get_unique_res(pdb_id):
-    path = os.path.join(DATA_PATH, "dataframes", "duplicate_motifs", f"{pdb_id}.csv")
-    dup_motifs = []
-    unique_res = []
-    if os.path.exists(path):
-        try:
-            df_dup = pd.read_csv(path)
-            dup_motifs = df_dup["dup_motif"].values
-        except Exception as e:
-            dup_motifs = []
-    try:
-        motifs = get_cached_motifs(pdb_id)
-    except Exception as e:
-        return []
-    for m in motifs:
-        if m.name in dup_motifs:
-            continue
-        for r in m.get_residues():
-            if r.get_str() not in unique_res:
-                unique_res.append(r.get_str())
-    return unique_res
-
-
 def make_2d_histogram(df, col1, col2, bins=30):
     """
     Creates a 2D histogram comparing values from two columns in a dataframe
@@ -146,8 +123,12 @@ def cli():
 
 
 @cli.command()
-@click.option("--output", type=str, default="rna_protein_interactions.csv")
+@click.option("--output", type=str, default="rna_protein_hbonds.csv")
 def get_rna_prot_hbonds(output):
+    all_unique_residues = json.load(
+        open(os.path.join(DATA_PATH, "summaries", "unique_residues.json"))
+    )
+    all_unique_residues = {d["pdb_id"]: d["residues"] for d in all_unique_residues}
     pdb_ids = get_pdb_ids()
     dfs = []
     for pdb_id in pdb_ids:
@@ -162,7 +143,9 @@ def get_rna_prot_hbonds(output):
         df = df.reset_index(drop=True)
         if len(df) == 0:
             continue
-        unique_res = get_unique_res(pdb_id)
+        if pdb_id not in all_unique_residues:
+            continue
+        unique_res = all_unique_residues[pdb_id]
         has_uniq_res = [False] * len(df)
         for i, row in df.iterrows():
             if row["res_1"] in unique_res:
@@ -171,6 +154,8 @@ def get_rna_prot_hbonds(output):
         print(pdb_id, len(df))
         dfs.append(df)
     df = pd.concat(dfs)
+    df.drop(columns=["res_type_1", "res_type_2"], inplace=True)
+    df["score"] = df["score"].round(3)
     df.to_csv(output, index=False)
 
 
@@ -187,30 +172,32 @@ def split_rna_prot_hbonds():
 
 @cli.command()
 def analyze_rna_prot_hbonds():
-    csv_paths = glob.glob(os.path.join(DATA_PATH, "protein_interactions", "*.csv"))
-    print(len(csv_paths))
+    df = pd.read_csv("rna_protein_hbonds.csv")
+    df["res_type_1"] = df["res_1"].str.split("-").str[1]
+    df["res_type_2"] = df["res_2"].str.split("-").str[1]
     data = []
-    for csv_path in csv_paths:
-        df = pd.read_csv(csv_path)
-        spl = os.path.basename(csv_path)[:-4].split("_")
-        res_1, res_2 = spl[0], spl[1]
-        for i, g in df.groupby(["atom_1", "atom_2"]):
-            hist, x_edges, y_edges = make_2d_histogram(g, "angle_1", "dihedral_angle")
-            if len(g) < 500:
-                continue
-            mean_score = g["score"].mean()
-            print(i, len(g), normalized_gini_by_datapoints(hist))
-            data.append(
-                [
-                    res_1,
-                    res_2,
-                    i[0],
-                    i[1],
-                    len(g),
-                    normalized_gini_by_datapoints(hist),
-                    mean_score,
-                ]
-            )
+    for i, g in df.groupby(["res_type_1", "res_type_2", "atom_1", "atom_2"]):
+        res_1, res_2, atom_1, atom_2 = i[0], i[1], i[2], i[3]
+        hist, x_edges, y_edges = make_2d_histogram(g, "angle_1", "dihedral_angle")
+        if len(g) < 100:
+            continue
+        mean_score = g["score"].mean()
+        mean_dihedral_angle = g["dihedral_angle"].mean()
+        mean_angle_1 = g["angle_1"].mean()
+        print(i, len(g), normalized_gini_by_datapoints(hist))
+        data.append(
+            [
+                res_1,
+                res_2,
+                atom_1,
+                atom_2,
+                len(g),
+                normalized_gini_by_datapoints(hist),
+                mean_score,
+                mean_dihedral_angle,
+                mean_angle_1,
+            ]
+        )
     df = pd.DataFrame(
         data,
         columns=[
@@ -221,6 +208,8 @@ def analyze_rna_prot_hbonds():
             "num_datapoints",
             "normalized_gini",
             "mean_score",
+            "mean_dihedral_angle",
+            "mean_angle_1",
         ],
     )
     df.sort_values(by="normalized_gini", ascending=False, inplace=True)
@@ -235,31 +224,57 @@ def analyze_rna_prot_hbonds():
 def plot_histogram(res_1, res_2, atom_1, atom_2):
     df = pd.read_csv(f"data/protein_interactions/{res_1}_{res_2}.csv")
     df = df.query(f"atom_1 == '{atom_1}' and atom_2 == '{atom_2}'")
-    plt.hist2d(df["angle_1"], df["dihedral_angle"], bins=30, cmap='viridis')
+    plt.hist2d(df["angle_1"], df["dihedral_angle"], bins=30, cmap="viridis")
     plt.colorbar(label="Frequency")
     plt.xlabel("Angle 1")
     plt.ylabel("Dihedral Angle")
     plt.title(f"{res_1} {atom_1} - {res_2} {atom_2}")
     plt.show()
 
+
 @cli.command()
 def plot_histograms():
-    csv_paths = glob.glob(os.path.join(DATA_PATH, "protein_interactions", "*.csv"))
-    for csv_path in csv_paths:
-        df = pd.read_csv(csv_path)
-        spl = os.path.basename(csv_path)[:-4].split("_")
-        res_1, res_2 = spl[0], spl[1]
-        for i, g in df.groupby(["atom_1", "atom_2"]):
-            if len(g) < 500:
-                continue
-            plt.hist2d(g["angle_1"], g["dihedral_angle"], bins=30, cmap='viridis')
-            plt.colorbar(label="Frequency")
-            plt.xlabel("Angle 1")
-            plt.ylabel("Dihedral Angle")
-            plt.title(f"{res_1} {i[0]} - {res_2} {i[1]}")
-            plt.savefig(f"plots/rna_protein_histograms/{res_1}_{res_2}_{i[0]}_{i[1]}.png", dpi=300)
-            plt.close()
-            plt.clf() # Clear the current figure
+    df = pd.read_csv("rna_protein_hbonds.csv")
+    df_scores = pd.read_csv("rna_protein_hbonds_normalized_gini.csv")
+    scores = {}
+    for i, row in df_scores.iterrows():
+        key = (
+            row["res_1"]
+            + "_"
+            + row["res_2"]
+            + "_"
+            + row["atom_1"]
+            + "_"
+            + row["atom_2"]
+        )
+        scores[key] = [row["normalized_gini"], row["mean_score"]]
+    df["res_type_1"] = df["res_1"].str.split("-").str[1]
+    df["res_type_2"] = df["res_2"].str.split("-").str[1]
+    for i, g in df.groupby(["res_type_1", "res_type_2", "atom_1", "atom_2"]):
+        res_1, res_2, atom_1, atom_2 = i[0], i[1], i[2], i[3]
+        if len(g) < 100:
+            continue
+        print(res_1, res_2, atom_1, atom_2)
+        key = res_1 + "_" + res_2 + "_" + atom_1 + "_" + atom_2
+        if key not in scores:
+            continue
+        normalized_gini, mean_score = scores[key]
+        normalized_gini = round(normalized_gini, 3)
+        if normalized_gini < 0.6:
+            continue
+        mean_score = round(mean_score, 3)
+        plt.hist2d(g["angle_1"], g["dihedral_angle"], bins=30, cmap="Greys")
+        plt.colorbar(label="Frequency")
+        plt.xlabel("Angle")
+        plt.ylabel("Dihedral Angle")
+        plt.title(f"{res_1} {atom_1} - {res_2} {atom_2}")
+        plt.savefig(
+            f"plots/rna_protein_histograms/{res_1}_{res_2}_{atom_1}_{atom_2}_{normalized_gini}_{mean_score}.png",
+            dpi=300,
+        )
+        plt.close()
+        plt.clf()  # Clear the current figure
+
 
 @cli.command()
 @click.argument("res_1")

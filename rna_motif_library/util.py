@@ -132,6 +132,27 @@ def get_pdb_ids(
     return pdb_ids
 
 
+def file_exists_and_has_content(filepath):
+    """
+    Check if a file exists and has at least one line of content.
+    
+    Args:
+        filepath (str): Path to the file to check
+        
+    Returns:
+        bool: True if file exists and has content, False otherwise
+    """
+    if not os.path.exists(filepath):
+        return False
+        
+    try:
+        with open(filepath, 'r') as f:
+            first_line = f.readline()
+            return bool(first_line.strip())
+    except:
+        return False
+
+
 def get_x3dna_res_id(res_id: str, num: int, chain_id: str, ins_code: str) -> str:
     if res_id[-1].isdigit():
         res_id = res_id[:-1]
@@ -506,3 +527,40 @@ class NonRedundantSetParser:
                 all_entries.append(child_entry)
             sets.append((row["set_id"], repr_entry, all_entries))
         return sets
+
+
+def parse_motif_name(motif_name: str) -> tuple:
+    """
+    parse a name such as HAIRPIN-1-CGG-7PWO-1
+    into a tuple of (mtype, msize, msequence, pdb_id)
+    """
+    spl = motif_name.split("-")
+    mtype = spl[0]
+    # Count how many elements are numbers (size components)
+    size_parts = []
+    i = 1
+    while i < len(spl) and spl[i].isdigit():
+        size_parts.append(int(spl[i]))
+        i += 1
+    msize = "-".join([str(p) for p in size_parts])
+    msequence = "-".join(spl[i:-2])
+    pdb_id = spl[-2]
+    return (mtype, msize, msequence, pdb_id)
+
+
+def add_motif_name_columns(df: pd.DataFrame, name_col: str) -> pd.DataFrame:
+    """Add columns for each component of a motif name.
+
+    Args:
+        df: DataFrame containing motif names
+        name_col: Name of column containing motif names
+
+    Returns:
+        DataFrame with new columns for motif type, size, sequence and PDB ID
+    """
+    components = df[name_col].apply(parse_motif_name)
+    df["mtype"] = components.apply(lambda x: x[0])
+    df["msize"] = components.apply(lambda x: x[1])
+    df["msequence"] = components.apply(lambda x: x[2])
+    df["pdb_id"] = components.apply(lambda x: x[3])
+    return df

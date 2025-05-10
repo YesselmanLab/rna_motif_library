@@ -168,6 +168,42 @@ class Chains:
     def is_chain_end(self, res: Residue) -> bool:
         return res.get_x3dna_str() in self.chain_ends
 
+    def get_prev_pair_id(self, bp: Basepair) -> Optional[str]:
+        res_1, res_2 = self.get_residues_in_basepair(bp)
+        chain_num_1, pos_1 = self.get_residue_position(res_1)
+        chain_num_2, pos_2 = self.get_residue_position(res_2)
+        prev_res1 = self.get_residue_by_pos(chain_num_1, pos_1 - 1)
+        prev_res2 = self.get_residue_by_pos(chain_num_2, pos_2 + 1)
+        if prev_res1 is None or prev_res2 is None:
+            return None
+        return prev_res1.get_str() + "-" + prev_res2.get_str()
+
+    def get_next_pair_id(self, bp: Basepair) -> Optional[str]:
+        res_1, res_2 = self.get_residues_in_basepair(bp)
+        chain_num_1, pos_1 = self.get_residue_position(res_1)
+        chain_num_2, pos_2 = self.get_residue_position(res_2)
+        next_res_1 = self.get_residue_by_pos(chain_num_1, pos_1 + 1)
+        next_res_2 = self.get_residue_by_pos(chain_num_2, pos_2 - 1)
+        if next_res_1 is None or next_res_2 is None:
+            return None
+        return next_res_1.get_str() + "-" + next_res_2.get_str()
+
+    def get_possible_flanking_bps(self, bp: Basepair) -> List[Basepair]:
+        res1, res2 = self.get_residues_in_basepair(bp)
+        chain_num_1, pos_1 = self.get_residue_position(res1)
+        chain_num_2, pos_2 = self.get_residue_position(res2)
+        res1_next = self.get_residue_by_pos(chain_num_1, pos_1 + 1)
+        res1_prev = self.get_residue_by_pos(chain_num_1, pos_1 - 1)
+        res2_next = self.get_residue_by_pos(chain_num_2, pos_2 + 1)
+        res2_prev = self.get_residue_by_pos(chain_num_2, pos_2 - 1)
+        combos = [
+            (res1_next, res2_prev),
+            (res1_next, res2_next),
+            (res1_prev, res2_prev),
+            (res1_prev, res2_next),
+        ]
+        return combos
+
 
 def p5_to_p3_connection_distance(res1: Residue, res2: Residue) -> Optional[float]:
     o3_coords_1 = res1.get_atom_coords("O3'")

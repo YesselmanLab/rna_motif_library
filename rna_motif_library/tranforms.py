@@ -1,4 +1,5 @@
 import os
+import copy
 import json
 import numpy as np
 import pandas as pd
@@ -8,7 +9,7 @@ from rna_motif_library.resources import Residue
 from rna_motif_library.resources import Residue
 from rna_motif_library.util import purine_atom_names, pyrimidine_atom_names
 import numpy as np
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Dict
 
 
 class NucleotideReferenceFrameGenerator:
@@ -333,3 +334,130 @@ def rmsd(mobile_coords: list, target_coords: list) -> float:
     Calculate the RMSD between two sets of coordinates.
     """
     return np.sqrt(np.mean(np.sum((mobile_coords - target_coords) ** 2, axis=1)))
+
+
+def align_motif(mobile_motif, target_motif):
+    coords_1 = mobile_motif.get_c1prime_coords()
+    coords_2 = target_motif.get_c1prime_coords()
+    if len(coords_1) != len(coords_2):
+        return None
+    rotation_matrix = kabsch_algorithm(coords_1, coords_2)
+    new_m = copy.deepcopy(mobile_motif)
+    mobile_center = np.mean(coords_1, axis=0)
+    target_center = np.mean(coords_2, axis=0)
+    for strand in new_m.strands:
+        for res in strand:
+            res.coords = (
+                np.dot(res.coords - mobile_center, rotation_matrix) + target_center
+            )
+    return new_m
+
+
+def pymol_align(mobile_coords: np.ndarray, target_coords: np.ndarray, max_cycles: int = 5, cutoff_factor: float = 2.0) -> Tuple[np.ndarray, float, Dict]:
+    """
+    Implements PyMOL-style iterative alignment between two sets of coordinates.
+    
+    This function mimics PyMOL's alignment algorithm by:
+    1. Performing initial alignment of all matched atoms
+    2. Iteratively rejecting outliers and refining the alignment
+    3. Continuing until convergence or max cycles reached
+    
+    Args:
+        mobile_coords: Coordinates of mobile structure to be aligned (N x 3 array)
+        target_coords: Coordinates of target structure (N x 3 array)
+        max_cycles: Maximum number of refinement cycles (default: 5)
+        cutoff_factor: Factor for outlier rejection (default: 2.0)
+        
+    Returns:
+        Tuple containing:
+        - Aligned coordinates of mobile structure
+        - Final RMSD value
+        - Dictionary with alignment statistics
+    """
+    if len(mobile_coords) != len(target_coords):
+        raise ValueError(f"Number of atoms must match: {len(mobile_coords)} vs {len(target_coords)}")
+    
+    n_atoms = len(mobile_coords)
+    # print(f"MatchAlign: aligning atoms ({n_atoms} vs {n_atoms})...")
+    
+    # Initial alignment with all atoms
+    aligned_coords = superimpose_structures(mobile_coords, target_coords)
+    current_rmsd = rmsd(aligned_coords, target_coords)
+    # print(f"MatchAlign: score {current_rmsd:.3f}")
+    # print(f"ExecutiveAlign: {n_atoms} atoms aligned.")
+    
+    # Keep track of which atoms to include in alignment
+    atom_mask = np.ones(n_atoms, dtype=bool)
+    stats = {
+        "cycles": [], 
+        "rejected_atoms": [], 
+        "rmsd_values": [current_rmsd],
+        "final_mask": atom_mask  # Store the mask for later use
+    }
+    
+    # Iterative refinement
+    for cycle in range(max_cycles):
+        # Calculate per-atom distances
+        distances = np.sqrt(np.sum((aligned_coords - target_coords) ** 2, axis=1))
+        
+        # Only consider atoms that are currently included
+        active_distances = distances[atom_mask]
+        
+        if len(active_distances) == 0:
+            break
+            
+        # Calculate distance statistics
+        mean_dist = np.mean(active_distances)
+        std_dist = np.std(active_distances)
+        
+        # Set rejection threshold (PyMOL uses a dynamic threshold)
+        cutoff = mean_dist + cutoff_factor * std_dist
+        
+        # Find outliers
+        outliers = atom_mask & (distances > cutoff)
+        n_rejected = np.sum(outliers)
+        
+        # If no outliers were found, we're done
+        if n_rejected == 0:
+            break
+            
+        # Remove outliers from consideration
+        atom_mask[outliers] = False
+        n_remaining = np.sum(atom_mask)
+        
+        # Re-align with remaining atoms
+        if n_remaining >= 3:  # Need at least 3 points for alignment
+            # Get rotation and translation for alignment
+            rotation_matrix = kabsch_algorithm(
+                mobile_coords[atom_mask] - np.mean(mobile_coords[atom_mask], axis=0),
+                target_coords[atom_mask] - np.mean(target_coords[atom_mask], axis=0)
+            )
+            mobile_center = np.mean(mobile_coords[atom_mask], axis=0)
+            target_center = np.mean(target_coords[atom_mask], axis=0)
+            
+            # Transform all atoms, not just the ones used in alignment
+            aligned_coords = np.dot(mobile_coords - mobile_center, rotation_matrix) + target_center
+            
+            # Calculate new RMSD on included atoms only
+            current_rmsd = rmsd(aligned_coords[atom_mask], target_coords[atom_mask])
+            
+            # print(f"ExecutiveRMS: {n_rejected} atoms rejected during cycle {cycle+1} (RMSD={current_rmsd:.2f}).")
+            
+            # Store statistics
+            stats["cycles"].append(cycle+1)
+            stats["rejected_atoms"].append(n_rejected)
+            stats["rmsd_values"].append(current_rmsd)
+        else:
+            # Not enough atoms left for alignment
+            print("Warning: Too few atoms remaining for alignment")
+            break
+    
+    # Update final mask
+    stats["final_mask"] = atom_mask
+    
+    # Final alignment report
+    n_aligned = np.sum(atom_mask)
+    final_rmsd = rmsd(aligned_coords[atom_mask], target_coords[atom_mask])
+    # print(f"Executive: RMSD = {final_rmsd:.3f} ({n_aligned} to {n_aligned} atoms)")
+    
+    return aligned_coords, final_rmsd, stats

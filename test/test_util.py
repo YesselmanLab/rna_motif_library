@@ -4,6 +4,7 @@ import pandas as pd
 from rna_motif_library.util import (
     ResidueTypeAssigner,
     NonRedundantSetParser,
+    parse_motif_name,
 )
 from rna_motif_library.settings import DATA_PATH
 
@@ -23,12 +24,30 @@ def test_residue_type_assigner():
 
 
 def test_get_non_redundant_sets():
-    path =  os.path.join(DATA_PATH, "csvs", "nrlist_3.262_3.5A.csv")
+    path = os.path.join(DATA_PATH, "csvs", "nrlist_3.262_3.5A.csv")
     p = NonRedundantSetParser()
     sets = p.parse(path)
-    for set in sets:
-        print(set[0], set[1])
-        return
 
 
-
+def test_parse_motif_name():
+    assert parse_motif_name("HAIRPIN-1-CGG-7PWO-1") == ("HAIRPIN", "1", "CGG", "7PWO")
+    assert parse_motif_name("HELIX-3-GCC-GGC-7PWO-4") == (
+        "HELIX",
+        "3",
+        "GCC-GGC",
+        "7PWO",
+    )
+    assert parse_motif_name("TWOWAY-11-0-CUUUCUGCCAAAG-UG-9C6I-1") == (
+        "TWOWAY",
+        "11-0",
+        "CUUUCUGCCAAAG-UG",
+        "9C6I",
+    )
+    assert parse_motif_name(
+        "NWAY-13-10-2-2-2-0-GCUCAACGGAUAAAA-UCAUAGUGAUCC-AGCA-UUUA-UUUG-CU-7OTC-1"
+    ) == (
+        "NWAY",
+        "13-10-2-2-2-0",
+        "GCUCAACGGAUAAAA-UCAUAGUGAUCC-AGCA-UUUA-UUUG-CU",
+        "7OTC",
+    )

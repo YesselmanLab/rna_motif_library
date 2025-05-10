@@ -1,4 +1,5 @@
 import requests
+import shutil
 import os
 import click
 import json
@@ -6,6 +7,16 @@ import glob
 import pandas as pd
 import numpy as np
 from typing import Dict, Optional, Any, List, Tuple
+
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from rdkit.Chem.rdMolDescriptors import (
+    CalcNumHBD,
+    CalcNumHBA,
+    CalcNumAromaticRings,
+    CalcNumRings,
+)
+
 
 from rna_motif_library.util import (
     get_pdb_ids,
@@ -23,7 +34,8 @@ from rna_motif_library.residue import (
 from rna_motif_library.motif import get_cached_motifs
 from rna_motif_library.chain import get_cached_protein_chains, get_cached_chains, Chains
 from rna_motif_library.logger import setup_logging, get_logger
-from rna_motif_library.settings import DATA_PATH, RESOURCES_PATH
+from rna_motif_library.settings import DATA_PATH, RESOURCES_PATH, VERSION
+from rna_motif_library.tranforms import pymol_align, rmsd
 
 log = get_logger("LIGAND")
 
@@ -411,12 +423,14 @@ def identify_potential_sites(residue: Residue) -> Tuple[List[str], List[str]]:
 
 
 def get_ligand_info_from_pdb():
-    molecule_files = glob.glob(os.path.join(DATA_PATH, "residues_w_h_cifs", "*.cif"))
+    molecule_files = glob.glob(
+        os.path.join(LIGAND_DATA_PATH, "residues_w_h_cifs", "*.cif")
+    )
     for molecule_file in molecule_files:
         mol_name = os.path.basename(molecule_file).split(".")[0]
         if mol_name in canon_res_list:
             continue
-        json_file = os.path.join(DATA_PATH, "ligand_info", f"{mol_name}.json")
+        json_file = os.path.join(LIGAND_DATA_PATH, "ligand_info", f"{mol_name}.json")
         if os.path.exists(json_file):
             continue
         print(mol_name)
@@ -506,6 +520,116 @@ def remove_extra_pdbs(pdb_ids, all_pdb_ids):
         if pdb_id in pdb_ids:
             subset.append(pdb_id)
     return subset
+
+
+def read_sdf_file(file_path):
+    """Reads an SDF file and returns a list of RDKit molecule objects.
+
+    Args:
+        file_path: The path to the SDF file.
+
+    Returns:
+        A list of RDKit molecule objects, or an empty list if an error occurs.
+    """
+    try:
+        suppl = Chem.SDMolSupplier(file_path)
+        molecules = [mol for mol in suppl if mol is not None]
+        return molecules
+    except Exception as e:
+        print(f"Error reading SDF file: {e}")
+        return []
+
+
+def assign_ligand_type_features(df):
+    """
+    Assign ligand type features to each row in the dataframe
+    """
+    df["aromatic_rings"] = 0
+    df["h_acceptors"] = 0
+    df["h_donors"] = 0
+    df["rings"] = 0
+    count = 0
+    for i, row in df.iterrows():
+        try:
+            mol = read_sdf_file(
+                os.path.join(
+                    LIGAND_DATA_PATH,
+                    "residues_w_h_sdfs",
+                    f"{row['id']}_ideal.sdf",
+                )
+            )[0]
+            df.at[i, "aromatic_rings"] = CalcNumAromaticRings(mol)
+            df.at[i, "rings"] = CalcNumRings(mol)
+            df.at[i, "h_acceptors"] = CalcNumHBA(mol)
+            df.at[i, "h_donors"] = CalcNumHBD(mol)
+        except Exception as e:
+            print(f"Error reading SDF file: {e}")
+            print("Attempting to generate 3D structure from SMILES...")
+            try:
+                mol = Chem.MolFromSmiles(row["smiles"])
+                mol = Chem.AddHs(mol)
+                AllChem.EmbedMolecule(mol, randomSeed=42)
+                AllChem.MMFFOptimizeMolecule(mol)
+                df.at[i, "aromatic_rings"] = CalcNumAromaticRings(mol)
+                df.at[i, "rings"] = CalcNumRings(mol)
+                df.at[i, "h_acceptors"] = CalcNumHBA(mol)
+                df.at[i, "h_donors"] = CalcNumHBD(mol)
+            except Exception as e2:
+                print(f"Error generating 3D structure: {e2}")
+                df.at[i, "aromatic_rings"] = -1
+                df.at[i, "h_acceptors"] = -1
+                df.at[i, "h_donors"] = -1
+                df.at[i, "rings"] = -1
+                count += 1
+    print(f"Failed to generate 3D structure for {count} rows")
+    df.to_csv(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_features.csv"),
+        index=False,
+    )
+
+
+def assign_new_ligand_instances(df):
+    df_sm = pd.read_json(
+        os.path.join(DATA_PATH, "ligands", "summary", "ligand_info_final.json")
+    )
+    df_bonded = pd.read_json(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_instances_w_bonds.json")
+    )
+    lig_type = {}
+    for i, row in df_sm.iterrows():
+        lig_type[row["id"]] = row["type"]
+
+    for i, row in df.iterrows():
+        cur_lig_type = lig_type[row["res_id"]]
+        if cur_lig_type != "UNKNOWN":
+            df.at[i, "final_type"] = lig_type[row["res_id"]]
+        # there is a clear type already assigned for this ID
+        if row["final_type"] != "":
+            continue
+        bonded_info = df_bonded[df_bonded["res_id"] == df_bonded["res_id"]]
+        if len(bonded_info) == 0:
+            row["final_type"] = "UNKNOWN"
+            continue
+        lig_row = bonded_info.iloc[0]
+        # if there are no bonded residues, it is a ligand
+        if len(lig_row["bonded_residues"]) == 0:
+            df.at[i, "final_type"] = "LIGAND"
+            continue
+        # if there is bonded residues, it is a polymer
+        df.at[i, "final_type"] = "POLYMER"
+
+
+def generate_res_motif_mapping(motifs):
+    res_to_motif_id = {}
+    for m in motifs:
+        for r in m.get_residues():
+            if r.get_str() not in res_to_motif_id:
+                res_to_motif_id[r.get_str()] = m.name
+            else:
+                existing_motif = res_to_motif_id[r.get_str()]
+                if existing_motif.startswith("HELIX"):
+                    res_to_motif_id[r.get_str()] = m.name
+    return res_to_motif_id
 
 
 @click.group()
@@ -610,7 +734,11 @@ def get_ligand_info():
         has_phosphate[mol_name] = False
     pdb_ids = get_pdb_ids()
     for pdb_id in pdb_ids:
-        residues = get_cached_residues(pdb_id).values()
+        try:
+            residues = get_cached_residues(pdb_id).values()
+        except:
+            print("missing residues", pdb_id)
+            continue
         for res in residues:
             if res.res_id not in has_phosphate:
                 continue
@@ -655,6 +783,7 @@ def get_ligand_polymer_instances():
         )
         if os.path.exists(path):
             continue
+        print(row["id"])
         ligand_id = row["id"]
         noncovalent_results = search_noncovalent_ligand(ligand_id) or []
         covalent_results = search_covalent_ligand(ligand_id) or []
@@ -703,9 +832,13 @@ def get_ligand_instances():
         if os.path.exists(path):
             continue
         data = []
-        pchains = Chains(get_cached_protein_chains(pdb_id))
-        rchains = Chains(get_cached_chains(pdb_id))
-        residues = get_cached_residues(pdb_id)
+        try:
+            pchains = Chains(get_cached_protein_chains(pdb_id))
+            rchains = Chains(get_cached_chains(pdb_id))
+            residues = get_cached_residues(pdb_id)
+        except:
+            print("missing residues", pdb_id)
+            continue
         for res in residues.values():
             if res.res_id in exclude:
                 continue
@@ -809,7 +942,11 @@ def get_ligand_instances_with_bonds():
             )
             df.to_json(path, orient="records")
             continue
-        residues = get_cached_residues(pdb_id)
+        try:
+            residues = get_cached_residues(pdb_id)
+        except:
+            print("missing residues", pdb_id)
+            continue
         keep_residues = {}
         for id, res in residues.items():
             if res.res_id in exclude:
@@ -837,57 +974,45 @@ def get_ligand_instances_with_bonds():
     )
 
 
-# STEP 8 get final ligand instances
+# STEP 8 get ligand features
 @cli.command()
-def filter_ligands():
-    df = pd.read_json(
-        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info_final.json")
+def get_ligand_features():
+    df = pd.read_csv(os.path.join(LIGAND_DATA_PATH, "summary", "ligand_instances.csv"))
+    df_sm = pd.DataFrame({"id": df["res_id"].unique()})
+    assign_ligand_type_features(df_sm)
+
+
+# STEP 9 generate final ligand info
+@cli.command()
+def generate_final_ligand_info():
+    df = pd.read_json(os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info.json"))
+    df["pdb_type"] = df["type"]
+    df_poly = pd.read_json(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_polymer_info.json")
     )
+    df = pd.merge(df, df_poly, left_on="id", right_on="res_id", how="left")
+    df.drop(columns=["res_id"], inplace=True)
+    df_features = pd.read_csv(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_features.csv")
+    )
+    df_features = df_features[
+        ["id", "h_acceptors", "h_donors", "aromatic_rings", "rings"]
+    ]
+    df = pd.merge(df, df_features, on="id", how="left")
     df_solvent = pd.read_csv(
         os.path.join(LIGAND_DATA_PATH, "summary", "manual", "solvent_and_buffers.csv")
     )
-    df_likely_polymer = pd.read_csv(
-        os.path.join(LIGAND_DATA_PATH, "summary", "manual", "polymers.csv")
-    )
-    df_likely_ligand = pd.read_csv(
+    df["assigned_solvent"] = df["id"].isin(df_solvent["id"].values)
+    df_ligands = pd.read_csv(
         os.path.join(LIGAND_DATA_PATH, "summary", "manual", "ligands.csv")
     )
-    exclude = (
-        df_solvent["id"].tolist()
-        + df_likely_polymer["id"].tolist()
-        + df_likely_ligand["id"].tolist()
-        + canon_res_list
-        + ion_list
-        + ["HOH"]
-        + ["UNK", "UNX", "N", "DN"]  # unknown residues
+    df["assigned_ligand"] = df["id"].isin(df_ligands["id"].values)
+    df_poly = pd.read_csv(
+        os.path.join(LIGAND_DATA_PATH, "summary", "manual", "polymers.csv")
     )
-    df = df[~df["id"].isin(exclude)]
-    df = df.sort_values("formula_weight", ascending=True)
-    print(len(df))
-    df.to_json("sorted_ligand_info.json", orient="records")
-    # df = df.query("formula_weight < 200")
-    print(
-        "id\tname\tformula\tformula_weight\tnum_noncovalent\tnum_covalent\tnum_polymer"
-    )
-    for i, row in df.iterrows():
-        num_noncovalent = len(row["noncovalent_results"])
-        num_covalent = len(row["covalent_results"])
-        num_polymer = len(row["polymer_results"])
-        if num_noncovalent > 0 and num_covalent == 0 and num_polymer == 0:
-            print(
-                f"{row['id']}\t{row['formula']}\t{row['formula_weight']}\t{num_noncovalent}\t{num_covalent}\t{num_polymer}"
-            )
+    df["assigned_polymer"] = df["id"].isin(df_poly["id"].values)
 
-
-# STEP 9 get final ligand instances
-@cli.command()
-def get_final_ligand_instances():
-    df = pd.read_json(
-        os.path.join(DATA_PATH, "ligands", "ligand_instances_w_bonds.json")
-    )
-    df_lig = pd.read_json(
-        os.path.join(DATA_PATH, "ligands", "ligand_info_complete_final.json")
-    )
+    # assign final types
     polymer_type = {
         "DNA linking": "NON-CANONICAL NA",
         "RNA linking": "NON-CANONICAL NA",
@@ -904,141 +1029,254 @@ def get_final_ligand_instances():
         "DNA OH 5 prime terminus": "NON-CANONICAL NA",
         "L-peptide NH3 amino terminus": "NON-CANONICAL AA",
     }
-    exclude = ["UNK", "UNL"]
-    df = df[~df["res_id"].isin(exclude)]
-    lig_type = {}
-    for i, row in df_lig.iterrows():
+    df["type"] = ""
+    for i, row in df.iterrows():
         if row["assigned_ligand"]:
-            lig_type[row["id"]] = "LIGAND"
+            df.at[i, "type"] = "LIGAND"
         elif row["assigned_solvent"]:
-            lig_type[row["id"]] = "SOLVENT"
+            df.at[i, "type"] = "SOLVENT"
         elif row["assigned_polymer"]:
             if row["pdb_type"] in polymer_type:
-                lig_type[row["id"]] = polymer_type[row["pdb_type"]]
+                df.at[i, "type"] = polymer_type[row["pdb_type"]]
             else:
-                lig_type[row["id"]] = "OTHER-POLYMER"
+                df.at[i, "type"] = "OTHER-POLYMER"
         else:
-            lig_type[row["id"]] = "UNKNOWN"
+            df.at[i, "type"] = "UNKNOWN"
 
-    df["final_type"] = ""
-    for i, row in df.iterrows():
-        cur_lig_type = lig_type[row["res_id"]]
-        # there is a clear type already assigned for this ID
-        if cur_lig_type != "UNKNOWN":
-            df.at[i, "final_type"] = cur_lig_type
-            continue
-        lig_row = df_lig[df_lig["id"] == row["res_id"]].iloc[0]
-        # if there are no bonded residues, it is a ligand
-        if len(row["bonded_residues"]) == 0:
-            df.at[i, "final_type"] = "LIGAND"
-            continue
-        # if there is bonded residues, it is a polymer
-        df.at[i, "final_type"] = "POLYMER"
     df.to_json(
-        os.path.join(DATA_PATH, "ligands", "ligand_instances_final.json"),
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info_final.json"),
         orient="records",
     )
 
 
+# TODO need to make sure there is a current version or this wont work
 # STEP 10 assign identies to all non canonical residues
 @cli.command()
 def assign_final_indenties():
-    df_sm = pd.read_json(
-        os.path.join(DATA_PATH, "ligands", "ligand_instances_final.json")
+    df_prev = pd.read_json(
+        os.path.join(
+            LIGAND_DATA_PATH,
+            "summary",
+            "versions",
+            f"v{VERSION}",
+            "ligand_instances.json",
+        )
     )
-    data = []
-    d = {}
-    for i, row in df_sm.iterrows():
-        d[row["res_str"] + row["pdb_id"]] = row["final_type"]
-    path = os.path.join(DATA_PATH, "ligands", "ligand_instances.csv")
-    df = pd.read_csv(path)
-    data = []
-    dna = ["DC", "DA", "DT", "DG"]
-    exclude = ["UNK", "UNL"]
-    df = df[~df["res_id"].isin(exclude)]
+    prev_assignments = {}
+    for i, row in df_prev.iterrows():
+        prev_assignments[row["res_id"] + row["pdb_id"]] = row["final_type"]
+    df = pd.read_csv(os.path.join(LIGAND_DATA_PATH, "summary", "ligand_instances.csv"))
+    df["final_type"] = ""
     for i, row in df.iterrows():
-        key = row["res_str"] + row["pdb_id"]
-        if key in d:
-            data.append([row["res_id"], row["res_str"], row["pdb_id"], d[key]])
-        elif row["res_id"] in dna:
-            data.append([row["res_id"], row["res_str"], row["pdb_id"], "DNA"])
-        elif row["type"] == "RNA":
-            data.append(
-                [row["res_id"], row["res_str"], row["pdb_id"], "NON-CANONICAL NA"]
-            )
-        elif row["type"] == "PROTEIN":
-            data.append(
-                [row["res_id"], row["res_str"], row["pdb_id"], "NON-CANONICAL AA"]
-            )
-        else:
-            print(row)
-            exit()
-    df = pd.DataFrame(data, columns=["res_id", "res_str", "pdb_id", "type"])
-    path = os.path.join(DATA_PATH, "ligands", "non_standard_res_identities.csv")
-    df.to_csv(path, index=False)
+        key = row["res_id"] + row["pdb_id"]
+        if key in prev_assignments:
+            df.at[i, "final_type"] = prev_assignments[key]
+    assign_new_ligand_instances(df)
+    df.to_json(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_instances_final.json"),
+        orient="records",
+    )
+
+
+# STEP 11 create new version
+@cli.command()
+def create_new_version():
+    NEW_VERSION = VERSION + 1
+    PATH = os.path.join(LIGAND_DATA_PATH, "summary", "versions", f"v{NEW_VERSION}")
+    os.makedirs(PATH, exist_ok=True)
+    df = pd.read_json(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_instances_final.json")
+    )
+    df.to_json(os.path.join(PATH, "ligand_instances.json"), orient="records")
+    df = pd.read_json(os.path.join(PATH, "ligand_instances.json"))
+    shutil.copy(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info_final.json"),
+        os.path.join(PATH, "ligand_info.json"),
+    )
     single_type_data = []
     multi_type_data = []
     for res_id, g in df.groupby("res_id"):
-        types = g["type"].unique()
+        types = g["final_type"].unique()
         if len(types) == 1:
             single_type_data.append([res_id, types[0]])
             continue
         else:
-            type_counts = g["type"].value_counts()
+            type_counts = g["final_type"].value_counts()
             most_common_type = type_counts.index[0]
             single_type_data.append([res_id, most_common_type])
             # Add all types as exceptions to multi_type_data
             for type_name in types:
                 if type_name != most_common_type:
-                    g_filtered = g[g["type"] == type_name]
+                    g_filtered = g[g["final_type"] == type_name]
                     multi_type_data.extend(g_filtered.to_dict(orient="records"))
 
     single_type_df = pd.DataFrame(single_type_data, columns=["res_id", "type"])
     multi_type_df = pd.DataFrame(multi_type_data)
     single_type_df.to_csv(
-        os.path.join(DATA_PATH, "ligands", "single_type_res_identities.csv"),
+        os.path.join(PATH, "single_type_res_identities.csv"),
         index=False,
     )
     multi_type_df.to_csv(
-        os.path.join(DATA_PATH, "ligands", "multi_type_res_identities.csv"),
+        os.path.join(PATH, "multi_type_res_identities.csv"),
         index=False,
     )
 
 
 # STEP 11 get final analysis summaries
 @cli.command()
-def get_final_summaries():
+def generate_interaction_summary():
     pdb_ids = get_pdb_ids()
     data = []
     for pdb_id in pdb_ids:
+        if not os.path.exists(
+            os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv")
+        ):
+            continue
         df = pd.read_csv(
             os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv")
         )
         df = df.query("res_type_2 == 'LIGAND'")
-        if len(df) == 0:
-            continue
-        residues = get_cached_residues(pdb_id)
-        for i, g in df.groupby("res_2"):
-            res_2 = g.iloc[0]["res_2"]
-            path = os.path.join(
-                DATA_PATH, "ligand_binding_structures", f"{pdb_id}-{res_2}.cif"
-            )
-            res_1 = sorted(g["res_1"].unique())
-            res_objs = [residues[res_2]] + [residues[r] for r in res_1]
-            residues_to_cif_file(res_objs, path)
+
+        for ligand_res, g in df.groupby("res_2"):
+            hbonds = []
+            for i, row in g.iterrows():
+                hbonds.append(
+                    {
+                        "res_1": row["res_1"],
+                        "atom_1": row["atom_1"],
+                        "atom_2": row["atom_2"],
+                        "score": row["score"],
+                    }
+                )
+            split_res_id = ligand_res.split("-")
+            res_id = split_res_id[0]
             data.append(
                 {
-                    "pdb_id": pdb_id,
-                    "ligand_id": res_2,
-                    "interacting_residues": res_1,
+                    "ligand_res": ligand_res,
+                    "ligand_id": res_id,
+                    "interacting_residues": g["res_1"].unique(),
+                    "hbonds": hbonds,
                     "num_hbonds": len(g),
                     "hbond_score": g["score"].sum(),
+                    "pdb_id": pdb_id,
                 }
             )
     df = pd.DataFrame(data)
     df.sort_values(by="hbond_score", ascending=False, inplace=True)
     print(len(df))
     df.to_json("rna_ligand_interactions.json", orient="records")
+
+
+@cli.command()
+def find_unique_ligand_interactions():
+    df = pd.read_json("rna_ligand_interactions.json")
+    df["duplicate"] = -1
+    dup_count = 0
+    for pdb_id, g in df.groupby("pdb_id"):
+        if len(g) == 1:
+            continue
+        try:
+            residues = get_cached_residues(pdb_id)
+        except:
+            print("missing residues", pdb_id)
+            continue
+        all_res_objs = []
+        pos = []
+        # Keep track of duplicates
+        duplicate_groups = []
+        current_group = []
+
+        # Store residue objects and their row indices
+        for i, row in g.iterrows():
+            res_1 = row["ligand_res"]
+            res_objs = [residues[res_1]] + [
+                residues[r] for r in row["interacting_residues"]
+            ]
+            all_res_objs.append((res_objs, i))  # Store tuple of res_objs and index
+            pos.append(i)
+
+        # Group res_objs by length
+        length_groups = {}
+        for res_objs, idx in all_res_objs:
+            length = len(res_objs)
+            if length not in length_groups:
+                length_groups[length] = []
+            length_groups[length].append((res_objs, idx))  # Store tuple
+
+        # Compare groups of same length
+        for length, group in length_groups.items():
+            if len(group) < 2:  # Need at least 2 to compare
+                continue
+            # Compare each pair in the group
+            for i in range(len(group)):
+                for j in range(i + 1, len(group)):
+                    coords1 = []
+                    for res in group[i][0]:  # group[i][0] contains res_objs
+                        coords1.extend(res.coords)
+                    coords1 = np.array(coords1)
+                    coords2 = []
+                    for res in group[j][0]:  # group[j][0] contains res_objs
+                        coords2.extend(res.coords)
+                    coords2 = np.array(coords2)
+                    if len(coords1) != len(coords2):
+                        continue
+
+                    # Superimpose and get RMSD
+                    aligned_coords, final_rmsd, stats = pymol_align(coords1, coords2)
+                    if final_rmsd > len(group[i][0]) * 0.2:
+                        continue
+                    dup_count += 1
+                    idx1, idx2 = group[i][1], group[j][1]  # Get original row indices
+                    # Add both indices to current group if not already in a group
+                    if not any(idx1 in g or idx2 in g for g in duplicate_groups):
+                        current_group = [idx1, idx2]
+                        duplicate_groups.append(current_group)
+                    # Add index to existing group if other index is already in a group
+                    else:
+                        for g in duplicate_groups:
+                            if idx1 in g and idx2 not in g:
+                                g.append(idx2)
+                            elif idx2 in g and idx1 not in g:
+                                g.append(idx1)
+
+        print(f"Found {len(duplicate_groups)} groups of duplicates:")
+        # Set duplicate flag to first member in each group
+        for group in duplicate_groups:
+            for idx in group[1:]:  # Skip first member
+                df.at[idx, "duplicate"] = group[
+                    0
+                ]  # Set duplicate to first member's index
+        for group in duplicate_groups:
+            print(f"Group: {group}")
+
+    df.to_json("rna_ligand_interactions_w_duplicates.json", orient="records")
+
+
+@cli.command()
+def get_final_summaries():
+    df = pd.read_json("rna_ligand_interactions_w_duplicates.json")
+    res_mapping = json.load(
+        open(os.path.join(DATA_PATH, "summaries", "res_mapping.json"))
+    )
+    count = 0
+    df["interacting_motifs"] = [[] for _ in range(len(df))]
+    df["num_motifs"] = [0 for _ in range(len(df))]
+    for pdb_id, g in df.groupby("pdb_id"):
+        print(pdb_id)
+        if pdb_id not in res_mapping:
+            res_mapping[pdb_id] = generate_res_motif_mapping(motifs)
+        for i, row in g.iterrows():
+            interacting_motifs = []
+            for res in row["interacting_residues"]:
+                if res not in res_mapping[pdb_id]:
+                    print("missing", res)
+                    motifs = get_cached_motifs(pdb_id)
+                    res_mapping[pdb_id] = generate_res_motif_mapping(motifs)
+                if res_mapping[pdb_id][res] not in interacting_motifs:
+                    interacting_motifs.append(res_mapping[pdb_id][res])
+            df.at[i, "interacting_motifs"] = interacting_motifs
+            df.at[i, "num_motifs"] = len(interacting_motifs)
+    df.to_json("rna_ligand_interactions_w_motifs.json", orient="records")
 
 
 if __name__ == "__main__":

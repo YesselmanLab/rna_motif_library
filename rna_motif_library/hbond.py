@@ -103,7 +103,10 @@ class HbondFactory:
         self.hbond_donors = json.load(
             open(os.path.join(RESOURCES_PATH, "hbond_donors.json"))
         )
+        # these can technically form hbonds but dont really seem to
         del self.hbond_acceptors["A"]["N6"]
+        # del self.hbond_acceptors["U"]["N3"]
+
         self.residue_type_assigner = ResidueTypeAssigner()
 
     def _find_hbonds_for_res_pair(
@@ -575,8 +578,12 @@ def generate_hbonds(pdb_name: str) -> List[Hbond]:
         h_data["res_2"] = hbond.res_2.get_str()
         data.append(h_data)
     if len(data) == 0:
-        f = open(os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_name}.csv"), "w")
-        f.write("res_1,res_2,atom_1,atom_2,res_type_1,res_type_2,distance,angle_1,angle_2,dihedral_angle,score,pdb_name\n")
+        f = open(
+            os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_name}.csv"), "w"
+        )
+        f.write(
+            "res_1,res_2,atom_1,atom_2,res_type_1,res_type_2,distance,angle_1,angle_2,dihedral_angle,score,pdb_name\n"
+        )
         f.close()
         return final_hbonds
 

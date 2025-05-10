@@ -119,10 +119,11 @@ def neighbors(motif_name: str):
     motifs = get_cached_motifs(pdb_id)
     motifs_by_name = {motif.name: motif for motif in motifs}
     motif = motifs_by_name[motif_name]
+    hbonds = get_cached_hbonds(pdb_id)
     basepairs = get_cached_basepairs(pdb_id)
     chains = get_cached_chains(pdb_id)
     rna_chains = Chains(chains)
-    motif_factory = MotifFactory(pdb_id, rna_chains, basepairs)
+    motif_factory = MotifFactory(pdb_id, rna_chains, basepairs, hbonds)
     motif_factory.inspect_motif_neighbors(motif, motifs)
 
 
@@ -185,33 +186,24 @@ def test(motif_name: str):
 
 
 @cli.command()
-@click.argument("pdb_id")
-def shared_bp_motifs(pdb_id: str):
+@click.argument("motif_name")
+def shared_bp_motifs(motif_name: str):
+    spl = motif_name.split("-")
+    pdb_id = spl[-2]
     motifs = get_cached_motifs(pdb_id)
-    sstrand_motifs = filter_motifs(motifs, "SSTRAND", None, None)
+    motifs_by_name = {motif.name: motif for motif in motifs}
+    m = motifs_by_name[motif_name]
+    m.to_cif()
     mf = setup_motif_factory(pdb_id)
-    possible_hairpins = mf.get_looped_strands()
-    helices = mf.get_helices(possible_hairpins)
-    strands_between_helices = mf.get_strands_between_helices(helices)
-    strands = []
-    for motif in sstrand_motifs:
-        motif.strands = mf._extend_strands_with_basepairs(motif.strands)
-        strands.extend(motif.strands)
-    strands.extend(strands_between_helices)
-    i = 0
-    seen = []
-    for motif in sstrand_motifs:
-        basepair_ends = mf._get_potential_basepair_ends_for_strands(motif.strands)
-        current_motif_strands, current_basepair_ends = mf._find_connected_strands(
-            strands, motif.strands, basepair_ends
-        )
-        if len(current_motif_strands) > 1:
-            for strand in current_motif_strands:
-                if strand in seen:
-                    continue
-                seen.append(strand)
-                write_chain_to_cif(strand, f"strand_{i}.cif")
-                i += 1
+    bp_ends = []
+    for bp in m.basepair_ends:
+        bp_ends.append(bp.res_1.get_str() + "-" + bp.res_2.get_str())
+        bp_ends.append(bp.res_2.get_str() + "-" + bp.res_1.get_str())
+    for m in motifs:
+        for bp in m.basepair_ends:
+            if bp.res_1.get_str() + "-" + bp.res_2.get_str() in bp_ends:
+                print(m.name)
+                m.to_cif()
 
 
 if __name__ == "__main__":

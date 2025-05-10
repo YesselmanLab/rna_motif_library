@@ -102,21 +102,69 @@ def check_singlets():
 
 @cli.command()
 def check_hairpins():
+    # Create directories for each motif type
+    motif_types = ["HAIRPIN", "HELIX", "NWAY", "SSTRAND", "TWOWAY"]
+    for mtype in motif_types:
+        os.makedirs(f"large_motifs/{mtype.lower()}", exist_ok=True)
+
+    unique_motifs = list(pd.read_csv("unique_motifs.csv")["motif"].values)
     pdb_ids = get_pdbs_ids_from_jsons("motifs")
+    count = 0
+
+    data = []
     for pdb_id in pdb_ids:
         try:
             motifs = get_cached_motifs(pdb_id)
         except:
             continue
-        hairpins = []
+
         for motif in motifs:
-            if motif.mtype == "HAIRPIN":
-                hairpins.append(motif)
-        for h in hairpins:
-            if len(h.get_residues()) < 5:
-                print("too small", pdb_id, h.name, len(h.get_residues()))
-            if len(h.get_residues()) > 10:
-                print("too large", pdb_id, h.name, len(h.get_residues()))
+            if motif.name not in unique_motifs:
+                continue
+            if motif.mtype == "UNKNOWN":
+                continue
+
+            if len(motif.get_residues()) > 30:
+                count += 1
+                print(
+                    "large",
+                    count,
+                    pdb_id,
+                    motif.name,
+                    motif.mtype,
+                    len(motif.get_residues()),
+                )
+                output_dir = f"large_motifs/{motif.mtype.lower()}"
+                try:
+                    motif.to_cif(os.path.join(output_dir, motif.name + ".cif"))
+                except:
+                    print("error", motif.name)
+
+                data.append(
+                    {
+                        "pdb_id": pdb_id,
+                        "motif_name": motif.name,
+                        "motif_type": motif.mtype,
+                        "num_residues": len(motif.get_residues()),
+                    }
+                )
+
+    print(f"Total large motifs found: {count}")
+
+    # Save to CSV
+    df = pd.DataFrame(data)
+    df.to_csv("large_motifs.csv", index=False)
+
+
+@cli.command()
+def check_motif():
+    motifs = get_cached_motifs("6LKQ")
+    for m in motifs:
+        if m.mtype != "TWOWAY":
+            continue
+        if len(m.get_residues()) > 50:
+            print(m.name, len(m.get_residues()))
+            m.to_cif(m.name + ".cif")
 
 
 if __name__ == "__main__":

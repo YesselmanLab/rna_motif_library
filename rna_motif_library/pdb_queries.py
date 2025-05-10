@@ -3,14 +3,27 @@ import json
 import sys
 import time
 
+from rna_motif_library.logger import get_logger
 
-def fetch_structure_data(pdb_ids, batch_size=100):
-    """Fetch data for a batch of PDB structures"""
+log = get_logger("pdb-queries")
+
+
+def get_structure_resolutions(pdb_ids, batch_size=100):
+    """
+    Fetch resolution data for a batch of PDB structures using the RCSB GraphQL API.
+
+    Args:
+        pdb_ids: List of PDB IDs to fetch data for
+        batch_size: Number of structures to fetch per API request
+
+    Returns:
+        List of tuples containing (pdb_id, resolution) pairs
+    """
     structures = []
 
     for i in range(0, len(pdb_ids), batch_size):
         batch = pdb_ids[i : i + batch_size]
-        print(
+        log.info(
             f"Fetching resolutions for structures {i+1}-{i+len(batch)} of {len(pdb_ids)}..."
         )
 
@@ -44,21 +57,26 @@ def fetch_structure_data(pdb_ids, batch_size=100):
                     resolution = entry["rcsb_entry_info"]["resolution_combined"][0]
                     structures.append((pdb_id, resolution))
                 except (KeyError, IndexError, TypeError):
-                    print(f"Warning: Could not get resolution for {pdb_id}")
+                    log.warning(f"Could not get resolution for {pdb_id}")
 
             # Small delay to avoid overwhelming the server
             time.sleep(0.1)
 
         except Exception as e:
-            print(f"Error fetching batch {i+1}-{i+len(batch)}: {str(e)}")
+            log.error(f"Error fetching batch {i+1}-{i+len(batch)}: {str(e)}")
 
     return structures
 
 
-def search_rna_structures(resolution_cutoff=3.5):
+def get_rna_structures(resolution_cutoff=3.5):
     """
-    Search PDB for RNA structures with resolution better than specified cutoff.
-    Returns structures sorted by resolution.
+    Search RCSB PDB for RNA structures with resolution better than specified cutoff.
+
+    Args:
+        resolution_cutoff: Maximum resolution in Angstroms (default 3.5)
+
+    Returns:
+        List of (pdb_id, resolution) tuples sorted by resolution
     """
 
     # Base URL for RCSB Search API
@@ -71,32 +89,6 @@ def search_rna_structures(resolution_cutoff=3.5):
             "logical_operator": "and",
             "nodes": [
                 {
-                    "type": "group",
-                    "nodes": [
-                        {
-                            "type": "terminal",
-                            "service": "text",
-                            "parameters": {
-                                "attribute": "rcsb_entry_info.selected_polymer_entity_types",
-                                "operator": "exact_match",
-                                "negation": False,
-                                "value": "Nucleic acid (only)",
-                            },
-                        },
-                        {
-                            "type": "terminal",
-                            "service": "text",
-                            "parameters": {
-                                "attribute": "rcsb_entry_info.selected_polymer_entity_types",
-                                "operator": "exact_match",
-                                "negation": False,
-                                "value": "Protein/NA",
-                            },
-                        },
-                    ],
-                    "logical_operator": "or",
-                },
-                {
                     "type": "terminal",
                     "service": "text",
                     "parameters": {
@@ -106,6 +98,30 @@ def search_rna_structures(resolution_cutoff=3.5):
                         "value": resolution_cutoff,
                     },
                 },
+                {
+                    "type": "group",
+                    "logical_operator": "or",
+                    "nodes": [
+                        {
+                            "type": "terminal",
+                            "service": "text",
+                            "parameters": {
+                                "attribute": "entity_poly.rcsb_entity_polymer_type",
+                                "operator": "exact_match",
+                                "value": "RNA",
+                            },
+                        },
+                        {
+                            "type": "terminal",
+                            "service": "text",
+                            "parameters": {
+                                "attribute": "rcsb_entry_info.polymer_entity_count_nucleic_acid_hybrid",
+                                "operator": "greater",
+                                "value": 0,
+                            },
+                        },
+                    ],
+                },
             ],
         },
         "request_options": {"return_all_hits": True},
@@ -114,7 +130,7 @@ def search_rna_structures(resolution_cutoff=3.5):
 
     try:
         # Send POST request
-        print("Sending request to RCSB PDB API...")
+        log.info("Sending request to RCSB PDB API...")
         response = requests.post(base_url, json=query)
         response.raise_for_status()
 
@@ -123,16 +139,16 @@ def search_rna_structures(resolution_cutoff=3.5):
         result_set = data.get("result_set", [])
 
         if not result_set:
-            print("No structures found matching criteria")
+            log.warning("No structures found matching criteria")
             return []
 
-        print(f"Found {len(result_set)} structures matching criteria")
+        log.info(f"Found {len(result_set)} structures matching criteria")
 
         # Extract PDB IDs
         pdb_ids = [result["identifier"] for result in result_set]
 
         # Fetch resolution data for all structures
-        structures = fetch_structure_data(pdb_ids)
+        structures = get_structure_resolutions(pdb_ids)
 
         # Sort by resolution
         structures.sort(key=lambda x: x[1])
@@ -140,46 +156,11 @@ def search_rna_structures(resolution_cutoff=3.5):
         return structures
 
     except requests.exceptions.RequestException as e:
-        print(f"Error accessing RCSB API: {e}")
+        log.error(f"Error accessing RCSB API: {e}")
         if hasattr(e, "response") and hasattr(e.response, "text"):
-            print("Response content:", e.response.text)
+            log.error(f"Response content: {e.response.text}")
         return []
     except Exception as e:
-        print(f"Unexpected error: {e}")
-        print(f"Error type: {type(e).__name__}")
+        log.error(f"Unexpected error: {e}")
+        log.error(f"Error type: {type(e).__name__}")
         return []
-
-
-def main():
-    # Search for RNA structures
-    print("Searching for RNA structures...")
-    structures = search_rna_structures(3.5)
-
-    if not structures:
-        print("No structures found or an error occurred.")
-        sys.exit(1)
-
-    # Print results
-    print(
-        f"\nFound {len(structures)} RNA-containing structures with resolution < 3.5 Å"
-    )
-    print("\nTop 10 structures by resolution:")
-    print("PDB ID  Resolution (Å)")
-    print("-" * 20)
-    for pdb_id, resolution in structures[:10]:
-        print(f"{pdb_id}    {resolution:.2f}")
-
-    # Save all results to file
-    output_file = "rna_structures.txt"
-    try:
-        with open(output_file, "w") as f:
-            f.write("PDB_ID,Resolution\n")
-            for pdb_id, resolution in structures:
-                f.write(f"{pdb_id},{resolution:.2f}\n")
-        print(f"\nAll results saved to {output_file}")
-    except IOError as e:
-        print(f"Error writing to file: {e}")
-
-
-if __name__ == "__main__":
-    main()

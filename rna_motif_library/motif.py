@@ -1,24 +1,33 @@
 # Standard library imports
 import json
 import os
+import glob
 from typing import Dict, List, Tuple, Optional, Set
+from dataclasses import dataclass
 
 # Third party imports
 import numpy as np
 import pandas as pd
+import click
+from pydssr.dssr import DSSROutput
 
 # Local imports
 from rna_motif_library.basepair import Basepair, get_cached_basepairs
-from rna_motif_library.chain import Chains, get_rna_chains
+from rna_motif_library.chain import Chains, get_rna_chains, get_cached_chains
 from rna_motif_library.hbond import Hbond, get_cached_hbonds
 from rna_motif_library.logger import get_logger
 from rna_motif_library.residue import Residue, get_cached_residues
-from rna_motif_library.settings import RESOURCES_PATH
+from rna_motif_library.settings import RESOURCES_PATH, DATA_PATH
 from rna_motif_library.util import (
     get_cif_header_str,
     get_cached_path,
-    wc_basepairs_w_gu,
+    add_motif_name_columns,
+    get_pdb_ids,
+    NRSEntry,
+    file_exists_and_has_content,
 )
+from rna_motif_library.x3dna import X3DNAResidue
+from rna_motif_library.tranforms import superimpose_structures, rmsd
 
 log = get_logger("motif")
 
@@ -30,6 +39,15 @@ def get_motifs(pdb_id: str) -> list:
     chains = Chains(get_rna_chains(residues.values()))
     mf = MotifFactory(pdb_id, chains, basepairs, hbonds)
     return mf.get_motifs()
+
+
+def get_motifs_from_dssr(pdb_id: str) -> list:
+    residues = get_cached_residues(pdb_id)
+    basepairs = get_cached_basepairs(pdb_id)
+    hbonds = get_cached_hbonds(pdb_id)
+    chains = Chains(get_rna_chains(residues.values()))
+    mf = MotifFactoryFromOther(pdb_id, chains, hbonds, basepairs)
+    return mf.get_motifs_from_dssr()
 
 
 class Motif:
@@ -117,6 +135,15 @@ class Motif:
             if res.get_atom_coords("P") is None:
                 continue
             coords.append(res.get_atom_coords("P"))
+        return np.array(coords)
+
+    def get_c1prime_coords(self):
+        coords = []
+        for strand in self.strands:
+            for res in strand:
+                if res.get_atom_coords("C1'") is None:
+                    continue
+                coords.append(res.get_atom_coords("C1'"))
         return np.array(coords)
 
     def contains_residue(self, residue: Residue) -> bool:
@@ -629,6 +656,7 @@ class MotifFactory:
                 continue
             chain = self.chains.get_chain_between_basepair(bp)
             if self._do_residues_contain_singlet_pair(chain):
+                print("made it")
                 continue
             distances[f"{bp.res_1.get_str()}-{bp.res_2.get_str()}"] = len(chain)
 
@@ -998,7 +1026,7 @@ class MotifFactory:
         elif motif.mtype == "SSTRAND":
             return len(motif.strands[0])
         else:
-            return "-".join(str(len(strand)-2) for strand in motif.strands)
+            return "-".join(str(len(strand) - 2) for strand in motif.strands)
 
     def _get_strand_sequence(self, strand: List[Residue]) -> str:
         seq = ""
@@ -1254,3 +1282,881 @@ class MotifFactory:
                 if num_shared_bps > 0:
                     interactions.append((motif1, motif2, num_shared_bps))
         return interactions
+
+
+# Motifs from DSSR ###################################################################
+
+
+class MotifFactoryFromOther:
+    """Class for processing motifs and interactions from PDB files"""
+
+    def __init__(
+        self,
+        pdb_name: str,
+        chains: Chains,
+        residues: List[Residue],
+        basepairs: List[Basepair],
+    ):
+        """
+        Initialize the MotifProcessor
+
+        Args:
+            count (int): # of PDBs processed (loaded from outside)
+            pdb_path (str): path to the source PDB
+        """
+        self.pdb_name = pdb_name
+        self.residues = residues
+        self.basepairs = basepairs
+        self.chains = chains
+        self.cww_basepairs = self._get_cww_basepairs(basepairs)
+        self.used_names = {}
+
+    def get_motifs_from_dssr(self) -> List[Motif]:
+        """
+        Process the PDB file and extract motifs and interactions
+
+        Returns:
+            motif_list (list): list of motifs
+        """
+        log.debug(f"{self.pdb_name}")
+        new_residues = {k: Residue.from_dict(v) for k, v in self.residues.items()}
+        all_residues = {}
+        for res in new_residues.values():
+            all_residues[res.get_x3dna_str()] = res
+
+        json_path = os.path.join(DATA_PATH, "dssr_output", f"{self.pdb_name}.json")
+        dssr_output = DSSROutput(json_path=json_path)
+        dssr_motifs = dssr_output.get_motifs()
+        motifs = []
+        log.info(f"Processing {len(dssr_motifs)} motifs")
+        for m in dssr_motifs:
+            residues = self._get_residues_for_motif(m, all_residues)
+            m = self._generate_motif(m.mtype, residues)
+            motifs.append(m)
+        log.info(f"Final number of motifs: {len(motifs)}")
+        return motifs
+
+    def get_motif_from_atlas(self, atlas_mtype, res_strs):
+        residues = []
+        for res_str in res_strs:
+            if res_str in self.residues:
+                residues.append(self.residues[res_str])
+            else:
+                log.warning(f"Residue {res_str} not found in {self.pdb_name}")
+        return self._generate_motif(atlas_mtype, residues)
+
+    def from_residues(self, residues: List[Residue]) -> Motif:
+        return self._generate_motif(residues)
+
+    def _get_residues_for_motif(
+        self, m, all_residues: Dict[str, Residue]
+    ) -> List[Residue]:
+        residues = []
+        for nt in m.nts_long:
+            if nt in all_residues:
+                residues.append(all_residues[nt])
+            else:
+                log.warning(f"Residue {nt} not found in {self.pdb_name}")
+                continue
+        return residues
+
+    def _get_cww_basepairs(self, basepairs: List[Basepair]) -> Dict[str, Basepair]:
+        """Get dictionary of cWW basepairs keyed by residue pair strings."""
+        allowed_pairs = []
+        f = open(os.path.join(RESOURCES_PATH, "valid_cww_pairs.txt"))
+        lines = f.readlines()
+        for line in lines:
+            allowed_pairs.append(line.strip())
+        f.close()
+        cww_basepairs = {}
+        two_hbond_pairs = ["A-U", "U-A", "G-U", "U-G"]
+        three_hbond_pairs = ["G-C", "C-G"]
+        for bp in basepairs:
+            if bp.lw != "cWW" or bp.bp_type not in allowed_pairs:
+                continue
+            if (
+                self.chains.get_residue(bp.res_1.get_str()) is None
+                or self.chains.get_residue(bp.res_2.get_str()) is None
+            ):
+                continue
+            # stops a lot of bad basepairs from being included
+            if bp.bp_type in two_hbond_pairs and bp.hbond_score < 1.3:
+                continue
+            if bp.bp_type in three_hbond_pairs and bp.hbond_score < 2.0:
+                continue
+            key1 = f"{bp.res_1.get_str()}-{bp.res_2.get_str()}"
+            key2 = f"{bp.res_2.get_str()}-{bp.res_1.get_str()}"
+            cww_basepairs[key1] = bp
+            cww_basepairs[key2] = bp
+        return cww_basepairs
+
+    def _assign_end_basepairs(self, strands: List[List[Residue]]) -> List[Basepair]:
+        end_residue_ids = []
+        for s in strands:
+            end_residue_ids.append(s[0].get_str())
+            end_residue_ids.append(s[-1].get_str())
+
+        # First collect all potential end basepairs
+        end_basepairs = []
+        for bp in self.basepairs:
+            if (
+                not bp.res_1.get_str() in end_residue_ids
+                or not bp.res_2.get_str() in end_residue_ids
+            ):
+                continue
+            key = f"{bp.res_1.get_str()}-{bp.res_2.get_str()}"
+            if key in self.cww_basepairs:
+                end_basepairs.append(self.cww_basepairs[key])
+        # Track basepairs by residue
+        residue_basepairs = {}
+        for bp in end_basepairs:
+            res1 = bp.res_1.get_str()
+            res2 = bp.res_2.get_str()
+            if res1 not in residue_basepairs:
+                residue_basepairs[res1] = []
+            if res2 not in residue_basepairs:
+                residue_basepairs[res2] = []
+            residue_basepairs[res1].append(bp)
+            residue_basepairs[res2].append(bp)
+
+        # Filter out weaker basepairs, keeping only the strongest one per residue pair
+        filtered_basepairs = set()
+        processed_residues = set()
+
+        # Sort all basepairs by hbond score from strongest to weakest
+        all_bps = []
+        for bps in residue_basepairs.values():
+            all_bps.extend(bps)
+        all_bps.sort(key=lambda x: x.hbond_score, reverse=True)
+
+        # Process basepairs in order of strength
+        for bp in all_bps:
+            res1 = bp.res_1.get_str()
+            res2 = bp.res_2.get_str()
+
+            # Only add if neither residue has been processed yet
+            if res1 not in processed_residues and res2 not in processed_residues:
+                filtered_basepairs.add(bp)
+                processed_residues.add(res1)
+                processed_residues.add(res2)
+
+        return list(filtered_basepairs)
+
+    def _generate_motif(self, x3dna_mtype: str, residues: List[Residue]) -> Motif:
+        # We need to determine the data for the motif and build a class
+        # First get the type
+        mtype = "UNKNOWN"
+        if x3dna_mtype == "SINGLE_STRAND":
+            mtype = "SSTRAND"
+        elif x3dna_mtype == "HAIRPIN":
+            mtype = "HAIRPIN"
+        elif x3dna_mtype == "STEM":
+            mtype = "HELIX"
+        elif x3dna_mtype == "ILOOP":
+            mtype = "TWOWAY"
+        elif x3dna_mtype == "BULGE":
+            mtype = "TWOWAY"
+        elif x3dna_mtype == "JUNCTION":
+            mtype = "NWAY"
+        residue_ids = [res.get_str() for res in residues]
+        strands = get_rna_chains(residues)
+        end_residue_ids = []
+        for s in strands:
+            end_residue_ids.append(s[0].get_str())
+            end_residue_ids.append(s[-1].get_str())
+        basepairs = []
+        for bp in self.basepairs:
+            if bp.res_1.get_str() in residue_ids and bp.res_2.get_str() in residue_ids:
+                basepairs.append(bp)
+        end_basepairs = self._assign_end_basepairs(strands)
+        sequence = self._find_sequence(strands).replace("&", "-")
+        mname = f"{mtype}-{sequence}-{self.pdb_name}"
+        if mname in self.used_names:
+            self.used_names[mname] += 1
+        else:
+            self.used_names[mname] = 1
+        mname += f"-{self.used_names[mname]}"
+        return Motif(
+            mname,
+            mtype,
+            self.pdb_name,
+            "",
+            sequence,
+            strands,
+            basepairs,
+            end_basepairs,
+            [],
+        )
+
+    def _find_sequence(self, strands_of_rna: List[List[Residue]]) -> str:
+        """Find sequences from found strands of RNA"""
+        res_strands = []
+        for strand in strands_of_rna:
+            res_strand = []
+            for residue in strand:
+                mol_name = residue.res_id
+                if mol_name in ["A", "G", "C", "U"]:
+                    res_strand.append(mol_name)
+                else:
+                    res_strand.append("X")
+            strand_sequence = "".join(res_strand)
+            res_strands.append(strand_sequence)
+        sequence = "&".join(res_strands)
+        return sequence
+
+
+def do_number_of_strands_match_mtype(mtype: str, strands: List[List[Residue]]):
+    if mtype == "HAIRPIN":
+        return len(strands) == 1
+    elif mtype == "HELIX":
+        return len(strands) == 2
+    elif mtype == "TWOWAY":
+        return len(strands) == 2
+    elif mtype == "NWAY":
+        return len(strands) > 2
+    elif mtype == "SSTRAND":
+        return len(strands) == 1
+    else:
+        return True
+
+
+def do_number_of_basepairs_match_mtype(mtype: str, basepairs: List[Basepair]):
+    if mtype == "HAIRPIN":
+        return len(basepairs) == 1
+    elif mtype == "HELIX":
+        return len(basepairs) == 2
+    elif mtype == "TWOWAY":
+        return len(basepairs) == 2
+    elif mtype == "NWAY":
+        return len(basepairs) > 2
+    elif mtype == "SSTRAND":
+        return len(basepairs) == 0
+    else:
+        return True
+
+
+# Motifs from Atlas #################################################################
+
+
+@dataclass
+class ResidueId:
+    pdb_id: str
+    model: str
+    chain: str
+    residue_type: str
+    residue_num: int
+    insert_code: str
+
+    @staticmethod
+    def _parse_triple_pipe_string(residue_str: str):
+        spl_1 = residue_str.split("|||")
+        if len(spl_1) != 1:
+            insert_code = spl_1[1]
+            # dont understand why this is sometimes not an insertion code
+            if len(insert_code) > 1:
+                insert_code = ""
+        else:
+            insert_code = ""
+
+    @classmethod
+    def from_string(cls, residue_str: str):
+        # Split on | delimiter
+        pdb_id, model, chain, residue_type, residue_num = residue_str.split("|")[0:5]
+        insert_code = cls._parse_triple_pipe_string(residue_str)
+        spl_2 = residue_str.split("||")
+        if insert_code != "" and len(spl_2) != 1:
+            if len(spl_2[1]) > 1:
+                insert_code = spl_2[1][-1]
+            else:
+                insert_code = ""
+        else:
+            insert_code = ""
+        return cls(
+            pdb_id=pdb_id,
+            model=model,
+            chain=chain,
+            residue_type=residue_type,
+            residue_num=int(residue_num),
+            insert_code=insert_code,
+        )
+
+    def to_x3dna_residue(self) -> X3DNAResidue:
+        return X3DNAResidue(
+            chain_id=self.chain,
+            res_id=self.residue_type,
+            num=self.residue_num,
+            ins_code=self.insert_code,
+            rtype=self.residue_type,
+        )
+
+    def get_str(self):
+        return f"{self.chain}-{self.residue_type}-{self.residue_num}-{self.insert_code}"
+
+
+def parse_atlas_csv(csv_path):
+    f = open(csv_path, "r")
+    group = None
+    mtype = None
+    data = []
+    if os.path.basename(csv_path).startswith("hl"):
+        mtype = "HAIRPIN"
+    elif os.path.basename(csv_path).startswith("il"):
+        mtype = "TWOWAY"
+    elif os.path.basename(csv_path).startswith("j3"):
+        mtype = "NWAY"
+    else:
+        raise ValueError(f"Unknown motif type: {os.path.basename(csv_path)}")
+    for line in f:
+        if line.startswith(">"):
+            group = line.strip()[1:]
+            continue
+        residue_infos = line.strip().split(",")
+        x3dna_res = []
+        pdb_id = None
+        for residue_info in residue_infos:
+            # remove quotes
+            residue_info = residue_info[1:-1]
+            residue_id = ResidueId.from_string(residue_info)
+            x3dna_res.append(residue_id.to_x3dna_residue().get_str())
+            pdb_id = residue_id.pdb_id
+        data.append(
+            {
+                "pdb_id": pdb_id,
+                "group": group,
+                "mtype": mtype,
+                "residues": x3dna_res,
+            }
+        )
+    return pd.DataFrame(data)
+
+
+def get_data_from_motif(m: Motif, pdb_id: str, has_singlet_flank: bool):
+    return {
+        "pdb_id": pdb_id,
+        "motif": m.name,
+        "mtype": m.mtype,
+        "n_strands": len(m.strands),
+        "n_basepairs": len(m.basepairs),
+        "n_basepair_ends": len(m.basepair_ends),
+        "n_residues": len(m.get_residues()),
+        "residues": [r.get_str() for r in m.get_residues()],
+        "correct_n_strands": do_number_of_strands_match_mtype(m.mtype, m.strands),
+        "correct_n_basepairs": do_number_of_basepairs_match_mtype(
+            m.mtype, m.basepair_ends
+        ),
+        "has_singlet_flank": has_singlet_flank,
+    }
+
+
+class MotifSetComparerer:
+    def compare_motifs(self, pdb_id, df):
+        try:
+            motifs = get_cached_motifs(pdb_id)
+        except Exception as e:
+            print(f"Error getting motifs for {pdb_id}: {e}")
+            return None
+        print(f"Processing {pdb_id}")
+        # Get tertiary contacts info
+        in_tc = self._get_tertiary_contacts(pdb_id)
+        # Get motif mappings
+        res_to_motif_id = get_res_to_motif_mapping(motifs)
+        motifs_by_name = {m.name: m for m in motifs}
+        seen = []
+        # Initialize columns
+        dssr_motifs = self._initialize_dssr_motifs_df(df)
+        # Compare motifs
+        dssr_motifs, seen = self._compare_motifs(dssr_motifs, motifs, seen)
+        # Find overlapping motifs
+        dssr_motifs = self._find_overlapping_motifs(
+            dssr_motifs, res_to_motif_id, motifs_by_name, in_tc
+        )
+        # Add missing motifs
+        dssr_motifs = self._add_missing_motifs(dssr_motifs, motifs, seen, pdb_id)
+        return dssr_motifs
+
+    def _get_tertiary_contacts(self, pdb_id):
+        """
+        Maps motifs in tertiary contacts to their residues
+        """
+        in_tc = {}
+        tert_path = os.path.join(
+            DATA_PATH, "dataframes", "tertiary_contacts", f"{pdb_id}.json"
+        )
+        if file_exists_and_has_content(tert_path):
+            df_tert = pd.read_json(tert_path)
+        else:
+            df_tert = pd.DataFrame()
+        for i, row in df_tert.iterrows():
+            if row["motif_1"] not in in_tc:
+                in_tc[row["motif_1"]] = []
+            in_tc[row["motif_1"]].extend(row["motif_1_res"])
+            if row["motif_2"] not in in_tc:
+                in_tc[row["motif_2"]] = []
+            in_tc[row["motif_2"]].extend(row["motif_2_res"])
+        return in_tc
+
+    def _initialize_dssr_motifs_df(self, dssr_motifs):
+        dssr_motifs = dssr_motifs.copy()
+        dssr_motifs["found"] = False  # Whether the motif was found in our database
+        dssr_motifs["misclassified"] = False  # Whether the motif was misclassified
+        dssr_motifs["missing"] = False  # Whether the motif was missing
+        dssr_motifs["overlapping_motifs"] = [
+            [] for _ in range(len(dssr_motifs))
+        ]  # Motifs that overlap with the motif
+        dssr_motifs["contained_in_motifs"] = [
+            [] for _ in range(len(dssr_motifs))
+        ]  # Motifs that are contained in the motif
+        dssr_motifs["in_tc"] = False  # Whether the motif is in tertiary contacts
+        return dssr_motifs
+
+    def _compare_motifs(self, dssr_motifs, motifs, seen):
+        for i, row in dssr_motifs.iterrows():
+            for m in motifs:
+                if len(m.get_residues()) != len(row["residues"]):
+                    continue
+                res = sorted([r.get_str() for r in m.get_residues()])
+                res_dssr = sorted(row["residues"])
+                if res != res_dssr:
+                    continue
+                dssr_motifs.at[i, "found"] = True
+                seen.append(m.name)
+                if m.mtype != row["mtype"]:
+                    dssr_motifs.at[i, "misclassified"] = True
+                dssr_motifs.at[i, "overlapping_motifs"].append(m.name)
+        return dssr_motifs, seen
+
+    def _find_overlapping_motifs(
+        self, dssr_motifs, res_to_motif_id, motifs_by_name, in_tc
+    ):
+        for i, row in dssr_motifs.iterrows():
+            if row["found"]:
+                continue
+            overlapping_motifs = []
+            potential_tc_res = []
+            for r in row["residues"]:
+                if r in res_to_motif_id:
+                    m_name = res_to_motif_id[r]
+                    if m_name not in overlapping_motifs:
+                        overlapping_motifs.append(m_name)
+                    if m_name in in_tc:
+                        potential_tc_res.extend(in_tc[m_name])
+            for r in row["residues"]:
+                if r in potential_tc_res:
+                    dssr_motifs.at[i, "in_tc"] = True
+            dssr_motifs.at[i, "overlapping_motifs"] = overlapping_motifs
+            for m in overlapping_motifs:
+                overlap_m = motifs_by_name[m]
+                overlap_m_res = [r.get_str() for r in overlap_m.get_residues()]
+                if all(r in overlap_m_res for r in row["residues"]):
+                    dssr_motifs.at[i, "contained_in_motifs"].append(m)
+        return dssr_motifs
+
+    def _add_missing_motifs(self, dssr_motifs, motifs, seen, pdb_id):
+        data = []
+        for m in motifs:
+            if m.name in seen:
+                continue
+            data.append(
+                {
+                    "pdb_id": pdb_id,
+                    "motif": m.name,
+                    "mtype": m.mtype,
+                    "n_strands": len(m.strands),
+                    "n_basepairs": len(m.basepairs),
+                    "n_basepair_ends": len(m.basepair_ends),
+                    "n_residues": len(m.get_residues()),
+                    "residues": [r.get_str() for r in m.get_residues()],
+                    "correct_n_strands": True,
+                    "correct_n_basepairs": True,
+                    "missing": True,
+                    "misclassified": False,
+                    "found": True,
+                    "overlapping_motifs": [m.name],
+                    "has_singlet_flank": False,
+                    "contained_in_motifs": [],
+                    "in_tc": False,
+                }
+            )
+        df_missing = pd.DataFrame(data)
+        return pd.concat([dssr_motifs, df_missing])
+
+
+# comparing motifs ################################################################
+
+
+def filter_motifs_by_chains(motifs: List[Motif], chain_ids: List[str]):
+    keep_motifs = []
+    for m in motifs:
+        keep = True
+        for r in m.get_residues():
+            if r.chain_id not in chain_ids:
+                keep = False
+                break
+        if keep:
+            keep_motifs.append(m)
+    return keep_motifs
+
+
+def find_duplicate_motifs(motifs, other_motifs):
+    """Check for duplicate motifs between two sets of motifs.
+
+    Args:
+        motifs: List of reference motifs to compare against
+        other_motifs: List of motifs to check for duplicates
+    Returns:
+        DataFrame containing duplicate information for each motif in other_motifs
+    """
+    data = []
+    used_motifs = []
+    for other_motif in other_motifs:
+        result = find_best_matching_motif(other_motif, motifs, used_motifs)
+        # Add result to output data
+        data.append(
+            {
+                "motif": other_motif.name,
+                "repr_motif": (
+                    result["best_motif"].name if result["best_motif"] else None
+                ),
+                "rmsd": result["best_rmsd"],
+                "is_duplicate": result["is_duplicate"],
+                "from_repr": True,
+            }
+        )
+
+        # Track used motifs to avoid duplicates
+        if result["is_duplicate"]:
+            used_motifs.append(result["best_motif"])
+
+    return pd.DataFrame(data)
+
+
+def find_best_matching_motif(query_motif, ref_motifs, used_motifs):
+    """Find the best matching reference motif for a query motif.
+
+    Args:
+        query_motif: Motif to find match for
+        ref_motifs: List of reference motifs to compare against
+        used_motifs: List of already matched reference motifs
+
+    Returns:
+        Dict containing best matching motif and match statistics
+    """
+    best_motif = None
+    best_rmsd = 1000
+    query_coords = query_motif.get_c1prime_coords()
+
+    if len(query_coords) < 2:
+        return {"best_motif": None, "best_rmsd": best_rmsd, "is_duplicate": False}
+
+    for ref_motif in ref_motifs:
+        # Skip if motif already used or sequences don't match
+        if ref_motif.name in [m.name for m in used_motifs]:
+            continue
+        if ref_motif.sequence != query_motif.sequence:
+            continue
+
+        try:
+            ref_coords = ref_motif.get_c1prime_coords()
+            if len(ref_coords) != len(query_coords):
+                continue
+
+            # Calculate RMSD after superposition
+            rotated_coords = superimpose_structures(ref_coords, query_coords)
+            rmsd_val = rmsd(query_coords, rotated_coords)
+
+            if rmsd_val < best_rmsd:
+                best_rmsd = rmsd_val
+                best_motif = ref_motif
+
+        except:
+            print("issues", ref_motif.name, query_motif.name)
+            continue
+
+    # Determine if match is close enough to be a duplicate
+    is_duplicate = best_rmsd < 0.20 * len(query_coords)
+
+    return {
+        "best_motif": best_motif,
+        "best_rmsd": best_rmsd,
+        "is_duplicate": is_duplicate,
+    }
+
+
+def generate_repr_df(repr_motifs, pdb_id, from_repr=True):
+    df_repr = []
+    for m in repr_motifs:
+        df_repr.append(
+            {
+                "motif": m.name,
+                "repr_motif": None,
+                "rmsd": None,
+                "is_duplicate": False,
+                "repr_pdb": pdb_id,
+                "child_pdb": None,
+                "from_repr": from_repr,
+            }
+        )
+    return pd.DataFrame(df_repr)
+
+
+def _process_child_entry(child_entry, repr_motifs):
+    """Process a single child entry to find duplicates with representative motifs.
+
+    Args:
+        child_entry: Child structure entry to process
+        repr_motifs: List of motifs from representative structure
+
+    Returns:
+        tuple: (matches_df, unmatched_motifs) where matches_df contains duplicate matches
+        and unmatched_motifs contains motifs that didn't match the representative
+    """
+    # Get motifs from child structure
+    motifs = get_motifs(child_entry.pdb_id)
+    child_motifs = filter_motifs_by_chains(motifs, child_entry.chain_ids)
+    # Find duplicates between representative and child motifs
+    duplicates_df = find_duplicate_motifs(repr_motifs, child_motifs)
+    if len(duplicates_df) == 0:
+        return None, []
+    # Track motifs that didn't match representative
+    unmatched = duplicates_df.query("rmsd == 1000.0")["motif"].values
+    unmatched_set = [m for m in child_motifs if m.name in unmatched]
+    # Keep matches with valid RMSD
+    matches = duplicates_df.query("rmsd < 1000").copy()
+    return matches, unmatched_set
+
+
+def _align_to_other_entry_members(unmatched_motifs):
+    """Compare unmatched motifs against each other to find additional duplicates.
+
+    Args:
+        unmatched_motifs: List of lists of unmatched motifs
+
+    Returns:
+        list: DataFrames containing duplicate information
+    """
+    results = []
+    for i, motif_set_1 in enumerate(unmatched_motifs):
+        if not motif_set_1:
+            continue
+        pdb_id = parse_motif_name(motif_set_1[0].name)[-1]
+        # Compare against all subsequent unmatched sets
+        for j, motif_set_2 in enumerate(unmatched_motifs[i + 1 :], i + 1):
+            if not motif_set_2:
+                continue
+            child_pdb_id = parse_motif_name(motif_set_2[0].name)[-1]
+            # Find duplicates between unmatched sets
+            duplicates = find_duplicate_motifs(motif_set_1, motif_set_2)
+            duplicates = duplicates.query("is_duplicate == True")
+            duplicates["child_pdb"] = child_pdb_id
+            duplicates["repr_pdb"] = pdb_id
+            results.append(duplicates)
+            # Remove found duplicates from second set
+            duplicate_names = duplicates["motif"].values
+            unmatched_motifs[j] = [
+                m for m in motif_set_2 if m.name not in duplicate_names
+            ]
+        # Add remaining unmatched motifs from first set
+        results.append(generate_repr_df(motif_set_1, pdb_id, from_repr=False))
+    return results
+
+
+def find_duplicate_in_non_redundant_set_entry(args):
+    """Find duplicate motifs between a representative structure and its child structures.
+
+    Args:
+        args: Tuple containing (set_id, repr_entry, child_entries)
+            set_id: ID of the non-redundant set
+            repr_entry: Representative structure entry
+            child_entries: List of child structure entries
+
+    Returns:
+        Path to saved CSV file containing duplicate information, or None if file exists
+    """
+    set_id, repr_entry, child_entries = args
+    # Check if output file already exists
+    output_path = os.path.join(
+        DATA_PATH, "dataframes", "non_redundant_sets", f"{set_id}.csv"
+    )
+    if os.path.exists(output_path):
+        return None
+    print(f"Processing set {set_id}")
+    # Get motifs from representative structure
+    motifs = get_motifs(repr_entry.pdb_id)
+    repr_motifs = filter_motifs_by_chains(motifs, repr_entry.chain_ids)
+    # Initialize results with representative motifs
+    results = [generate_repr_df(repr_motifs, repr_entry.pdb_id, from_repr=True)]
+    unmatched_motifs = []  # Motifs that don't match representative structure
+    # Process each child structure
+    for child_entry in child_entries:
+        matches, unmatched = _process_child_entry(child_entry, repr_motifs)
+        if matches is not None:
+            matches["child_pdb"] = child_entry.pdb_id
+            matches["repr_pdb"] = repr_entry.pdb_id
+            results.append(matches)
+        if unmatched:
+            unmatched_motifs.append(unmatched)
+    # Compare unmatched motifs
+    results.extend(_align_to_other_entry_members(unmatched_motifs))
+    # Combine and save results
+    final_df = pd.concat(results).reset_index(drop=True)
+    final_df.to_csv(output_path, index=False)
+
+    return output_path
+
+
+def get_res_to_motif_mapping(motifs):
+    res_to_motif_id = {}
+    for m in motifs:
+        for r in m.get_residues():
+            if r.get_str() not in res_to_motif_id:
+                res_to_motif_id[r.get_str()] = m.name
+            else:
+                existing_motif = res_to_motif_id[r.get_str()]
+                if existing_motif.startswith("HELIX"):
+                    res_to_motif_id[r.get_str()] = m.name
+    return res_to_motif_id
+
+
+# cli ############################################################################
+
+
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
+def get_non_redundant_motifs():
+    pass
+
+
+@cli.command()
+def get_dssr_motifs():
+    pdb_ids = get_pdb_ids()
+    for pdb_id in pdb_ids:
+        try:
+            residues = get_cached_residues(pdb_id)
+            basepairs = get_cached_basepairs(pdb_id)
+            hbonds = get_cached_hbonds(pdb_id)
+            chains = Chains(get_rna_chains(residues.values()))
+            mf = MotifFactory(pdb_id, chains, basepairs, hbonds)
+            dssr_mf = MotifFactoryFromOther(pdb_id, chains, hbonds, basepairs)
+            motifs = dssr_mf.get_motifs_from_dssr()
+        except Exception as e:
+            print(f"Error getting motifs for {pdb_id}: {e}")
+            continue
+        print(f"Processing {pdb_id}")
+        data = []
+        path = os.path.join(DATA_PATH, "dataframes", "dssr_motifs", f"{pdb_id}.json")
+        if os.path.exists(path):
+            continue
+        for m in motifs:
+            has_singlet_flank = False
+            for b in m.basepair_ends:
+                key = b.res_1.get_str() + "-" + b.res_2.get_str()
+                if key in mf.singlet_pairs_lookup:
+                    has_singlet_flank = True
+                    break
+            data.append(get_data_from_motif(m, pdb_id, has_singlet_flank))
+        df = pd.DataFrame(data)
+        df.to_json(path, orient="records")
+
+
+@cli.command()
+def compare_dssr_motifs():
+    comparer = MotifSetComparerer()
+    pdb_ids = get_pdb_ids()
+    for pdb_id in pdb_ids:
+        new_path = os.path.join(
+            DATA_PATH, "dataframes", "dssr_motifs_compared", f"{pdb_id}.json"
+        )
+        if os.path.exists(new_path):
+            continue
+        path = os.path.join(DATA_PATH, "dataframes", "dssr_motifs", f"{pdb_id}.json")
+        dssr_motifs = pd.read_json(path)
+        comparer.compare_motifs(pdb_id, dssr_motifs)
+        exit()
+
+    exit()
+
+    json_files = glob.glob(
+        os.path.join(DATA_PATH, "dataframes", "dssr_motifs_compared", "*.json")
+    )
+    dfs = []
+    for json_file in json_files:
+        df = pd.read_json(json_file)
+        dfs.append(df)
+    df = pd.concat(dfs)
+    df.to_json(
+        os.path.join("dssr_motifs_compared.json"),
+        orient="records",
+    )
+
+
+@cli.command()
+@click.argument("csv_paths", type=click.Path(exists=True), nargs=-1)
+def get_atlas_motifs_summary(csv_paths):
+    # should be hl, il, j3
+    dfs = []
+    for csv_path in csv_paths:
+        df = parse_atlas_csv(csv_path)
+        dfs.append(df)
+    df = pd.concat(dfs)
+    df.to_json(
+        os.path.join("atlas_motifs.json"),
+        orient="records",
+    )
+
+
+@cli.command()
+def get_atlas_motifs():
+    df = pd.read_json("atlas_motifs.json")
+    for pdb_id, g in df.groupby("pdb_id"):
+        try:
+            residues = get_cached_residues(pdb_id)
+            basepairs = get_cached_basepairs(pdb_id)
+            chains = Chains(get_rna_chains(residues.values()))
+            other_mf = MotifFactoryFromOther(pdb_id, chains, residues, basepairs)
+            mf = MotifFactory(pdb_id, chains, basepairs, [])
+        except Exception as e:
+            print(f"Error getting motifs for {pdb_id}: {e}")
+            continue
+        motifs = []
+        for i, row in g.iterrows():
+            motifs.append(other_mf.get_motif_from_atlas(row["mtype"], row["residues"]))
+        path = os.path.join(DATA_PATH, "dataframes", "atlas_motifs", f"{pdb_id}.json")
+        data = []
+        for m in motifs:
+            has_singlet_flank = False
+            for b in m.basepair_ends:
+                key = b.res_1.get_str() + "-" + b.res_2.get_str()
+                if key in mf.singlet_pairs_lookup:
+                    has_singlet_flank = True
+                    break
+            data.append(get_data_from_motif(m, pdb_id, has_singlet_flank))
+        df = pd.DataFrame(data)
+        df.to_json(path, orient="records")
+
+
+@cli.command()
+def compare_atlas_motifs():
+    comparer = MotifSetComparerer()
+    pdb_ids = get_pdb_ids()
+    for pdb_id in pdb_ids:
+        new_path = os.path.join(
+            DATA_PATH, "dataframes", "atlas_motifs_compared", f"{pdb_id}.json"
+        )
+        if os.path.exists(new_path):
+            continue
+        path = os.path.join(DATA_PATH, "dataframes", "atlas_motifs", f"{pdb_id}.json")
+        try:
+            df = pd.read_json(path)
+        except Exception as e:
+            continue
+        df_atlas = comparer.compare_motifs(pdb_id, df)
+        df_atlas = df_atlas[df_atlas["mtype"].isin(["HAIRPIN", "TWOWAY", "NWAY"])]
+        df_atlas.to_json(new_path, orient="records")
+
+
+if __name__ == "__main__":
+    cli()

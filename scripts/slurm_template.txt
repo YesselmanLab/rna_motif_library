@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --job-name={job_name}
+#SBATCH --output={job_name}.out
+#SBATCH --error={job_name}.err
+#SBATCH --time=8:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+
+module load anaconda
+conda activate rna_motif_env
+
+python rna_motif_library/cli.py process-residues --csv {csv}
+python rna_motif_library/cli.py generate-chains --csv {csv}
+python rna_motif_library/cli.py process-interactions --csv {csv}
+python rna_motif_library/cli.py generate-motifs --csv {csv} 

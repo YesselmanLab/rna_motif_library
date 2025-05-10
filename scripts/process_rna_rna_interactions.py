@@ -145,10 +145,17 @@ def cli():
 @cli.command()
 @click.option("--output", type=str, default="rna_rna_interactions.csv")
 def get_rna_rna_hbonds(output):
+    all_unique_residues = json.load(
+        open(os.path.join(DATA_PATH, "summaries", "unique_residues.json"))
+    )
+    all_unique_residues = {d["pdb_id"]: d["residues"] for d in all_unique_residues}
     count = 0
     pdb_ids = get_pdb_ids()
     dfs = []
     for pdb_id in pdb_ids:
+        if pdb_id not in all_unique_residues:
+            continue
+        unique_res = all_unique_residues[pdb_id]
         try:
             motifs = get_cached_motifs(pdb_id)
         except Exception as e:
@@ -176,7 +183,6 @@ def get_rna_rna_hbonds(output):
         df = df.reset_index(drop=True)
         if len(df) == 0:
             continue
-        unique_res = get_unique_res(pdb_id, motifs)
         has_uniq_res = [False] * len(df)
         for i, row in df.iterrows():
             key = row["res_1"] + "-" + row["res_2"]

@@ -69,9 +69,10 @@ class Basepair:
 
     def __eq__(self, other):
         return (
-            self.res_1.get_str() == other.res_1.get_str() and
-            self.res_2.get_str() == other.res_2.get_str() and
-            self.lw == other.lw)
+            self.res_1.get_str() == other.res_1.get_str()
+            and self.res_2.get_str() == other.res_2.get_str()
+            and self.lw == other.lw
+        )
 
     def __hash__(self):
         # Create a unique hash based on the residues and score
