@@ -5,8 +5,11 @@ import os
 import glob
 import pandas as pd
 import click
-import threading
+import time
+
+
 import concurrent.futures
+from biopandas.mmcif import PandasMmcif
 
 from rna_motif_library.settings import DATA_PATH
 from rna_motif_library.logger import get_logger, setup_logging
@@ -27,6 +30,25 @@ def get_pdb_ids_from_non_redundant_set(csv_path):
             data.append(spl[0])
     df = pd.DataFrame(data, columns=["pdb_id"])
     return df
+
+
+def run_w_processes(func, args, processes):
+    """
+    Run a function with multiple processes.
+
+    Args:
+        func (callable): The function to run.
+        args (list): List of arguments to pass to the function.
+        processes (int): Number of processes to use.
+    """
+    if processes == 1:
+        for arg in args:
+            func(arg)
+    else:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=processes) as executor:
+            results = list(executor.map(func, args))
+            # Optionally, you can collect and process results here
+            return results
 
 
 def download_cif(pdb_id):
@@ -51,6 +73,43 @@ def download_cif(pdb_id):
         wget.download(f"https://files.rcsb.org/download/{pdb_id}.cif", out=out_path)
     except Exception as e:
         log.error(f"Failed to download {pdb_id}: {e}")
+
+
+def process_cif(cif_file):
+    cols = [
+        "group_PDB",
+        "id",
+        "auth_atom_id",
+        "auth_comp_id",
+        "auth_asym_id",
+        "auth_seq_id",
+        "pdbx_PDB_ins_code",
+        "Cartn_x",
+        "Cartn_y",
+        "Cartn_z",
+    ]
+
+    pdb_name = os.path.basename(cif_file).split(".")[0]
+    try:
+        ppdb = PandasMmcif().read_mmcif(cif_file)
+        df = pd.concat([ppdb.df["ATOM"], ppdb.df["HETATM"]])
+        df = df[cols]
+        # Write with retries
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                df.to_parquet(f"data/pdbs_dfs/{pdb_name}.parquet")
+                break
+            except TimeoutError:
+                if attempt == max_retries - 1:
+                    print(f"Failed to write {pdb_name} after {max_retries} attempts")
+                    raise
+                print(f"Timeout writing {pdb_name}, retrying...")
+                time.sleep(1)  # Wait before retry
+        return pdb_name
+    except Exception as e:
+        print(f"Error processing {pdb_name}: {str(e)}")
+        return None
 
 
 # cli #################################################################################
@@ -172,8 +231,22 @@ def download_cifs(csv_path, threads):
     setup_logging()
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].tolist()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-        executor.map(download_cif, pdb_ids)
+    run_w_processes(download_cif, pdb_ids, threads)
+
+
+# STEP 4: process all cif files
+@cli.command()
+@click.argument("csv_path", type=click.Path(exists=True))
+@click.option("--threads", default=1, help="Number of threads to use.")
+def process_cifs(csv_path, threads):
+    """
+    Processes all CIF files in the data/pdbs directory.
+    """
+    setup_logging()
+    df = pd.read_csv(csv_path)
+    pdb_ids = df["pdb_id"].tolist()
+    cif_files = [os.path.join(DATA_PATH, "pdbs", f"{pdb_id}.cif") for pdb_id in pdb_ids]
+    run_w_processes(process_cif, cif_files, threads)
 
 
 if __name__ == "__main__":

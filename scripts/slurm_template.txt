@@ -9,7 +9,8 @@
 module load anaconda
 conda activate rna_motif_env
 
-python rna_motif_library/cli.py process-residues --csv {csv}
-python rna_motif_library/cli.py generate-chains --csv {csv}
-python rna_motif_library/cli.py process-interactions --csv {csv}
-python rna_motif_library/cli.py generate-motifs --csv {csv} 
+python rna_motif_library/setup_database.py download-cifs {csv}
+python rna_motif_library/setup_database.py process-residues --csv {csv}
+python rna_motif_library/setup_database.py generate-chains --csv {csv}
+python rna_motif_library/setup_database.py process-interactions --csv {csv}
+python rna_motif_library/setup_database.py generate-motifs --csv {csv} 

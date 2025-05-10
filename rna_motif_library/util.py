@@ -135,18 +135,18 @@ def get_pdb_ids(
 def file_exists_and_has_content(filepath):
     """
     Check if a file exists and has at least one line of content.
-    
+
     Args:
         filepath (str): Path to the file to check
-        
+
     Returns:
         bool: True if file exists and has content, False otherwise
     """
     if not os.path.exists(filepath):
         return False
-        
+
     try:
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             first_line = f.readline()
             return bool(first_line.strip())
     except:
@@ -199,8 +199,8 @@ def get_cif_header_str() -> str:
     s += "_atom_site.id\n"
     s += "_atom_site.auth_atom_id\n"
     s += "_atom_site.auth_comp_id\n"
-    s += "_atom_site.auth_asym_id\n"
     s += "_atom_site.auth_seq_id\n"
+    s += "_atom_site.auth_asym_id\n"
     s += "_atom_site.pdbx_PDB_ins_code\n"
     s += "_atom_site.Cartn_x\n"
     s += "_atom_site.Cartn_y\n"
