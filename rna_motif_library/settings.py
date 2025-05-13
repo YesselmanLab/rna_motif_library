@@ -34,7 +34,7 @@ class PathManager:
 
         # OS-specific paths
         self.dssr_exe = os.path.join(
-            self.resources_path, f"snap/{self.get_os()}/x3dna-dssr"
+            self.resources_path, f"dssr/{self.get_os()}/x3dna-dssr"
         )
 
     def _is_notebook(self):

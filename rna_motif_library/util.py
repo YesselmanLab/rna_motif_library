@@ -4,6 +4,7 @@ import os
 from typing import Optional, List
 import pandas as pd
 from dataclasses import dataclass
+import concurrent.futures
 
 
 from rna_motif_library.settings import DATA_PATH, VERSION
@@ -89,6 +90,44 @@ atom_renames = {
     "OP2": "O2P",
     "OP3": "O3P",
 }
+
+
+def run_w_threads(func, args, threads):
+    """
+    Run a function with multiple threads.
+
+    Args:
+        func (callable): The function to run.
+        args (list): List of arguments to pass to the function.
+        threads (int): Number of threads to use.
+    """
+    if threads == 1:
+        for arg in args:
+            func(arg)
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+            results = list(executor.map(func, args))
+            # Optionally, you can collect and process results here
+            return results
+
+
+def run_w_processes(func, args, processes):
+    """
+    Run a function with multiple processes.
+
+    Args:
+        func (callable): The function to run.
+        args (list): List of arguments to pass to the function.
+        processes (int): Number of processes to use.
+    """
+    if processes == 1:
+        for arg in args:
+            func(arg)
+    else:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=processes) as executor:
+            results = list(executor.map(func, args))
+            # Optionally, you can collect and process results here
+            return results
 
 
 def get_cached_path(pdb_id: str, name: str) -> str:

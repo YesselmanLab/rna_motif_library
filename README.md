@@ -3,6 +3,22 @@
 A Python package for RNA Motif Library creation.<br>
 preprint: (insert paper link here)
 
+
+## Generating the database 
+
+```bash
+# STEP 1: Get the latest RNA 3D Hub release
+python rna_motif_library/setup_database.py get-atlas-release
+
+# STEP 2: Generate a list of RNA PDBs with resolution better than 3.5Å
+python rna_motif_library/setup_database.py get-all-rna-pdbs
+
+# STEP 3: Download the PDBs
+python rna_motif_library/setup_database.py download-cifs
+```
+
+
+
 ## Data Download
 
 A default CSV (`nrlist_3.262_3.5A.csv`) is in the directory `data/csvs`.<br>
