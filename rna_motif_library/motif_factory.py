@@ -1,5 +1,10 @@
-from rna_motif_library.motif import Motif
-from rna_motif_library.chain import Chains, get_rna_chains, get_cached_chains
+from rna_motif_library.motif import Motif, save_motifs_to_json
+from rna_motif_library.chain import (
+    Chains,
+    get_rna_chains,
+    get_cached_chains,
+    write_chain_to_cif,
+)
 from rna_motif_library.basepair import Basepair, get_cached_basepairs
 from rna_motif_library.hbond import Hbond, get_cached_hbonds
 from rna_motif_library.residue import Residue
@@ -96,8 +101,8 @@ def get_cww_basepairs(
         if bp.lw != "cWW" or bp.bp_type not in valid_pairs:
             continue
         if (
-            chains.get_residue(bp.res_1.get_str()) is None
-            or chains.get_residue(bp.res_2.get_str()) is None
+            chains.get_residue_by_str(bp.res_1.get_str()) is None
+            or chains.get_residue_by_str(bp.res_2.get_str()) is None
         ):
             continue
         # stops a lot of bad basepairs from being included
@@ -480,10 +485,12 @@ class MotifFactory:
         self.basepairs = pdb_data.basepairs
         self.hbonds = pdb_data.hbonds
         self.motif_name_count = {}
+        # self.cww_basepairs_lookup = get_cww_basepairs(pdb_data)
+        self.cww_residues_to_basepairs = {}
         self.cww_basepairs_lookup = get_cww_basepairs(
             pdb_data, min_two_hbond_score=0.5, min_three_hbond_score=0.5
         )
-        self.cww_residues_to_basepairs = {}
+        self.motif_count = -1
         # Group basepairs by residue
         for bp in self.cww_basepairs_lookup.values():
             if bp.res_1.get_str() not in self.cww_residues_to_basepairs:
@@ -513,8 +520,12 @@ class MotifFactory:
         non_helical_strands = self.get_non_helical_strands(helices)
         strands_between_helices = self.get_strands_between_helices(helices)
         potential_motifs = self.get_non_canonical_motifs(
-            non_helical_strands + strands_between_helices
+            non_helical_strands + strands_between_helices,
+            self.cww_basepairs_lookup.values(),
         )
+        # potential_motifs, helices = self.check_for_poor_quality_motifs(
+        #    potential_motifs, helices
+        # )
         finished_motifs, unfinished_motifs = self._find_and_assign_finished_motifs(
             potential_motifs
         )
@@ -543,6 +554,94 @@ class MotifFactory:
             exit()
         return finalized_motifs
 
+    def check_for_poor_quality_motifs(
+        self, current_motifs: List[Motif], current_helices: List[Motif]
+    ):
+        embedded_helices = []
+        new_non_helical_strands = []
+        complete_motifs = []
+        for m in current_motifs:
+            pdb_data_for_residues = get_pdb_structure_data_for_residues(
+                self.pdb_data, m.get_residues()
+            )
+            hf = HelixFinder(pdb_data_for_residues, self.cww_basepairs_lookup_poor, [])
+            helices = hf.get_helices()
+            if len(helices) == 0:
+                complete_motifs.append(m)
+                continue
+            embedded_helices.extend(helices)
+            non_helical_strands = self._get_non_helical_strands_from_residues(
+                m.get_residues(), helices
+            )
+            new_non_helical_strands.extend(non_helical_strands)
+        new_helices = self._combine_helices(embedded_helices + current_helices)
+        strands_between_helices = self.get_strands_between_helices(new_helices)
+        new_non_canon_motifs = self.get_non_canonical_motifs(
+            new_non_helical_strands + strands_between_helices,
+            self.cww_basepairs_lookup_poor.values(),
+        )
+        # for i, m in enumerate(new_non_canon_motifs):
+        #    m.to_cif(f"motif_{i}.cif")
+        return new_non_canon_motifs + complete_motifs, new_helices
+
+    def _combine_helices(self, helices: List[Motif]) -> List[Motif]:
+        final_helices = []
+        # Sort helices by number of residues (largest first)
+        combined = True
+        while combined:
+            combined = False
+            while helices:
+                current_helix = helices.pop(0)
+                current_res = [r.get_str() for r in current_helix.get_residues()]
+                overlapping_helices = []
+                for h in helices:
+                    overlap = False
+                    h_res = [r.get_str() for r in h.get_residues()]
+                    for res in h_res:
+                        if res in current_res:
+                            overlap = True
+                            break
+                    if overlap:
+                        overlapping_helices.append(h)
+                for h in overlapping_helices:
+                    helices.remove(h)
+                if len(overlapping_helices) == 0:
+                    final_helices.append(current_helix)
+                    continue
+                all_res = []
+                all_res.extend(current_helix.get_residues())
+                for h in overlapping_helices:
+                    for res in h.get_residues():
+                        if res not in all_res:
+                            all_res.append(res)
+                strands = get_rna_chains(all_res)
+                combined_helix = self._generate_initial_motif_from_strands(
+                    strands, "HELIX", self.cww_basepairs_lookup.values()
+                )
+                final_helices.append(combined_helix)
+                combined = True
+
+            if combined:
+                helices = final_helices[:]
+                helices.sort(key=lambda h: len(h.get_residues()), reverse=True)
+                final_helices = []
+        return final_helices
+
+    def _get_non_helical_strands_from_residues(
+        self, residues: List[Residue], helices: List[Motif]
+    ) -> List[List[Residue]]:
+        non_helical_res = []
+        helical_residues = []
+        for h in helices:
+            for res in h.get_residues():
+                helical_residues.append(res.get_str())
+        for res in residues:
+            if res.get_str() not in helical_residues:
+                non_helical_res.append(res)
+        strands = get_rna_chains(non_helical_res)
+        strands = self._extend_strands_with_basepairs(strands)
+        return strands
+
     def get_strands_between_helices(self, helices: List[Motif]) -> List[List[Residue]]:
         strands = []
         # Map residues to their helices
@@ -561,11 +660,13 @@ class MotifFactory:
                 # Check if residues are in different helices
                 if helix_map[res1.get_str()] != helix_map[res2.get_str()]:
                     strands.append([res1, res2])
+
         return strands
 
     def get_non_canonical_motifs(
         self,
         non_helical_strands: List[List[Residue]],
+        cww_basepairs,
     ) -> List[Motif]:
         # Group strands that share basepairs
         motifs = []
@@ -577,7 +678,7 @@ class MotifFactory:
             count += 1
             motifs.extend(
                 self._get_non_canonical_motif_from_strands(
-                    unprocessed_strands[0], count, unprocessed_strands
+                    unprocessed_strands[0], count, unprocessed_strands, cww_basepairs
                 )
             )
 
@@ -634,72 +735,6 @@ class MotifFactory:
                 singlet_pairs.append(bp)
 
         return singlet_pairs
-
-    def _get_basepairs_for_strands(
-        self, strands: List[List[Residue]]
-    ) -> List[Basepair]:
-        basepairs = []
-        residues = []
-        for strand in strands:
-            for res in strand:
-                residues.append(res.get_str())
-        for bp in self.basepairs:
-            res1, res2 = self.chains.get_residues_in_basepair(bp)
-            if res1 is None or res2 is None:
-                continue
-            if res1.get_str() in residues and res2.get_str() in residues:
-                basepairs.append(bp)
-        return basepairs
-
-    def _get_basepair_ends_for_strands(
-        self, strands: List[List[Residue]]
-    ) -> List[Basepair]:
-        end_basepairs = []
-        end_ids = []
-        for strand in strands:
-            end_ids.append(strand[0].get_str())
-            end_ids.append(strand[-1].get_str())
-        for bp in self.cww_basepairs_lookup.values():
-            if bp in end_basepairs:
-                continue
-            res1, res2 = self.chains.get_residues_in_basepair(bp)
-            if res1.get_str() in end_ids and res2.get_str() in end_ids:
-                end_basepairs.append(bp)
-
-        # Track basepairs by residue
-        residue_basepairs = {}
-        for bp in end_basepairs:
-            res1 = bp.res_1.get_str()
-            res2 = bp.res_2.get_str()
-            if res1 not in residue_basepairs:
-                residue_basepairs[res1] = []
-            if res2 not in residue_basepairs:
-                residue_basepairs[res2] = []
-            residue_basepairs[res1].append(bp)
-            residue_basepairs[res2].append(bp)
-
-        # Filter out weaker basepairs, keeping only the strongest one per residue pair
-        filtered_basepairs = set()
-        processed_residues = set()
-
-        # Sort all basepairs by hbond score from strongest to weakest
-        all_bps = []
-        for bps in residue_basepairs.values():
-            all_bps.extend(bps)
-        all_bps.sort(key=lambda x: x.hbond_score, reverse=True)
-
-        # Process basepairs in order of strength
-        for bp in all_bps:
-            res1 = bp.res_1.get_str()
-            res2 = bp.res_2.get_str()
-
-            # Only add if neither residue has been processed yet
-            if res1 not in processed_residues and res2 not in processed_residues:
-                filtered_basepairs.add(bp)
-                processed_residues.add(res1)
-                processed_residues.add(res2)
-
-        return list(filtered_basepairs)
 
     def _get_potential_basepair_ends_for_strands(
         self, strands: List[List[Residue]]
@@ -848,6 +883,7 @@ class MotifFactory:
         initial_strand: List[Residue],
         count: int,
         unprocessed_strands: List[List[Residue]],
+        cww_basepairs,
     ) -> List[Motif]:
         current_motif_strands = [initial_strand]
         current_basepair_ends = []
@@ -883,8 +919,10 @@ class MotifFactory:
                             "",
                             "",
                             [strand],
-                            self._get_basepairs_for_strands([strand]),
-                            self._get_basepair_ends_for_strands([strand]),
+                            get_basepairs_for_strands(
+                                [strand], self.basepairs, self.chains
+                            ),
+                            get_basepair_ends_for_strands([strand], cww_basepairs),
                             [],
                         )
                     )
@@ -899,13 +937,34 @@ class MotifFactory:
                 "",
                 "",
                 current_motif_strands,
-                self._get_basepairs_for_strands(current_motif_strands),
-                self._get_basepair_ends_for_strands(current_motif_strands),
+                get_basepairs_for_strands(
+                    current_motif_strands, self.basepairs, self.chains
+                ),
+                get_basepair_ends_for_strands(current_motif_strands, cww_basepairs),
                 [],
             )
         ]
 
     # finalizing motifs ################################################################
+    def _generate_initial_motif_from_strands(
+        self,
+        strands: List[List[Residue]],
+        mtype: str,
+        cww_basepairs: Dict[str, Basepair],
+    ) -> Motif:
+        self.motif_count += 1
+        return Motif(
+            f"{mtype}-{self.motif_count}",
+            mtype,
+            "",
+            "",
+            "",
+            strands,
+            get_basepairs_for_strands(strands, self.basepairs, self.chains),
+            get_basepair_ends_for_strands(strands, cww_basepairs),
+            [],
+        )
+
     def _name_motif(self, motif: Motif) -> str:
         name = f"{motif.mtype}-{motif.size}-{motif.sequence}-{self.pdb_id}"
         if name not in self.motif_name_count:
@@ -997,8 +1056,12 @@ class MotifFactory:
         motif.strands = self._standardize_strands(motif.strands)
         motif.sequence = self._get_motif_sequence(motif)
         # just to make sure all basepairs are in the motif
-        motif.basepairs = self._get_basepairs_for_strands(motif.strands)
-        motif.end_basepairs = self._get_basepair_ends_for_strands(motif.strands)
+        motif.basepairs = get_basepairs_for_strands(
+            motif.strands, self.basepairs, self.chains
+        )
+        motif.end_basepairs = get_basepair_ends_for_strands(
+            motif.strands, self.cww_basepairs_lookup.values()
+        )
         motif.size = self._get_motif_topology(motif)
         motif.name = self._name_motif(motif)
         res_strs = [res.get_str() for res in motif.get_residues()]
@@ -1084,8 +1147,12 @@ class MotifFactory:
             "",
             "",
             current_motif_strands,
-            self._get_basepairs_for_strands(current_motif_strands),
-            current_basepair_ends,
+            get_basepairs_for_strands(
+                current_motif_strands, self.basepairs, self.chains
+            ),
+            get_basepair_ends_for_strands(
+                current_motif_strands, self.cww_basepairs_lookup.values()
+            ),
             [],
         )
 
@@ -1174,8 +1241,8 @@ class MotifFactory:
                 # Count basepairs between the motifs
                 num_shared_bps = 0
                 for bp in self.basepairs:
-                    res1 = self.chains.get_residue(bp.res_1.get_str())
-                    res2 = self.chains.get_residue(bp.res_2.get_str())
+                    res1 = self.chains.get_residue_by_str(bp.res_1.get_str())
+                    res2 = self.chains.get_residue_by_str(bp.res_2.get_str())
                     if (res1 in residues1 and res2 in residues2) or (
                         res1 in residues2 and res2 in residues1
                     ):
@@ -1187,10 +1254,10 @@ class MotifFactory:
 
 
 if __name__ == "__main__":
-    pdb_id = "4V8Q"
+    pdb_id = "7R6Q"
     pdb_data = get_pdb_structure_data(pdb_id)
     motif_factory = MotifFactory(pdb_data)
     motifs = motif_factory.get_motifs()
-    print(len(motifs))
     for m in motifs:
-        m.to_cif()
+        m.to_cif(f"{m.name}.cif")
+    save_motifs_to_json(motifs, f"{pdb_id}_motifs.json")

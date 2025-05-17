@@ -29,7 +29,7 @@ class Chains:
         """
         self.chains = chains
         self.ctype = ctype
-        # Create lookup dict for O(1) residue access by x3dna string
+        # Create lookup dict for O(1) residue access by res_str
         self.residue_dict = {res.get_str(): res for chain in chains for res in chain}
 
         # Create lookup dict for O(1) residue position access
@@ -50,19 +50,19 @@ class Chains:
         """
         return list(self.residue_dict.values())
 
-    def get_residue(self, x3dna_str: str) -> Residue:
-        """Get residue by x3dna string identifier.
+    def get_residue_by_str(self, res_str: str) -> Residue:
+        """Get residue by string identifier.
 
         Args:
-            x3dna_str: x3dna format string identifier
+            res_str: string identifier
 
         Returns:
             Matching Residue object
         """
-        if x3dna_str not in self.residue_dict:
+        if res_str not in self.residue_dict:
             return None
         else:
-            return self.residue_dict[x3dna_str]
+            return self.residue_dict[res_str]
 
     def get_chain_for_residue(self, res: Residue) -> Optional[List[Residue]]:
         try:
@@ -149,8 +149,8 @@ class Chains:
         Returns:
             List of residues between basepair
         """
-        res1 = self.get_residue(bp.res_1.get_str())
-        res2 = self.get_residue(bp.res_2.get_str())
+        res1 = self.get_residue_by_str(bp.res_1.get_str())
+        res2 = self.get_residue_by_str(bp.res_2.get_str())
         chain_num_1, pos_1 = self.position_dict[res1]
         _, pos_2 = self.position_dict[res2]
         start, end = min(pos_1, pos_2), max(pos_1, pos_2)
@@ -159,14 +159,14 @@ class Chains:
     def get_residues_in_basepair(self, bp: Basepair) -> List[Residue]:
         """Get residues in a basepair."""
         try:
-            res1 = self.get_residue(bp.res_1.get_str())
-            res2 = self.get_residue(bp.res_2.get_str())
+            res1 = self.get_residue_by_str(bp.res_1.get_str())
+            res2 = self.get_residue_by_str(bp.res_2.get_str())
             return [res1, res2]
         except Exception as e:
             return []
 
     def is_chain_end(self, res: Residue) -> bool:
-        return res.get_x3dna_str() in self.chain_ends
+        return res.get_str() in self.chain_ends
 
     def get_prev_pair_id(self, bp: Basepair) -> Optional[str]:
         res_1, res_2 = self.get_residues_in_basepair(bp)

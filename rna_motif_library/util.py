@@ -122,7 +122,7 @@ def run_w_processes(func, args, processes):
     """
     if processes == 1:
         for arg in args:
-            func(arg)
+            return func(arg)
     else:
         with concurrent.futures.ProcessPoolExecutor(max_workers=processes) as executor:
             results = list(executor.map(func, args))

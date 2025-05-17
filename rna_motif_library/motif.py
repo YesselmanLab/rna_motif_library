@@ -25,6 +25,7 @@ from rna_motif_library.util import (
     get_pdb_ids,
     NRSEntry,
     file_exists_and_has_content,
+    parse_motif_name,
 )
 from rna_motif_library.x3dna import X3DNAResidue
 from rna_motif_library.tranforms import superimpose_structures, rmsd
@@ -62,6 +63,7 @@ class Motif:
         basepairs: List[Basepair],
         basepair_ends: List[Tuple[str, str]],
         hbonds: List[Hbond],
+        quality_score: float = -1.0,
     ):
         self.name = name
         self.mtype = mtype
@@ -72,6 +74,7 @@ class Motif:
         self.basepairs = basepairs
         self.basepair_ends = basepair_ends
         self.hbonds = hbonds
+        self.quality_score = quality_score
 
     @classmethod
     def from_dict(cls, d: dict):
@@ -82,6 +85,10 @@ class Motif:
         basepairs = [Basepair.from_dict(bp) for bp in d["basepairs"]]
         basepair_ends = [Basepair.from_dict(bp) for bp in d["basepair_ends"]]
         hbonds = [Hbond.from_dict(hb) for hb in d["hbonds"]]
+        if "quality_score" in d:
+            quality_score = d["quality_score"]
+        else:
+            quality_score = -1.0
 
         return cls(
             name=d["name"],
@@ -93,6 +100,7 @@ class Motif:
             basepairs=basepairs,
             basepair_ends=basepair_ends,
             hbonds=hbonds,
+            quality_score=quality_score,
         )
 
     def is_equal(self, other, check_coords=False):
@@ -473,8 +481,8 @@ class MotifFactory:
             if bp.lw != "cWW" or bp.bp_type not in allowed_pairs:
                 continue
             if (
-                self.chains.get_residue(bp.res_1.get_str()) is None
-                or self.chains.get_residue(bp.res_2.get_str()) is None
+                self.chains.get_residue_by_str(bp.res_1.get_str()) is None
+                or self.chains.get_residue_by_str(bp.res_2.get_str()) is None
             ):
                 continue
             # stops a lot of bad basepairs from being included
@@ -1272,8 +1280,8 @@ class MotifFactory:
                 # Count basepairs between the motifs
                 num_shared_bps = 0
                 for bp in self.basepairs:
-                    res1 = self.chains.get_residue(bp.res_1.get_str())
-                    res2 = self.chains.get_residue(bp.res_2.get_str())
+                    res1 = self.chains.get_residue_by_str(bp.res_1.get_str())
+                    res2 = self.chains.get_residue_by_str(bp.res_2.get_str())
                     if (res1 in residues1 and res2 in residues2) or (
                         res1 in residues2 and res2 in residues1
                     ):
@@ -1375,8 +1383,8 @@ class MotifFactoryFromOther:
             if bp.lw != "cWW" or bp.bp_type not in allowed_pairs:
                 continue
             if (
-                self.chains.get_residue(bp.res_1.get_str()) is None
-                or self.chains.get_residue(bp.res_2.get_str()) is None
+                self.chains.get_residue_by_str(bp.res_1.get_str()) is None
+                or self.chains.get_residue_by_str(bp.res_2.get_str()) is None
             ):
                 continue
             # stops a lot of bad basepairs from being included

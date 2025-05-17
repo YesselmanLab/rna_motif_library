@@ -14,7 +14,13 @@ python rna_motif_library/setup_database.py get-atlas-release
 python rna_motif_library/setup_database.py get-all-rna-pdbs
 
 # STEP 3: Download the PDBs
-python rna_motif_library/setup_database.py download-cifs
+python rna_motif_library/setup_database.py download-cifs data/csvs/rna_structures.csv
+
+# STEP 4: Process the PDBs with DSSR
+python rna_motif_library/setup_database.py generate-dssr-outputs data/csvs/rna_structures.csv
+
+
+
 ```
 
 
