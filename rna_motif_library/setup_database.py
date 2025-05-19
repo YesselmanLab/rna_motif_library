@@ -484,6 +484,16 @@ def process_chains(csv_path, processes):
     run_w_processes(process_chains_in_pdb, pdb_ids, processes)
 
 
+# STEP 8: handle ligand identification
+@cli.command()
+@click.argument("csv_path", type=click.Path(exists=True))
+def ligand_identification(csv_path):
+    """ """
+    setup_logging()
+    df = pd.read_csv(csv_path)
+    pdb_ids = df["pdb_id"].tolist()
+
+
 # STEP 8: process all interactions
 @cli.command()
 @click.argument("csv_path", type=click.Path(exists=True))

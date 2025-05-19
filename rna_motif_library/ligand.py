@@ -6,7 +6,11 @@ import json
 import glob
 import pandas as pd
 import numpy as np
-from typing import Dict, Optional, Any, List, Tuple
+from typing import Dict, Optional, Any, List, Tuple, Callable
+import concurrent.futures
+from ratelimit import limits, sleep_and_retry
+from tenacity import retry, stop_after_attempt, wait_exponential
+from tqdm import tqdm
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -17,13 +21,16 @@ from rdkit.Chem.rdMolDescriptors import (
     CalcNumRings,
 )
 
-
 from rna_motif_library.util import (
     get_pdb_ids,
     ion_list,
     canon_rna_res_list,
     canon_res_list,
     CifParser,
+)
+from rna_motif_library.parallel_utils import (
+    run_w_processes_in_batches,
+    run_w_threads_in_batches,
 )
 from rna_motif_library.residue import (
     get_cached_residues,
@@ -40,6 +47,14 @@ from rna_motif_library.tranforms import pymol_align, rmsd
 log = get_logger("LIGAND")
 
 LIGAND_DATA_PATH = os.path.join(DATA_PATH, "ligands")
+
+ONE_MINUTE = 60
+MAX_REQUESTS_PER_MINUTE = 10000
+
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+def download_with_retry(url):
+    return requests.get(url, timeout=30)
 
 
 class PDBQuery:
@@ -423,19 +438,39 @@ def identify_potential_sites(residue: Residue) -> Tuple[List[str], List[str]]:
 
 
 def get_ligand_info_from_pdb():
+    """Fetch detailed molecule data from PDB GraphQL API for all potential ligands."""
+    # Get all CIF files to process
     molecule_files = glob.glob(
         os.path.join(LIGAND_DATA_PATH, "residues_w_h_cifs", "*.cif")
     )
-    for molecule_file in molecule_files:
-        mol_name = os.path.basename(molecule_file).split(".")[0]
-        if mol_name in canon_res_list:
-            continue
-        json_file = os.path.join(LIGAND_DATA_PATH, "ligand_info", f"{mol_name}.json")
-        if os.path.exists(json_file):
-            continue
-        print(mol_name)
-        with open(json_file, "w") as f:
-            json.dump(fetch_molecule_data(mol_name), f, indent=2)
+    mol_names = [os.path.basename(f).split(".")[0] for f in molecule_files]
+
+    # Filter out molecules that are already processed or are canonical residues
+    mol_names = [name for name in mol_names if name not in canon_res_list]
+    mol_names = [
+        name
+        for name in mol_names
+        if not os.path.exists(
+            os.path.join(LIGAND_DATA_PATH, "ligand_info", f"{name}.json")
+        )
+    ]
+
+    # Process molecules in parallel using threading (I/O bound)
+    results = run_w_threads_in_batches(
+        items=mol_names,
+        func=fetch_molecule_data,
+        threads=30,  # Use more threads since this is I/O bound
+        batch_size=100,
+        desc="Fetching molecule data",
+    )
+
+    # Save results
+    for mol_name, data in zip(mol_names, results):
+        if data is not None:
+            with open(
+                os.path.join(LIGAND_DATA_PATH, "ligand_info", f"{mol_name}.json"), "w"
+            ) as f:
+                json.dump(data, f, indent=2)
 
 
 def is_amino_acid(res) -> bool:
@@ -632,6 +667,127 @@ def generate_res_motif_mapping(motifs):
     return res_to_motif_id
 
 
+# functiosn to run with parallel or threads ###########################################
+
+
+def find_potential_ligands_in_pdb(pdb_id):
+    path = os.path.join(LIGAND_DATA_PATH, "potential_ligand_ids", f"{pdb_id}.csv")
+    if os.path.exists(path):
+        return pd.read_csv(path)
+
+    try:
+        residues = get_cached_residues(pdb_id)
+        seen = set()  # Use set for faster lookups
+        for residue in residues.values():
+            seen.add(residue.res_id)
+
+        df = pd.DataFrame({"ligand_id": list(seen)})
+        df.to_csv(path, index=False)
+        return df
+    except Exception as e:
+        log.error(f"Error processing {pdb_id}: {e}")
+        return pd.DataFrame({"ligand_id": []})  # Return empty DataFrame on error
+
+
+def download_ligand_files(ligand_id):
+    """Download CIF and SDF files for a single ligand."""
+    try:
+        # Download CIF file
+        cif_url = f"https://files.rcsb.org/ligands/download/{ligand_id}.cif"
+        cif_path = os.path.join(
+            LIGAND_DATA_PATH, "residues_w_h_cifs", f"{ligand_id}.cif"
+        )
+        if not os.path.exists(cif_path):
+            response = download_with_retry(cif_url)
+            response.raise_for_status()
+            with open(cif_path, "wb") as f:
+                f.write(response.content)
+
+        # Download SDF file
+        sdf_url = f"https://files.rcsb.org/ligands/download/{ligand_id}_ideal.sdf"
+        sdf_path = os.path.join(
+            LIGAND_DATA_PATH, "residues_w_h_sdfs", f"{ligand_id}_ideal.sdf"
+        )
+        if not os.path.exists(sdf_path):
+            response = download_with_retry(sdf_url)
+            response.raise_for_status()
+            with open(sdf_path, "wb") as f:
+                f.write(response.content)
+
+        return ligand_id
+    except Exception as e:
+        log.error(f"Error downloading files for {ligand_id}: {e}")
+        return None
+
+
+def get_hbond_donors_and_acceptors_for_cif(cif_file):
+    """Process a single CIF file to extract donor and acceptor information."""
+    base_name = os.path.basename(cif_file)[:-4]
+    try:
+        h_residue = get_residue_from_h_cif(cif_file)
+    except:
+        print("cannot parse", base_name)
+        return base_name, (None, None)
+    if h_residue is None:
+        return base_name, (None, None)
+
+    donors_res, acceptors_res = identify_potential_sites(h_residue)
+    if base_name in canon_rna_res_list:
+        # these are connection points and dont count as donors
+        remove = ["O1P", "O2P", "O3P", "O3'"]
+        for r in remove:
+            if r in donors_res:
+                del donors_res[r]
+    return base_name, (donors_res, acceptors_res)
+
+
+def check_phosphate_for_pdb(pdb_id):
+    """Check phosphate status for all residues in a PDB file."""
+    try:
+        residues = get_cached_residues(pdb_id).values()
+    except:
+        print("missing residues", pdb_id)
+        return {}
+
+    phosphate_status = {}
+    for res in residues:
+        if res.res_id not in phosphate_status:
+            atom_coords_p = res.get_atom_coords("P")
+            atom_coords_pa = res.get_atom_coords("PA")
+            phosphate_status[res.res_id] = (
+                atom_coords_pa is not None or atom_coords_p is not None
+            )
+    return phosphate_status
+
+
+def process_json_file(json_file):
+    """Process a single JSON file to extract ligand information."""
+    mol_name = os.path.basename(json_file).split(".")[0]
+    try:
+        data = json.load(open(json_file, "r"))["data"]
+        return {
+            "id": mol_name,
+            "type": data["chem_comp"]["chem_comp"]["type"],
+            "name": data["chem_comp"]["chem_comp"]["name"],
+            "formula": data["chem_comp"]["chem_comp"]["formula"],
+            "formula_weight": data["chem_comp"]["chem_comp"]["formula_weight"],
+            "smiles": data["chem_comp"]["rcsb_chem_comp_descriptor"]["SMILES"],
+        }
+    except Exception as e:
+        print(f"error processing {mol_name}: {e}")
+        return None
+
+
+# run in main cli #####################################################################
+
+
+def generate_ligand_info(pdb_ids):
+    pass
+
+
+# cli ##################################################################################
+
+
 @click.group()
 def cli():
     pass
@@ -639,133 +795,148 @@ def cli():
 
 # STEP 1 find all non-canonical residues
 @cli.command()
-def find_all_potential_ligands():
+@click.argument("csv_path", type=click.Path(exists=True))
+@click.option("-p", "--processes", default=1, help="Number of processes to use.")
+def find_all_potential_ligands(csv_path, processes):
     setup_logging()
-    pdb_ids = get_pdb_ids()
-    dfs = []
-    for pdb_id in pdb_ids:
-        seen = []
-        path = os.path.join(LIGAND_DATA_PATH, "potential_ligand_ids", f"{pdb_id}.csv")
-        if os.path.exists(path):
-            dfs.append(pd.read_csv(path))
-            continue
-        residues = get_cached_residues(pdb_id)
-        for residue in residues.values():
-            if residue.res_id in seen:
-                continue
-            seen.append(residue.res_id)
-        df = pd.DataFrame({"ligand_id": seen})
-        df.to_csv(path, index=False)
-        dfs.append(df)
-    df = pd.concat(dfs)
-    unique_ligands = df["ligand_id"].unique()
-    f = open(os.path.join(LIGAND_DATA_PATH, "summary", "potential_ligands.csv"), "w")
-    f.write("ligand_id\n")
-    for residue in unique_ligands:
-        f.write(str(residue) + "\n")
-    f.close()
+    pdb_ids = pd.read_csv(csv_path)["pdb_id"].tolist()
+    os.makedirs(os.path.join(LIGAND_DATA_PATH, "potential_ligand_ids"), exist_ok=True)
+    # all_dfs = run_w_threads(find_potential_ligands_in_pdb, pdb_ids, processes)
+    all_dfs = run_w_processes_in_batches(
+        pdb_ids, find_potential_ligands_in_pdb, processes, batch_size=200
+    )
+    df = pd.concat(all_dfs)
+    df = df.drop_duplicates(subset=["ligand_id"])
+    # Save results
+    output_path = os.path.join(LIGAND_DATA_PATH, "summary", "potential_ligands.csv")
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    df.to_csv(output_path, index=False)
 
 
 # STEP 2 get all cifs and sdfs for all potential ligands
 @cli.command()
-def get_ligand_cifs():
+@click.option(
+    "-t", "--threads", default=30, help="Number of threads to use for downloading."
+)
+def get_ligand_cifs(threads):
+    """Download CIF and SDF files for all potential ligands using multiple threads."""
+    setup_logging()
+
+    # Create necessary directories
     os.makedirs(os.path.join(LIGAND_DATA_PATH, "residues_w_h_cifs"), exist_ok=True)
+    os.makedirs(os.path.join(LIGAND_DATA_PATH, "residues_w_h_sdfs"), exist_ok=True)
+
+    # Read ligand IDs
     df = pd.read_csv(os.path.join(LIGAND_DATA_PATH, "summary", "potential_ligands.csv"))
-    for i, row in df.iterrows():
-        ligand_id = row["ligand_id"]
-        # Download CIF file for residue type
-        cif_url = f"https://files.rcsb.org/ligands/download/{ligand_id}.cif"
-        cif_path = os.path.join(
-            LIGAND_DATA_PATH, "residues_w_h_cifs", f"{ligand_id}.cif"
-        )
-        if not os.path.exists(cif_path):
-            print(cif_path)
-            os.system(f"wget {cif_url} -O {cif_path}")
-        sdf_url = f"https://files.rcsb.org/ligands/download/{ligand_id}_ideal.sdf"
-        sdf_path = os.path.join(
-            LIGAND_DATA_PATH, "residues_w_h_sdfs", f"{ligand_id}_ideal.sdf"
-        )
-        if not os.path.exists(sdf_path):
-            print(sdf_path)
-            os.system(f"wget {sdf_url} -O {sdf_path}")
+    ligand_ids = df["ligand_id"].tolist()
+
+    # Use thread pool to download files
+    results = run_w_threads_in_batches(
+        items=ligand_ids,
+        func=download_ligand_files,
+        threads=threads,
+        batch_size=100,  # Process 100 ligands at a time
+        desc="Downloading ligand files",
+    )
+
+    # Count successes and failures
+    successful_downloads = len(results)
+    failed_downloads = len(ligand_ids) - successful_downloads
+    log.info(
+        f"Download complete. Successful: {successful_downloads}, Failed: {failed_downloads}"
+    )
 
 
-# STEP 3 get hbond donors and acceptors
 @cli.command()
-def get_hbond_donors_and_acceptors():
+@click.option("-p", "--processes", default=4, help="Number of processes to use.")
+def get_hbond_donors_and_acceptors(processes):
+    """Process CIF files in parallel to extract donor and acceptor information."""
+    setup_logging()
+
+    # Create necessary directories
+    os.makedirs(os.path.join(LIGAND_DATA_PATH, "residues_w_h_cifs"), exist_ok=True)
+    os.makedirs(os.path.join(LIGAND_DATA_PATH, "residues_w_h_sdfs"), exist_ok=True)
+
+    # Get all CIF files
+    cif_files = glob.glob(os.path.join(LIGAND_DATA_PATH, "residues_w_h_cifs", "*.cif"))
+
+    # Process CIF files in parallel using batched processing
+    results = run_w_processes_in_batches(
+        items=cif_files,
+        func=get_hbond_donors_and_acceptors_for_cif,
+        processes=processes,
+        batch_size=50,  # Process 50 files at a time
+        desc="Processing CIF files",
+    )
+
+    # Organize results into donors and acceptors dictionaries
     acceptors = {}
     donors = {}
-    cif_files = glob.glob(os.path.join(LIGAND_DATA_PATH, "residues_w_h_cifs", "*.cif"))
-    for cif_file in cif_files:
-        base_name = os.path.basename(cif_file)[:-4]
-        # if base_name != "ARG":
-        #    continue
-        try:
-            h_residue = get_residue_from_h_cif(cif_file)
-        except:
-            print("cannot parse", base_name)
-            continue
-        if h_residue is None:
-            continue
-        donors_res, acceptors_res = identify_potential_sites(h_residue)
-        if base_name in canon_rna_res_list:
-            # these are connection points and dont count as donors
-            remove = ["O1P", "O2P", "O3P", "O3'"]
-            for r in remove:
-                if r in donors_res:
-                    del donors_res[r]
-        acceptors[base_name] = acceptors_res
-        donors[base_name] = donors_res
+    for result in results:
+        if result is not None:  # Skip None results
+            base_name, (donors_res, acceptors_res) = result
+            if base_name is not None:
+                acceptors[base_name] = acceptors_res
+                donors[base_name] = donors_res
 
+    # Save results
     with open(os.path.join(RESOURCES_PATH, "hbond_acceptors.json"), "w") as f:
         json.dump(acceptors, f)
     with open(os.path.join(RESOURCES_PATH, "hbond_donors.json"), "w") as f:
         json.dump(donors, f)
 
 
-# STEP 4 get ligand info
 @cli.command()
-def get_ligand_info():
+@click.option("-p", "--processes", default=4, help="Number of processes to use.")
+def get_ligand_info(processes):
+    """Process ligand information in parallel."""
+    setup_logging()
+
+    # First get ligand info from PDB
     get_ligand_info_from_pdb()
-    has_phosphate = {}
+
+    # Get all JSON files
     json_files = glob.glob(os.path.join(LIGAND_DATA_PATH, "ligand_info", "*.json"))
-    for json_file in json_files:
-        mol_name = os.path.basename(json_file).split(".")[0]
-        has_phosphate[mol_name] = False
+    mol_names = [os.path.basename(f).split(".")[0] for f in json_files]
+
+    # Initialize phosphate status
+    has_phosphate = {mol_name: False for mol_name in mol_names}
+
+    # Check phosphate status in parallel using process pool
     pdb_ids = get_pdb_ids()
-    for pdb_id in pdb_ids:
-        try:
-            residues = get_cached_residues(pdb_id).values()
-        except:
-            print("missing residues", pdb_id)
-            continue
-        for res in residues:
-            if res.res_id not in has_phosphate:
-                continue
-            atom_coords_p = res.get_atom_coords("P")
-            atom_coords_pa = res.get_atom_coords("PA")
-            if atom_coords_pa is not None or atom_coords_p is not None:
-                has_phosphate[res.res_id] = True
-            else:
-                has_phosphate[res.res_id] = False
+    phosphate_results = run_w_processes_in_batches(
+        items=pdb_ids,
+        func=check_phosphate_for_pdb,
+        processes=processes,
+        batch_size=50,
+        desc="Checking phosphate status",
+    )
+
+    # Process phosphate results
+    for phosphate_status in phosphate_results:
+        if phosphate_status is not None:
+            for res_id, has_p in phosphate_status.items():
+                if res_id in has_phosphate:
+                    has_phosphate[res_id] = has_phosphate[res_id] or has_p
+
+    # Process JSON files in parallel using process pool
+    json_results = run_w_processes_in_batches(
+        items=json_files,
+        func=process_json_file,
+        processes=processes,
+        batch_size=50,
+        desc="Processing JSON files",
+    )
+
+    # Process JSON results and add phosphate status
     all_data = []
-    for json_file in json_files:
-        mol_name = os.path.basename(json_file).split(".")[0]
-        data = json.load(open(json_file, "r"))["data"]
-        try:
-            keep_data = {
-                "id": mol_name,
-                "type": data["chem_comp"]["chem_comp"]["type"],
-                "name": data["chem_comp"]["chem_comp"]["name"],
-                "formula": data["chem_comp"]["chem_comp"]["formula"],
-                "formula_weight": data["chem_comp"]["chem_comp"]["formula_weight"],
-                "smiles": data["chem_comp"]["rcsb_chem_comp_descriptor"]["SMILES"],
-                "has_phosphate": has_phosphate[mol_name],
-            }
-        except:
-            print("error", mol_name)
-            continue
-        all_data.append(keep_data)
+    for result in json_results:
+        if result is not None:
+            mol_name = result["id"]
+            result["has_phosphate"] = has_phosphate[mol_name]
+            all_data.append(result)
+
+    # Create and save DataFrame
     df = pd.DataFrame(all_data)
     df.to_json(
         os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info.json"), orient="records"

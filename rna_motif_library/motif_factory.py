@@ -1254,7 +1254,7 @@ class MotifFactory:
 
 
 if __name__ == "__main__":
-    pdb_id = "7R6Q"
+    pdb_id = "5UQ7"
     pdb_data = get_pdb_structure_data(pdb_id)
     motif_factory = MotifFactory(pdb_data)
     motifs = motif_factory.get_motifs()

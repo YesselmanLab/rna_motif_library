@@ -8,6 +8,7 @@ import concurrent.futures
 
 
 from rna_motif_library.settings import DATA_PATH, VERSION
+from rna_motif_library.logger import get_logger
 
 canon_rna_res_list = ["A", "U", "G", "C"]
 
@@ -91,6 +92,8 @@ atom_renames = {
     "OP3": "O3P",
 }
 
+log = get_logger("UTIL")
+
 
 def run_w_threads(func, args, threads):
     """
@@ -102,13 +105,60 @@ def run_w_threads(func, args, threads):
         threads (int): Number of threads to use.
     """
     if threads == 1:
+        results = []
         for arg in args:
-            func(arg)
+            results.append(func(arg))
+        return results
     else:
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
             results = list(executor.map(func, args))
             # Optionally, you can collect and process results here
             return results
+
+
+def run_w_processes_in_batches(items, func, processes, batch_size=100):
+    """
+    Process items in batches with parallel processing, using a single process pool for all batches.
+
+    Args:
+        items (list): List of items to process
+        func (callable): Function to process each item
+        processes (int): Number of processes to use
+        batch_size (int, optional): Size of each batch. Defaults to 100.
+
+    Returns:
+        list: Combined results from all batches
+    """
+    all_results = []
+
+    # Create a single process pool for all batches
+    with concurrent.futures.ProcessPoolExecutor(max_workers=processes) as executor:
+        for i in range(0, len(items), batch_size):
+            log.info(
+                f"Processing batch {i//batch_size + 1} of {(len(items) + batch_size - 1)//batch_size}"
+            )
+            batch = items[i : i + batch_size]
+
+            try:
+                # Submit all tasks in the batch
+                future_to_item = {executor.submit(func, item): item for item in batch}
+
+                # Process results as they complete
+                for future in concurrent.futures.as_completed(future_to_item):
+                    try:
+                        result = future.result()
+                        if result is not None:  # Skip None results
+                            all_results.append(result)
+                    except Exception as e:
+                        item = future_to_item[future]
+                        log.error(f"Error processing item {item}: {e}")
+                        continue
+
+            except Exception as e:
+                log.error(f"Error processing batch starting at {i}: {e}")
+                continue
+
+    return all_results
 
 
 def run_w_processes(func, args, processes):
@@ -121,12 +171,13 @@ def run_w_processes(func, args, processes):
         processes (int): Number of processes to use.
     """
     if processes == 1:
+        results = []
         for arg in args:
-            return func(arg)
+            results.append(func(arg))
+        return results
     else:
         with concurrent.futures.ProcessPoolExecutor(max_workers=processes) as executor:
             results = list(executor.map(func, args))
-            # Optionally, you can collect and process results here
             return results
 
 

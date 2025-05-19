@@ -14,7 +14,7 @@ from rna_motif_library.motif_factory import (
 from rna_motif_library.chain import get_cached_chains, Chains
 from rna_motif_library.basepair import Basepair
 from rna_motif_library.settings import DATA_PATH
-from rna_motif_library.util import parse_motif_name
+from rna_motif_library.util import parse_motif_name, run_w_processes
 
 
 def get_pdbs_ids_from_jsons(jsons_dir: str):
@@ -72,6 +72,11 @@ def find_motifs_sharing_basepair(
             if basepair_residues == end_bp_residues:
                 sharing_motifs.append(motif)
                 break
+            # dont know if i need this
+            end_bp_residues = {end_bp.res_2.get_str(), end_bp.res_1.get_str()}
+            if basepair_residues == end_bp_residues:
+                sharing_motifs.append(motif)
+                break
 
     return sharing_motifs
 
@@ -117,6 +122,56 @@ def is_next_bp_in_cww_basepairs(
         return True
     return False
 
+
+def check_motifs_in_pdb(pdb_id: str):
+    path = f"data/dataframes/check_motifs/{pdb_id}.csv"
+    if os.path.exists(path):
+        return
+    motifs = get_cached_motifs(pdb_id)
+    helices = [m for m in motifs if m.mtype == "HELIX"]
+    non_helix_motifs = [m for m in motifs if m.mtype != "HELIX"]
+    pdb_data = get_pdb_structure_data(pdb_id)
+    cww_basepairs_lookup_min = get_cww_basepairs(
+        pdb_data, min_two_hbond_score=0.0, min_three_hbond_score=0.0
+    )
+    data = []
+    for m in non_helix_motifs:
+        flanking_helices = True
+        if not check_motif_is_flanked_by_helices(m, helices, pdb_data.chains):
+            flanking_helices = False
+        contains_helix = False
+        pdb_data_for_residues = get_pdb_structure_data_for_residues(
+            pdb_data, m.get_residues()
+        )
+        hf = HelixFinder(pdb_data_for_residues, cww_basepairs_lookup_min, [])
+        m_helices = hf.get_helices()
+        if len(m_helices) > 0:
+            contains_helix = True
+        data.append(
+            {
+                "pdb_id": pdb_id,
+                "motif_name": m.name,
+                "motif_type": m.mtype,
+                "flanking_helices": flanking_helices,
+                "contains_helix": contains_helix,
+            }
+        )
+    for m in helices:
+        other_helices = [h for h in helices if h != m]
+        flanking_helices = False 
+        for h in other_helices:
+            if do_motifs_share_end_basepairs(m, h):
+                flanking_helices = True
+        data.append(
+            {
+                "pdb_id": pdb_id,
+                "motif_name": m.name,
+                "motif_type": m.mtype,
+                "flanking_helices": flanking_helices,
+            }
+        )
+    df = pd.DataFrame(data)
+    df.to_csv(path, index=False)
 
 @click.group()
 def cli():
@@ -222,49 +277,17 @@ def find_large_motifs():
 
 
 @cli.command()
-def check_hairpins():
-    # motifs = get_motifs_from_json("data/jsons/old_motifs/7R6Q.json")
-    motifs = get_motifs_from_json("7R6Q_motifs.json")
-    # motifs = get_cached_motifs("7UO0")
-    helices = [m for m in motifs if m.mtype == "HELIX"]
-    non_helix_motifs = [m for m in motifs if m.mtype != "HELIX"]
-    pdb_data = get_pdb_structure_data("7R6Q")
-    cww_basepairs_lookup = get_cww_basepairs(
-        pdb_data, min_two_hbond_score=0.5, min_three_hbond_score=0.5
-    )
-    cww_basepairs_lookup_min = get_cww_basepairs(
-        pdb_data, min_two_hbond_score=0.0, min_three_hbond_score=0.0
-    )
-    for m in non_helix_motifs:
-        if not check_motif_is_flanked_by_helices(m, helices, pdb_data.chains):
-            print("not flanked by helices", m.name)
-        for bp in m.basepair_ends:
-            if is_next_bp_in_cww_basepairs(bp, pdb_data, cww_basepairs_lookup):
-                print(
-                    "in cww_basepairs_lookup",
-                    m.name,
-                    bp.res_1.get_str(),
-                    bp.res_2.get_str(),
-                )
-        pdb_data_for_residues = get_pdb_structure_data_for_residues(
-            pdb_data, m.get_residues()
-        )
-        hf = HelixFinder(pdb_data_for_residues, cww_basepairs_lookup_min, [])
-        m_helices = hf.get_helices()
-        if len(m_helices) > 1:
-            print("has helices", m.name)
-
+def check_motifs():
+    pdb_ids = get_pdbs_ids_from_jsons("motifs")
+    run_w_processes(check_motifs_in_pdb, pdb_ids, 10)
 
 @cli.command()
 def check_motif():
-    motifs = get_cached_motifs("6LKQ")
+    #motifs = get_cached_motifs("5UQ7")
+    motifs = get_motifs_from_json("5UQ7_motifs.json")
     for m in motifs:
-        if m.mtype != "TWOWAY":
-            continue
-        if len(m.get_residues()) > 50:
-            print(m.name, len(m.get_residues()))
-            m.to_cif(m.name + ".cif")
-
+        if m.name == "HAIRPIN-5-CGCGAGG-5UQ7-1":
+            print(m.name)
 
 if __name__ == "__main__":
     cli()

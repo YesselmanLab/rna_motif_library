@@ -5,12 +5,14 @@
 #SBATCH --time=8:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
+#SBATCH --mem=4G
 
 module load anaconda
 conda activate rna_motif_env
 
-python rna_motif_library/setup_database.py download-cifs {csv}
-python rna_motif_library/setup_database.py process-residues --csv {csv}
-python rna_motif_library/setup_database.py generate-chains --csv {csv}
-python rna_motif_library/setup_database.py process-interactions --csv {csv}
-python rna_motif_library/setup_database.py generate-motifs --csv {csv} 
+# python rna_motif_library/setup_database.py download-cifs {csv}
+python rna_motif_library/setup_database.py process-cifs {csv}
+python rna_motif_library/setup_database.py process-residues {csv}
+python rna_motif_library/setup_database.py process-chains {csv}
+python rna_motif_library/setup_database.py process-interactions {csv}
+python rna_motif_library/setup_database.py generate-motifs {csv}
