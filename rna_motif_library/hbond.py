@@ -120,6 +120,12 @@ class HbondFactory:
         potential_hbonds = []
         acceptors = self.hbond_acceptors[res_1.res_id]
         donors = self.hbond_donors[res_2.res_id]
+        if acceptors is None:
+            log.warning(f"No acceptors for {res_1.res_id}")
+            return []
+        if donors is None:
+            log.warning(f"No donors for {res_2.res_id}")
+            return []
         hbond_atom_pairs = []
         for acceptor in acceptors.keys():
             for donor in donors.keys():

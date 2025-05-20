@@ -20,6 +20,7 @@ from rna_motif_library.hbond import generate_hbonds, save_hbonds_to_json
 from rna_motif_library.basepair import generate_basepairs, save_basepairs_to_json
 from rna_motif_library.settings import DATA_PATH, DSSR_EXE
 from rna_motif_library.logger import get_logger, setup_logging
+from rna_motif_library.ligand import generate_ligand_info
 from rna_motif_library.pdb_queries import get_rna_structures
 from rna_motif_library.residue import (
     Residue,
@@ -487,11 +488,14 @@ def process_chains(csv_path, processes):
 # STEP 8: handle ligand identification
 @cli.command()
 @click.argument("csv_path", type=click.Path(exists=True))
-def ligand_identification(csv_path):
+@click.option("-p", "--processes", default=1, help="Number of processes to use.")
+@click.option("--overwrite", is_flag=True, help="Overwrite existing ligand info.")
+def ligand_identification(csv_path, processes, overwrite):
     """ """
     setup_logging()
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].tolist()
+    generate_ligand_info(pdb_ids, processes, overwrite)
 
 
 # STEP 8: process all interactions

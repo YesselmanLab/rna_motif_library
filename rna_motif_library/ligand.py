@@ -781,27 +781,20 @@ def process_json_file(json_file):
 # run in main cli #####################################################################
 
 
-def generate_ligand_info(pdb_ids):
-    pass
+def generate_ligand_info(pdb_ids, processes, overwrite):
+    # find all potential ligands #######################################################
+    output_path = os.path.join(LIGAND_DATA_PATH, "summary", "potential_ligands.csv")
+    if os.path.exists(output_path) and not overwrite:
+        log.info("potential ligands already found, skipping...")
+    else:
+        _find_all_potential_ligands(pdb_ids, processes)
+    df = pd.read_csv(output_path)
+    ligand_ids = df["ligand_id"].tolist()
+    _download_ligand_cif_and_sdf_files(ligand_ids, 30)
 
 
-# cli ##################################################################################
-
-
-@click.group()
-def cli():
-    pass
-
-
-# STEP 1 find all non-canonical residues
-@cli.command()
-@click.argument("csv_path", type=click.Path(exists=True))
-@click.option("-p", "--processes", default=1, help="Number of processes to use.")
-def find_all_potential_ligands(csv_path, processes):
-    setup_logging()
-    pdb_ids = pd.read_csv(csv_path)["pdb_id"].tolist()
+def _find_all_potential_ligands(pdb_ids, processes):
     os.makedirs(os.path.join(LIGAND_DATA_PATH, "potential_ligand_ids"), exist_ok=True)
-    # all_dfs = run_w_threads(find_potential_ligands_in_pdb, pdb_ids, processes)
     all_dfs = run_w_processes_in_batches(
         pdb_ids, find_potential_ligands_in_pdb, processes, batch_size=200
     )
@@ -811,17 +804,10 @@ def find_all_potential_ligands(csv_path, processes):
     output_path = os.path.join(LIGAND_DATA_PATH, "summary", "potential_ligands.csv")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     df.to_csv(output_path, index=False)
+    pass
 
 
-# STEP 2 get all cifs and sdfs for all potential ligands
-@cli.command()
-@click.option(
-    "-t", "--threads", default=30, help="Number of threads to use for downloading."
-)
-def get_ligand_cifs(threads):
-    """Download CIF and SDF files for all potential ligands using multiple threads."""
-    setup_logging()
-
+def _download_ligand_cif_and_sdf_files(ligand_ids, threads):
     # Create necessary directories
     os.makedirs(os.path.join(LIGAND_DATA_PATH, "residues_w_h_cifs"), exist_ok=True)
     os.makedirs(os.path.join(LIGAND_DATA_PATH, "residues_w_h_sdfs"), exist_ok=True)
@@ -845,6 +831,37 @@ def get_ligand_cifs(threads):
     log.info(
         f"Download complete. Successful: {successful_downloads}, Failed: {failed_downloads}"
     )
+
+
+# cli ##################################################################################
+
+
+@click.group()
+def cli():
+    pass
+
+
+# STEP 1 find all non-canonical residues
+@cli.command()
+@click.argument("csv_path", type=click.Path(exists=True))
+@click.option("-p", "--processes", default=1, help="Number of processes to use.")
+def find_all_potential_ligands(csv_path, processes):
+    setup_logging()
+    pdb_ids = pd.read_csv(csv_path)["pdb_id"].tolist()
+    _find_all_potential_ligands(pdb_ids, processes)
+
+
+# STEP 2 get all cifs and sdfs for all potential ligands
+@cli.command()
+@click.option(
+    "-t", "--threads", default=30, help="Number of threads to use for downloading."
+)
+def get_ligand_cifs(threads):
+    """Download CIF and SDF files for all potential ligands using multiple threads."""
+    setup_logging()
+    df = pd.read_csv(os.path.join(LIGAND_DATA_PATH, "summary", "potential_ligands.csv"))
+    ligand_ids = df["ligand_id"].tolist()
+    _download_ligand_cif_and_sdf_files(ligand_ids, threads)
 
 
 @cli.command()
