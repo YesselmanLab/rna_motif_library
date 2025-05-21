@@ -26,9 +26,19 @@ from rna_motif_library.util import (
     NRSEntry,
     file_exists_and_has_content,
     parse_motif_name,
+    NonRedundantSetParser,
+)
+from rna_motif_library.parallel_utils import (
+    run_w_processes_in_batches,
+    concat_dataframes_from_files,
 )
 from rna_motif_library.x3dna import X3DNAResidue
 from rna_motif_library.tranforms import superimpose_structures, rmsd
+from rna_motif_library.pdb_data import (
+    get_pdb_structure_data,
+    get_cww_basepairs,
+    get_singlet_pairs,
+)
 
 log = get_logger("motif")
 
@@ -1792,7 +1802,7 @@ class MotifSetComparerer:
 # comparing motifs ################################################################
 
 
-def filter_motifs_by_chains(motifs: List[Motif], chain_ids: List[str]):
+def get_motifs_included_in_chains(motifs: List[Motif], chain_ids: List[str]):
     keep_motifs = []
     for m in motifs:
         keep = True
@@ -1818,23 +1828,17 @@ def find_duplicate_motifs(motifs, other_motifs):
     used_motifs = []
     for other_motif in other_motifs:
         result = find_best_matching_motif(other_motif, motifs, used_motifs)
-        # Add result to output data
         data.append(
             {
                 "motif": other_motif.name,
-                "repr_motif": (
-                    result["best_motif"].name if result["best_motif"] else None
-                ),
+                "repr_motif": result["best_motif"],
                 "rmsd": result["best_rmsd"],
                 "is_duplicate": result["is_duplicate"],
                 "from_repr": True,
             }
         )
-
-        # Track used motifs to avoid duplicates
         if result["is_duplicate"]:
             used_motifs.append(result["best_motif"])
-
     return pd.DataFrame(data)
 
 
@@ -1858,31 +1862,24 @@ def find_best_matching_motif(query_motif, ref_motifs, used_motifs):
 
     for ref_motif in ref_motifs:
         # Skip if motif already used or sequences don't match
-        if ref_motif.name in [m.name for m in used_motifs]:
+        if ref_motif.name in used_motifs:
             continue
         if ref_motif.sequence != query_motif.sequence:
             continue
-
         try:
             ref_coords = ref_motif.get_c1prime_coords()
             if len(ref_coords) != len(query_coords):
                 continue
-
-            # Calculate RMSD after superposition
             rotated_coords = superimpose_structures(ref_coords, query_coords)
             rmsd_val = rmsd(query_coords, rotated_coords)
-
             if rmsd_val < best_rmsd:
                 best_rmsd = rmsd_val
-                best_motif = ref_motif
-
+                best_motif = ref_motif.name
         except:
             print("issues", ref_motif.name, query_motif.name)
             continue
-
     # Determine if match is close enough to be a duplicate
     is_duplicate = best_rmsd < 0.20 * len(query_coords)
-
     return {
         "best_motif": best_motif,
         "best_rmsd": best_rmsd,
@@ -1890,10 +1887,10 @@ def find_best_matching_motif(query_motif, ref_motifs, used_motifs):
     }
 
 
-def generate_repr_df(repr_motifs, pdb_id, from_repr=True):
-    df_repr = []
+def create_representative_motif_dataframe(repr_motifs, pdb_id, from_repr=True):
+    repr_data = []
     for m in repr_motifs:
-        df_repr.append(
+        repr_data.append(
             {
                 "motif": m.name,
                 "repr_motif": None,
@@ -1904,7 +1901,7 @@ def generate_repr_df(repr_motifs, pdb_id, from_repr=True):
                 "from_repr": from_repr,
             }
         )
-    return pd.DataFrame(df_repr)
+    return pd.DataFrame(repr_data)
 
 
 def _process_child_entry(child_entry, repr_motifs):
@@ -1919,8 +1916,11 @@ def _process_child_entry(child_entry, repr_motifs):
         and unmatched_motifs contains motifs that didn't match the representative
     """
     # Get motifs from child structure
-    motifs = get_motifs(child_entry.pdb_id)
-    child_motifs = filter_motifs_by_chains(motifs, child_entry.chain_ids)
+    try:
+        motifs = get_cached_motifs(child_entry.pdb_id)
+    except:
+        return None, []
+    child_motifs = get_motifs_included_in_chains(motifs, child_entry.chain_ids)
     # Find duplicates between representative and child motifs
     duplicates_df = find_duplicate_motifs(repr_motifs, child_motifs)
     if len(duplicates_df) == 0:
@@ -1964,12 +1964,14 @@ def _align_to_other_entry_members(unmatched_motifs):
                 m for m in motif_set_2 if m.name not in duplicate_names
             ]
         # Add remaining unmatched motifs from first set
-        results.append(generate_repr_df(motif_set_1, pdb_id, from_repr=False))
+        results.append(
+            create_representative_motif_dataframe(motif_set_1, pdb_id, from_repr=False)
+        )
     return results
 
 
-def find_duplicate_in_non_redundant_set_entry(args):
-    """Find duplicate motifs between a representative structure and its child structures.
+def find_unique_motifs_in_non_redundant_set_entry(args):
+    """Find unique motifs in a non-redundant set entry.
 
     Args:
         args: Tuple containing (set_id, repr_entry, child_entries)
@@ -1989,10 +1991,14 @@ def find_duplicate_in_non_redundant_set_entry(args):
         return None
     print(f"Processing set {set_id}")
     # Get motifs from representative structure
-    motifs = get_motifs(repr_entry.pdb_id)
-    repr_motifs = filter_motifs_by_chains(motifs, repr_entry.chain_ids)
+    motifs = get_cached_motifs(repr_entry.pdb_id)
+    repr_motifs = get_motifs_included_in_chains(motifs, repr_entry.chain_ids)
     # Initialize results with representative motifs
-    results = [generate_repr_df(repr_motifs, repr_entry.pdb_id, from_repr=True)]
+    results = [
+        create_representative_motif_dataframe(
+            repr_motifs, repr_entry.pdb_id, from_repr=True
+        )
+    ]
     unmatched_motifs = []  # Motifs that don't match representative structure
     # Process each child structure
     for child_entry in child_entries:
@@ -2025,6 +2031,78 @@ def get_res_to_motif_mapping(motifs):
     return res_to_motif_id
 
 
+def process_pdb_id_for_unique_residues(args):
+    """Process a single PDB ID to get unique residues and mapping.
+
+    Args:
+        args: Tuple containing (pdb_id, unique_motifs)
+            pdb_id: PDB ID to process
+            unique_motifs: List of unique motif names
+
+    Returns:
+        Tuple containing:
+            - Dictionary with PDB ID and residues
+            - Dictionary with PDB ID and residue to motif mapping
+    """
+    pdb_id, unique_motifs = args
+    try:
+        res_to_motif_id = {}
+        motifs = get_cached_motifs(pdb_id)
+        res = []
+        for m in motifs:
+            if m.name not in unique_motifs:
+                continue
+            for r in m.get_residues():
+                if r.get_str() not in res:
+                    res.append(r.get_str())
+                if r.get_str() not in res_to_motif_id:
+                    res_to_motif_id[r.get_str()] = m.name
+                else:
+                    existing_motif = res_to_motif_id[r.get_str()]
+                    if existing_motif.startswith("HELIX"):
+                        res_to_motif_id[r.get_str()] = m.name
+
+        return ({"pdb_id": pdb_id, "residues": res}, {"pdb_id": res_to_motif_id})
+    except Exception as e:
+        print(f"Error processing {pdb_id}: {e}")
+        return None
+
+
+def get_dssr_motifs_for_pdb(pdb_id: str):
+    """Process a single PDB ID to get DSSR motifs.
+
+    Args:
+        pdb_id: The PDB ID to process
+
+    Returns:
+        DataFrame containing motif data or None if processing failed
+    """
+    try:
+        pdb_data = get_pdb_structure_data(pdb_id)
+
+    except Exception as e:
+        print(f"Error getting motifs for {pdb_id}: {e}")
+        return None
+
+    path = os.path.join(DATA_PATH, "dataframes", "dssr_motifs", f"{pdb_id}.json")
+    if os.path.exists(path):
+        return None
+
+    data = []
+    for m in motifs:
+        has_singlet_flank = False
+        for b in m.basepair_ends:
+            key = b.res_1.get_str() + "-" + b.res_2.get_str()
+            if key in mf.singlet_pairs_lookup:
+                has_singlet_flank = True
+                break
+        data.append(get_data_from_motif(m, pdb_id, has_singlet_flank))
+
+    df = pd.DataFrame(data)
+    df.to_json(path, orient="records")
+    return df
+
+
 # cli ############################################################################
 
 
@@ -2033,41 +2111,111 @@ def cli():
     pass
 
 
+# Step 1: Get non-redundant motifs
 @cli.command()
-def get_non_redundant_motifs():
-    pass
+@click.argument("csv_path", type=click.Path(exists=True))
+@click.option("-p", "--processes", type=int, default=1)
+def get_non_redundant_motifs(csv_path, processes):
+    parser = NonRedundantSetParser()
+    sets = parser.parse(csv_path)
+    all_args = []
+    for set_id, repr_entry, child_entries in sets:
+        all_args.append((set_id, repr_entry, child_entries))
+
+    results = run_w_processes_in_batches(
+        items=all_args,
+        func=find_unique_motifs_in_non_redundant_set_entry,
+        processes=processes,
+        batch_size=100,
+        desc="Processing non-redundant set entries",
+    )
 
 
+# Step 2: Get unique motifs
+# need to run scripts/check_motifs.py to get details first
 @cli.command()
-def get_dssr_motifs():
+def get_unique_motifs():
+    csv_files = glob.glob(
+        os.path.join(DATA_PATH, "dataframes", "non_redundant_sets", "*.csv")
+    )
+    df = concat_dataframes_from_files(csv_files)
+    csv_files = glob.glob(
+        os.path.join(DATA_PATH, "dataframes", "check_motifs", "*.csv")
+    )
+    df_issues = concat_dataframes_from_files(csv_files)
+    df_issues = df_issues.drop(columns=["pdb_id"])
+    df = df.query("is_duplicate == False").copy()
+    df = df[["motif", "child_pdb"]]
+    print(len(df))
+    df.rename(columns={"child_pdb": "pdb_id", "motif": "motif_name"}, inplace=True)
+    df = df.merge(df_issues, on="motif_name", how="left")
+    path = os.path.join(DATA_PATH, "summaries", "non_redundant_motifs.csv")
+    df.to_csv(path, index=False)
+
+
+# Step 3: Get unique residues
+@cli.command()
+@click.option("-p", "--processes", type=int, default=1)
+def get_unique_residues(processes):
+    """Get unique residues from non-redundant motifs using parallel processing.
+
+    Args:
+        processes: Number of processes to use for parallel processing
+    """
+    # Read input data
+    df = pd.read_csv(os.path.join(DATA_PATH, "summaries", "non_redundant_motifs.csv"))
+    unique_motifs = df["motif"].values
+    df = add_motif_name_columns(df, "motif")
+    # Prepare arguments for parallel processing
+    pdb_ids = df["pdb_id"].unique()
+    args = [(pdb_id, unique_motifs) for pdb_id in pdb_ids]
+
+    # Process PDB IDs in parallel
+    results = run_w_processes_in_batches(
+        items=args,
+        func=process_pdb_id_for_unique_residues,
+        processes=processes,
+        batch_size=100,
+        desc="Processing PDB IDs for unique residues",
+    )
+    # Collect and aggregate results
+    data = []
+    res_mapping = []
+    for result in results:
+        if result is not None:
+            data.append(result[0])
+            res_mapping.append(result[1])
+
+    # Save results
+    df = pd.DataFrame(data)
+    df.to_json(
+        os.path.join(DATA_PATH, "summaries", "unique_residues.json"), orient="records"
+    )
+    df_res_mapping = pd.DataFrame(res_mapping)
+    df_res_mapping.to_json(
+        os.path.join(DATA_PATH, "summaries", "res_mapping.json"), orient="records"
+    )
+
+
+# Step 4: Get DSSR motifs
+@cli.command()
+@click.option(
+    "-p", "--processes", type=int, default=1, help="Number of processes to use"
+)
+def get_dssr_motifs(processes):
+    """Get DSSR motifs for all PDB IDs using parallel processing.
+
+    Args:
+        processes: Number of processes to use for parallel processing
+    """
     pdb_ids = get_pdb_ids()
-    for pdb_id in pdb_ids:
-        try:
-            residues = get_cached_residues(pdb_id)
-            basepairs = get_cached_basepairs(pdb_id)
-            hbonds = get_cached_hbonds(pdb_id)
-            chains = Chains(get_rna_chains(residues.values()))
-            mf = MotifFactory(pdb_id, chains, basepairs, hbonds)
-            dssr_mf = MotifFactoryFromOther(pdb_id, chains, hbonds, basepairs)
-            motifs = dssr_mf.get_motifs_from_dssr()
-        except Exception as e:
-            print(f"Error getting motifs for {pdb_id}: {e}")
-            continue
-        print(f"Processing {pdb_id}")
-        data = []
-        path = os.path.join(DATA_PATH, "dataframes", "dssr_motifs", f"{pdb_id}.json")
-        if os.path.exists(path):
-            continue
-        for m in motifs:
-            has_singlet_flank = False
-            for b in m.basepair_ends:
-                key = b.res_1.get_str() + "-" + b.res_2.get_str()
-                if key in mf.singlet_pairs_lookup:
-                    has_singlet_flank = True
-                    break
-            data.append(get_data_from_motif(m, pdb_id, has_singlet_flank))
-        df = pd.DataFrame(data)
-        df.to_json(path, orient="records")
+    results = run_w_processes_in_batches(
+        items=pdb_ids,
+        func=get_dssr_motifs_for_pdb,
+        processes=processes,
+        batch_size=100,
+        desc="Processing PDB IDs for DSSR motifs",
+    )
 
 
 @cli.command()

@@ -1,6 +1,7 @@
 import concurrent.futures
 from typing import List, Any, Callable, Optional
 from tqdm import tqdm
+import pandas as pd
 from rna_motif_library.logger import get_logger
 
 log = get_logger("PARALLEL")
@@ -232,3 +233,48 @@ def run_w_processes(
                 iterator.update(1)
 
     return results
+
+
+def concat_dataframes_from_files(
+    file_paths: List[str], file_type: str = "csv"
+) -> pd.DataFrame:
+    """
+    Read multiple JSON or CSV files and concatenate them into a single DataFrame
+    using parallel threads.
+
+    Args:
+        file_paths (List[str]): List of paths to the files to be read
+        file_type (str, optional): Type of files to read ('csv' or 'json'). Defaults to "csv".
+
+    Returns:
+        pd.DataFrame: Concatenated DataFrame containing all data from the input files
+    """
+
+    def read_file(file_path: str) -> Optional[pd.DataFrame]:
+        try:
+            if file_type.lower() == "csv":
+                return pd.read_csv(file_path)
+            elif file_type.lower() == "json":
+                return pd.read_json(file_path)
+            else:
+                raise ValueError(f"Unsupported file type: {file_type}")
+        except Exception as e:
+            log.error(f"Error reading file {file_path}: {e}")
+            return None
+
+    # Use run_w_threads to read files in parallel
+    dfs = run_w_threads(
+        items=file_paths,
+        func=read_file,
+        threads=min(32, len(file_paths)),  # Limit max threads to 32
+        desc="Reading files",
+        show_progress=True,
+    )
+    # Filter out None results and concatenate
+    dfs = [df for df in dfs if df is not None]
+
+    if not dfs:
+        log.warning("No dataframes were successfully loaded")
+        return pd.DataFrame()
+
+    return pd.concat(dfs, ignore_index=True)
