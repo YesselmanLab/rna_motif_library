@@ -4,11 +4,11 @@ from typing import Dict, List, Optional, Set
 
 from rna_motif_library.basepair import Basepair
 from rna_motif_library.chain import Chains, get_cached_chains, get_rna_chains
-from rna_motif_library.hbond import Hbond
+from rna_motif_library.hbond import Hbond, get_cached_hbonds
 from rna_motif_library.logger import get_logger
 from rna_motif_library.residue import Residue
 from rna_motif_library.settings import RESOURCES_PATH
-from rna_motif_library.util import get_cached_basepairs, get_cached_hbonds
+from rna_motif_library.basepair import get_cached_basepairs
 
 log = get_logger("pdb_data")
 

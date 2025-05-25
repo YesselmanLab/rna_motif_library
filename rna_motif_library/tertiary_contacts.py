@@ -12,6 +12,10 @@ from rna_motif_library.util import (
     file_exists_and_has_content,
 )
 from rna_motif_library.settings import DATA_PATH
+from rna_motif_library.parallel_utils import (
+    run_w_processes_in_batches,
+    concat_dataframes_from_files,
+)
 
 
 def get_non_redundant_pdb_ids():
@@ -193,37 +197,33 @@ def get_duplicate_motifs(pdb_id):
     return df["motif"].values
 
 
-@click.group()
-def cli():
-    pass
+# main functions #######################################################################
 
 
-@cli.command()
-def find_tc_hbonds():
-    pdb_ids = get_pdb_ids()
-    dfs = []
-    for pdb_id in pdb_ids:
-        if os.path.exists(
-            os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
-        ):
-            continue
-        try:
-            df_tc = find_tertiary_interactions(pdb_id)
-            df_tc.to_csv(
-                os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv"),
-                index=False,
-            )
-            dfs.append(df_tc)
-        except Exception as e:
-            continue
-    csv_files = glob.glob(os.path.join(DATA_PATH, "dataframes", "tc_hbonds", "*.csv"))
-    for csv_file in csv_files:
-        if file_exists_and_has_content(csv_file):
-            df = pd.read_csv(csv_file)
-            dfs.append(df)
-    df = pd.concat(dfs)
-    df["pdb_id"] = df["pdb_id"].astype(str)
-    df.to_csv("tertiary_contacts_hbonds.csv", index=False)
+def process_pdb_id_for_tc_hbonds(pdb_id):
+    """Process a single PDB ID to find tertiary contact hydrogen bonds.
+
+    Args:
+        pdb_id: The PDB ID to process
+
+    Returns:
+        DataFrame containing tertiary contact hydrogen bonds or None if processing failed
+    """
+    output_path = os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
+
+    # If file exists and has content, load and return it
+    if file_exists_and_has_content(output_path):
+        return pd.read_csv(output_path)
+
+    # Otherwise try to generate new data
+    try:
+        df_tc = find_tertiary_interactions(pdb_id)
+        df_tc["pdb_id"] = pdb_id
+        df_tc.to_csv(output_path, index=False)
+        return df_tc
+    except Exception as e:
+        print(f"Error processing {pdb_id}: {e}")
+        return None
 
 
 def process_group(g, pdb_id, unique_motifs):
@@ -296,39 +296,125 @@ def process_pdb_tertiary_contacts(df, pdb_id, unique_motifs):
     return df_pdb
 
 
+def process_pdb_id_for_tertiary_contacts(args):
+    """Process a single PDB ID to find tertiary contacts.
+
+    Args:
+        pdb_id: The PDB ID to process
+        df: DataFrame containing all tertiary contact hydrogen bonds
+        unique_motifs: List of unique motif names
+
+    Returns:
+        DataFrame containing tertiary contacts or None if processing failed
+    """
+    pdb_id, df, unique_motifs = args
+    output_path = os.path.join(
+        DATA_PATH, "dataframes", "tertiary_contacts", f"{pdb_id}.json"
+    )
+
+    # If file exists and has content, load and return it
+    if file_exists_and_has_content(output_path):
+        return pd.read_json(output_path)
+
+    # Otherwise try to generate new data
+    try:
+        g = df[df["pdb_id"] == pdb_id]
+        df_pdbs = process_pdb_tertiary_contacts(g, pdb_id, unique_motifs)
+        df_pdbs.to_json(output_path, orient="records")
+        return df_pdbs
+    except Exception as e:
+        print(f"Error processing {pdb_id}: {e}")
+        return None
+
+
+# cli ##################################################################################
+
+
+@click.group()
+def cli():
+    pass
+
+
 @cli.command()
-def find_tertiary_contacts():
+@click.option(
+    "-p", "--processes", type=int, default=1, help="Number of processes to use"
+)
+def find_tc_hbonds(processes):
+    """Find tertiary contact hydrogen bonds for all PDB IDs using parallel processing.
+
+    Args:
+        processes: Number of processes to use for parallel processing
+    """
+    pdb_ids = get_pdb_ids()
+
+    # Process PDB IDs in parallel
+    results = run_w_processes_in_batches(
+        items=pdb_ids,
+        func=process_pdb_id_for_tc_hbonds,
+        processes=processes,
+        batch_size=100,
+        desc="Processing PDB IDs for tertiary contact hydrogen bonds",
+    )
+
+    # Collect results from processed files
+    dfs = []
+    for result in results:
+        if result is not None:
+            dfs.append(result)
+
+    # Combine all results
+    if dfs:
+        df = pd.concat(dfs)
+        df["pdb_id"] = df["pdb_id"].astype(str)
+        df.to_csv("tertiary_contacts_hbonds.csv", index=False)
+
+
+@cli.command()
+@click.option(
+    "-p", "--processes", type=int, default=1, help="Number of processes to use"
+)
+def find_tertiary_contacts(processes):
+    """Find tertiary contacts for all PDB IDs using parallel processing.
+
+    Args:
+        processes: Number of processes to use for parallel processing
+    """
     df = pd.read_csv("tertiary_contacts_hbonds.csv", dtype={"pdb_id": str})
-    unique_motifs = list(pd.read_csv("unique_motifs.csv")["motif"].values)
-    for pdb_id, g in df.groupby("pdb_id"):
-        path = os.path.join(
-            DATA_PATH, "dataframes", "tertiary_contacts", f"{pdb_id}.json"
-        )
-        if file_exists_and_has_content(path):
-            df_pdbs = pd.read_json(path)
-        else:
-            df_pdbs = process_pdb_tertiary_contacts(g, pdb_id, unique_motifs)
-            df_pdbs.to_json(
-                os.path.join(
-                    DATA_PATH, "dataframes", "tertiary_contacts", f"{pdb_id}.json"
-                ),
-                orient="records",
-            )
+    path = os.path.join(DATA_PATH, "summaries", "non_redundant_motifs.csv")
+    unique_motifs = list(pd.read_csv(path)["motif_name"].values)
+
+    # Get unique PDB IDs
+    pdb_ids = df["pdb_id"].unique().tolist()
+
+    # Process PDB IDs in parallel
+    results = run_w_processes_in_batches(
+        items=[(pdb_id, df, unique_motifs) for pdb_id in pdb_ids],
+        func=process_pdb_id_for_tertiary_contacts,
+        processes=processes,
+        batch_size=100,
+        desc="Processing PDB IDs for tertiary contacts",
+    )
+
+    # Collect results from processed files
+    dfs = []
+    for result in results:
+        if result is not None:
+            dfs.append(result)
+
+    # Combine all results if needed
+    if dfs:
+        df_combined = pd.concat(dfs)
+        df_combined.to_json("all_tertiary_contacts.json", orient="records")
+
 
 @cli.command()
 def get_unique_tertiary_contacts():
-    json_files = glob.glob(os.path.join(DATA_PATH, "dataframes", "tertiary_contacts", "*.json"))
-    dfs = []
-    for json_file in json_files:
-        try:
-            df = pd.read_json(json_file)
-            df = df[~((df["unique_motif_1"] == False) & (df["unique_motif_2"] == False))]
-            dfs.append(df)
-        except Exception as e:
-            continue
-    df = pd.concat(dfs)
-    df.to_csv("unique_tertiary_contacts.csv", index=False)
-
+    json_files = glob.glob(
+        os.path.join(DATA_PATH, "dataframes", "tertiary_contacts", "*.json")
+    )
+    df = concat_dataframes_from_files(json_files)
+    df = df[~((df["unique_motif_1"] == False) & (df["unique_motif_2"] == False))]
+    df.to_json("unique_tertiary_contacts.json", orient="records")
 
 
 @cli.command()

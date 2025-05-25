@@ -2,12 +2,13 @@ import click
 from typing import List, Optional
 from rna_motif_library.basepair import get_cached_basepairs
 from rna_motif_library.chain import get_cached_chains, Chains, write_chain_to_cif
-from rna_motif_library.motif import get_cached_motifs, MotifFactory, Motif
+from rna_motif_library.motif import get_cached_motifs, Motif
 from rna_motif_library.residue import Residue
 from rna_motif_library.logger import setup_logging
 from rna_motif_library.util import wc_basepairs_w_gu
 from rna_motif_library.hbond import get_cached_hbonds
 from rna_motif_library.x3dna import get_cached_dssr_output, X3DNAResidueFactory
+from rna_motif_library.motif_factory import MotifFactory
 
 setup_logging()
 
