@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from typing import List
+from collections import defaultdict
 from scipy.stats import entropy
 
 
@@ -195,6 +196,40 @@ def process_interaction_group(args):
     ]
 
 
+def process_pdb_motifs(args):
+    """Process motifs and hydrogen bonds for a single PDB ID.
+
+    Args:
+        args: Tuple containing (pdb_id, group_df) where group_df contains the hydrogen bonds for this PDB ID
+
+    Returns:
+        DataFrame containing the motif hydrogen bonds or None if no motifs found
+    """
+    pdb_id, group = args
+    motifs = get_cached_motifs(pdb_id)
+    motif_hbond_dict = defaultdict(list)
+    res_to_motif_id = generate_res_motif_mapping(motifs)
+
+    for i, row in group.iterrows():
+        if row["res_1"] not in res_to_motif_id:
+            continue
+        motif_name = res_to_motif_id[row["res_1"]]
+        motif_hbond_dict[motif_name].append(
+            {
+                "res_1": row["res_1"],
+                "atom_1": row["atom_1"],
+                "res_2": row["res_2"],
+                "atom_2": row["atom_2"],
+                "score": row["score"],
+            }
+        )
+
+    if not motif_hbond_dict:
+        return None
+
+    return pd.DataFrame(motif_hbond_dict.items(), columns=["motif_name", "hbonds"])
+
+
 @click.group()
 def cli():
     pass
@@ -278,8 +313,32 @@ def analyze_rna_prot_hbonds(processes):
 
 
 @cli.command()
-def motif_analysis():
-    pass
+@click.option(
+    "-p", "--processes", type=int, default=1, help="Number of processes to use"
+)
+def motif_analysis(processes):
+    df = pd.read_csv("rna_protein_hbonds.csv")
+
+    # Create list of PDB groups to process
+    groups = list(df.groupby("pdb_id"))
+
+    # Process PDB IDs in parallel
+    results = run_w_processes_in_batches(
+        items=groups,
+        func=process_pdb_motifs,
+        processes=processes,
+        batch_size=50,
+        desc="Processing PDB IDs for motif analysis",
+    )
+
+    # Filter out None results and combine DataFrames
+    dfs = [df for df in results if df is not None]
+    if not dfs:
+        print("No results found")
+        return
+
+    df_motifs = pd.concat(dfs)
+    df_motifs.to_json("rna_protein_hbonds_motifs.json", orient="records")
 
 
 @cli.command()

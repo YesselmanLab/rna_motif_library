@@ -57,9 +57,9 @@ def find_helices_in_motifs(motifs):
 
 
 def main():
-    pdb_id = "7AOI"
-    motifs_1 = get_cached_motifs("7R6Q")
-    motifs_2 = get_motifs_from_json("data/jsons/old_motifs/7R6Q.json")
+    pdb_id = "4WZD"
+    motifs_1 = get_cached_motifs(pdb_id)
+    motifs_2 = get_motifs_from_json(f"4WZD_bak.json")
     find_helices_in_motifs(motifs_2)
     only_in_1, only_in_2 = compare_motif_sets(motifs_1, motifs_2)
     print(len(only_in_1))

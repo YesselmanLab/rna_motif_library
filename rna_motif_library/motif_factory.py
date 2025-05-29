@@ -5,7 +5,7 @@ from rna_motif_library.basepair import Basepair
 from rna_motif_library.chain import Chains, get_rna_chains
 from rna_motif_library.hbond import Hbond
 from rna_motif_library.logger import get_logger
-from rna_motif_library.motif import Motif
+from rna_motif_library.motif import Motif, save_motifs_to_json
 from rna_motif_library.residue import Residue
 from rna_motif_library.pdb_data import (
     PDBStructureData,
@@ -634,6 +634,19 @@ class MotifFactory:
                     chain_ends_in_bp[res.get_str()] = 1
 
         if len(end_bp_res) != sum(end_bp_res.values()):
+            """print("len end_bp_res != sum(end_bp_res.values())")
+            print("Strands:")
+            for s in strands:
+                for r in s:
+                    print(r.get_str(), end=" ")
+                print()
+            print("End bp res:")
+            for k, v in end_bp_res.items():
+                print(k, v)
+            print("Chain ends in bp:")
+            for k, v in chain_ends_in_bp.items():
+                print(k, v)
+            print("--------------------------------")"""
             return False
         if len(chain_ends_in_bp) != sum(chain_ends_in_bp.values()):
             return False
@@ -715,8 +728,11 @@ class MotifFactory:
                 unprocessed_strands.remove(strand)
 
         if len(current_motif_strands) > 1:
+            final_basepair_ends = get_basepair_ends_for_strands(
+                current_motif_strands, cww_basepairs
+            )
             if not self._is_multi_strand_motif_valid(
-                current_motif_strands, current_basepair_ends
+                current_motif_strands, final_basepair_ends
             ):
                 pos = 0
                 # break strands back up
@@ -1065,9 +1081,11 @@ class MotifFactory:
 
 
 if __name__ == "__main__":
-    pdb_id = "5UQ7"
+    pdb_id = "4WZD"
     pdb_data = get_pdb_structure_data(pdb_id)
     motif_factory = MotifFactory(pdb_data)
     motifs = motif_factory.get_motifs()
+    save_motifs_to_json(motifs, f"{pdb_id}.json")
+    exit()
     for m in motifs:
         m.to_cif(f"{m.name}.cif")

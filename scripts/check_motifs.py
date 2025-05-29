@@ -12,6 +12,7 @@ from rna_motif_library.motif_factory import (
     PDBStructureData,
     HelixFinder,
     get_singlet_pairs,
+    get_basepair_ends_for_strands
 )
 from rna_motif_library.chain import get_cached_chains, Chains
 from rna_motif_library.basepair import Basepair
@@ -253,6 +254,33 @@ def check_motif():
     for m in motifs:
         if m.name == "HAIRPIN-5-CGCGAGG-5UQ7-1":
             print(m.name)
+
+
+def extend_motif_with_basepairs(motif: Motif, pdb_data: PDBStructureData):
+    ss_strand = motif.strands[0]
+    prev_res = pdb_data.chains.get_previous_residue_in_chain(ss_strand[0])
+    next_res = pdb_data.chains.get_next_residue_in_chain(ss_strand[-1])
+    ss_strand = [prev_res] + ss_strand + [next_res]
+    motif.strands = [ss_strand]
+    return motif
+
+@cli.command()
+def check_sstrand_end_overlap():
+    motifs = get_cached_motifs("4WZD")
+    motifs_by_name = {m.name: m for m in motifs}
+    pdb_data = get_pdb_structure_data("4WZD") 
+
+    exit()
+    m2 = motifs_by_name["SSTRAND-6-GGGGGA-4WZD-1"]
+    m1 = extend_motif_with_basepairs(m1, pdb_data)
+    m2 = extend_motif_with_basepairs(m2, pdb_data)
+    strands = [m1.strands[0], m2.strands[0]]
+    cww_basepairs_lookup_min = get_cww_basepairs(
+        pdb_data, min_two_hbond_score=0.5, min_three_hbond_score=0.5
+    )
+    basepairs = get_basepair_ends_for_strands(strands, cww_basepairs_lookup_min.values())
+    print(len(basepairs))
+
 
 
 if __name__ == "__main__":
