@@ -30,11 +30,10 @@ from rna_motif_library.residue import (
 from rna_motif_library.util import (
     sanitize_x3dna_atom_name,
     get_cached_path,
-    run_w_threads,
-    run_w_processes,
 )
+from rna_motif_library.parallel_utils import run_w_processes, run_w_threads
 from rna_motif_library.x3dna import get_residue_type, get_cached_dssr_output
-from rna_motif_library.motif import get_motifs, save_motifs_to_json
+from rna_motif_library.motif import save_motifs_to_json
 from rna_motif_library.motif_factory import MotifFactory, get_pdb_structure_data
 
 log = get_logger("setup-database")
@@ -498,6 +497,9 @@ def ligand_identification(csv_path, processes, overwrite):
     generate_ligand_info(pdb_ids, processes, overwrite)
 
 
+# STEP XXX: find cWW basepairs
+
+
 # STEP 8: process all interactions
 @cli.command()
 @click.argument("csv_path", type=click.Path(exists=True))
@@ -521,7 +523,7 @@ def process_interactions(csv_path, processes):
             log.debug(f"Directory already exists: {directory}")
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].tolist()
-    run_w_processes(process_interactions_in_pdb, pdb_ids, processes)
+    run_w_processes(pdb_ids, process_interactions_in_pdb, processes)
 
 
 # STEP 9: generate motifs
@@ -533,7 +535,7 @@ def generate_motifs(csv_path, processes):
     setup_logging()
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].tolist()
-    run_w_processes(generate_motifs_in_pdb, pdb_ids, processes)
+    run_w_processes(pdb_ids, generate_motifs_in_pdb, processes)
 
 
 if __name__ == "__main__":

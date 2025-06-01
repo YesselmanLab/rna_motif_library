@@ -102,12 +102,8 @@ class Basepair:
             return None
 
 
-def get_bp_type(bp: str) -> str:
-    e = bp.split("-")
-    if len(e) != 2:
-        e = bp.split("+")
-    if len(e) != 2:
-        e = [bp[0], bp[-1]]
+def get_bp_type(res_1_type: str, res_2_type: str) -> str:
+    e = [res_1_type, res_2_type]
     if e[0] > e[1]:
         return e[1] + "-" + e[0]
     else:
@@ -166,7 +162,7 @@ class BasepairFactory:
         res_1, res_2 = self._get_bp_residues(pdb_name, pair, residues)
         if res_1 is None or res_2 is None:
             return None
-        bp_type = get_bp_type(pair.bp)
+        bp_type = get_bp_type(res_1.res_id, res_2.res_id)
         bp_type_short = bp_type.replace("-", "")
         nuc_names = bp_type.split("-")
         if nuc_names[0] != res_1.res_id:

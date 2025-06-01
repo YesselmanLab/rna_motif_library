@@ -11,6 +11,7 @@ from rna_motif_library.motif_factory import (
     get_pdb_structure_data_for_residues,
     PDBStructureData,
     HelixFinder,
+    MotifFactory,
     get_singlet_pairs,
     get_basepair_ends_for_strands
 )
@@ -178,6 +179,49 @@ def cli():
     pass
 
 
+def process_pdb_for_large_motifs(pdb_id: str) -> List[dict]:
+    """Process a single PDB to find large motifs.
+    
+    Args:
+        pdb_id (str): The PDB ID to process
+        
+    Returns:
+        List[dict]: List of dictionaries containing information about large motifs found
+    """
+    data = []
+    try:
+        motifs = get_cached_motifs(pdb_id)
+    except:
+        return data
+
+    path = os.path.join("data", "summaries", "non_redundant_motifs.csv")
+    unique_motifs = list(pd.read_csv(path)["motif_name"].values)
+    
+    for motif in motifs:
+        if motif.name not in unique_motifs:
+            continue
+        if motif.mtype == "UNKNOWN":
+            continue
+
+        if len(motif.get_residues()) > 30:
+            output_dir = f"large_motifs/{motif.mtype.lower()}"
+            try:
+                motif.to_cif(os.path.join(output_dir, motif.name + ".cif"))
+            except:
+                print("error", motif.name)
+
+            data.append(
+                {
+                    "pdb_id": pdb_id,
+                    "motif_name": motif.name,
+                    "motif_type": motif.mtype,
+                    "num_residues": len(motif.get_residues()),
+                }
+            )
+    
+    return data
+
+
 @cli.command()
 def find_large_motifs():
     # Create directories for each motif type
@@ -185,53 +229,19 @@ def find_large_motifs():
     for mtype in motif_types:
         os.makedirs(f"large_motifs/{mtype.lower()}", exist_ok=True)
 
-    unique_motifs = list(pd.read_csv("unique_motifs.csv")["motif"].values)
     pdb_ids = get_pdbs_ids_from_jsons("motifs")
-    count = 0
-
-    data = []
-    for pdb_id in pdb_ids:
-        try:
-            motifs = get_cached_motifs(pdb_id)
-        except:
-            continue
-
-        for motif in motifs:
-            if motif.name not in unique_motifs:
-                continue
-            if motif.mtype == "UNKNOWN":
-                continue
-
-            if len(motif.get_residues()) > 30:
-                count += 1
-                print(
-                    "large",
-                    count,
-                    pdb_id,
-                    motif.name,
-                    motif.mtype,
-                    len(motif.get_residues()),
-                )
-                output_dir = f"large_motifs/{motif.mtype.lower()}"
-                try:
-                    motif.to_cif(os.path.join(output_dir, motif.name + ".cif"))
-                except:
-                    print("error", motif.name)
-
-                data.append(
-                    {
-                        "pdb_id": pdb_id,
-                        "motif_name": motif.name,
-                        "motif_type": motif.mtype,
-                        "num_residues": len(motif.get_residues()),
-                    }
-                )
-
-    print(f"Total large motifs found: {count}")
-
+    
+    # Process PDBs in parallel batches
+    all_data = run_w_processes_in_batches(pdb_ids, process_pdb_for_large_motifs, 10, 100)
+    
+    # Flatten the list of lists into a single list
+    flat_data = [item for sublist in all_data for item in sublist]
+    
     # Save to CSV
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(flat_data)
     df.to_csv("large_motifs.csv", index=False)
+    
+    print(f"Total large motifs found: {len(flat_data)}")
 
 
 @cli.command()
@@ -260,16 +270,33 @@ def extend_motif_with_basepairs(motif: Motif, pdb_data: PDBStructureData):
     ss_strand = motif.strands[0]
     prev_res = pdb_data.chains.get_previous_residue_in_chain(ss_strand[0])
     next_res = pdb_data.chains.get_next_residue_in_chain(ss_strand[-1])
-    ss_strand = [prev_res] + ss_strand + [next_res]
+    if prev_res is not None:
+        ss_strand = [prev_res] + ss_strand
+    if next_res is not None:
+        ss_strand = ss_strand + [next_res]
     motif.strands = [ss_strand]
     return motif
 
 @cli.command()
 def check_sstrand_end_overlap():
     motifs = get_cached_motifs("4WZD")
+    for m in motifs:
+        if len(m.get_residues()) > 50:
+            m.to_cif()
+            print(m.name)
+    exit()
+    # motifs = get_motifs_from_json("4WZD_bak.json")
     motifs_by_name = {m.name: m for m in motifs}
     pdb_data = get_pdb_structure_data("4WZD") 
-
+    sstrands = [m for m in motifs if m.mtype == "SSTRAND"]
+    for m in sstrands:
+        extend_motif_with_basepairs(m, pdb_data)
+    strands = [m.strands[0] for m in sstrands]
+    mf = MotifFactory(pdb_data)
+    cww_basepairs = mf.cww_basepairs_lookup
+    non_canonical_motifs = mf.get_non_canonical_motifs(strands, cww_basepairs.values())
+    print(len(sstrands), len(non_canonical_motifs))
+    
     exit()
     m2 = motifs_by_name["SSTRAND-6-GGGGGA-4WZD-1"]
     m1 = extend_motif_with_basepairs(m1, pdb_data)

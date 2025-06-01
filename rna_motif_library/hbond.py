@@ -234,6 +234,8 @@ class HbondFactory:
         return selected_hbonds
 
     def find_hbonds(self, res_1: Residue, res_2: Residue, pdb_name: str) -> List[Hbond]:
+        if res_1.res_id in ion_list or res_2.res_id in ion_list:
+            return []
         potential_hbonds = self._find_hbonds_for_res_pair(res_1, res_2, pdb_name)
         potential_hbonds += self._find_hbonds_for_res_pair(res_2, res_1, pdb_name)
         unique_hbonds = []
