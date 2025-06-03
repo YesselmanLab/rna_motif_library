@@ -275,7 +275,7 @@ class MotifFactoryFromOther:
             pdb_path (str): path to the source PDB
         """
         self.pdb_id = pdb_data.pdb_id
-        self.residues = pdb_data.chains.residue_dict
+        self.residues = pdb_data.residues
         self.basepairs = pdb_data.basepairs
         self.chains = pdb_data.chains
         self.cww_basepairs = get_cww_basepairs(pdb_data)
@@ -331,36 +331,6 @@ class MotifFactoryFromOther:
                 log.warning(f"Residue {nt} not found in {self.pdb_id}")
                 continue
         return residues
-
-    def _get_cww_basepairs(self, basepairs: List[Basepair]) -> Dict[str, Basepair]:
-        """Get dictionary of cWW basepairs keyed by residue pair strings."""
-        allowed_pairs = []
-        f = open(os.path.join(RESOURCES_PATH, "valid_cww_pairs.txt"))
-        lines = f.readlines()
-        for line in lines:
-            allowed_pairs.append(line.strip())
-        f.close()
-        cww_basepairs = {}
-        two_hbond_pairs = ["A-U", "U-A", "G-U", "U-G"]
-        three_hbond_pairs = ["G-C", "C-G"]
-        for bp in basepairs:
-            if bp.lw != "cWW" or bp.bp_type not in allowed_pairs:
-                continue
-            if (
-                self.chains.get_residue_by_str(bp.res_1.get_str()) is None
-                or self.chains.get_residue_by_str(bp.res_2.get_str()) is None
-            ):
-                continue
-            # stops a lot of bad basepairs from being included
-            if bp.bp_type in two_hbond_pairs and bp.hbond_score < 1.3:
-                continue
-            if bp.bp_type in three_hbond_pairs and bp.hbond_score < 2.0:
-                continue
-            key1 = f"{bp.res_1.get_str()}-{bp.res_2.get_str()}"
-            key2 = f"{bp.res_2.get_str()}-{bp.res_1.get_str()}"
-            cww_basepairs[key1] = bp
-            cww_basepairs[key2] = bp
-        return cww_basepairs
 
     def _assign_end_basepairs(self, strands: List[List[Residue]]) -> List[Basepair]:
         end_residue_ids = []
@@ -1263,6 +1233,9 @@ def get_dssr_motifs(processes):
         processes: Number of processes to use for parallel processing
     """
     pdb_ids = get_pdb_ids()
+    os.makedirs(os.path.join(DATA_PATH, "dataframes", "dssr_motifs"), exist_ok=True)
+    # get_dssr_motifs_for_pdb("6QIQ")
+    # exit()
     run_w_processes_in_batches(
         items=pdb_ids,
         func=get_dssr_motifs_for_pdb,
@@ -1284,6 +1257,7 @@ def compare_dssr_motifs(processes):
         processes: Number of processes to use for parallel processing
     """
     pdb_ids = get_pdb_ids()
+    os.makedirs(os.path.join(DATA_PATH, "dataframes", "dssr_motifs_compared"), exist_ok=True)
 
     # Process PDB IDs in parallel
     results = run_w_processes_in_batches(

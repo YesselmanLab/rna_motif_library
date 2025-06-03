@@ -6,7 +6,7 @@ from rna_motif_library.basepair import Basepair
 from rna_motif_library.chain import Chains, get_cached_chains, get_rna_chains
 from rna_motif_library.hbond import Hbond, get_cached_hbonds
 from rna_motif_library.logger import get_logger
-from rna_motif_library.residue import Residue
+from rna_motif_library.residue import Residue, get_cached_residues
 from rna_motif_library.settings import RESOURCES_PATH
 from rna_motif_library.basepair import get_cached_basepairs
 
@@ -17,6 +17,7 @@ log = get_logger("pdb_data")
 class PDBStructureData:
     pdb_id: str
     chains: Chains
+    residues: List[Residue]
     basepairs: List[Basepair]
     hbonds: List[Hbond]
 
@@ -24,8 +25,9 @@ class PDBStructureData:
 def get_pdb_structure_data(pdb_id: str) -> PDBStructureData:
     chains = Chains(get_cached_chains(pdb_id))
     basepairs = get_cached_basepairs(pdb_id)
+    residues = get_cached_residues(pdb_id)
     hbonds = get_cached_hbonds(pdb_id)
-    return PDBStructureData(pdb_id, chains, basepairs, hbonds)
+    return PDBStructureData(pdb_id, chains, residues, basepairs, hbonds)
 
 
 def get_pdb_structure_data_for_residues(
@@ -33,7 +35,8 @@ def get_pdb_structure_data_for_residues(
 ) -> PDBStructureData:
     chains = Chains(get_rna_chains(residues))
     basepairs = get_basepairs_for_residue(residues, pdb_data.basepairs)
-    return PDBStructureData(pdb_data.pdb_id, chains, basepairs, pdb_data.hbonds)
+    residue_dict = {r.get_str(): r for r in residues}
+    return PDBStructureData(pdb_data.pdb_id, chains, residue_dict, basepairs, pdb_data.hbonds)
 
 
 def get_valid_pairs() -> List[str]:

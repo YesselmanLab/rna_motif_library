@@ -285,3 +285,46 @@ def generate_basepairs(
         orient="records",
     )
     return basepairs
+
+
+def calculate_basepair_rmsd(ideal_residues: List[Residue], target_residues: List[Residue]) -> float:
+    """
+    Calculate the RMSD between an ideal basepair and a target basepair based on their residue coordinates.
+    Ensures proper residue matching (A with A, U with U, etc.).
+    
+    Args:
+        ideal_residues (List[Residue]): List of two residues from the ideal basepair [res1, res2]
+        target_residues (List[Residue]): List of two residues from the target basepair [res1, res2]
+        
+    Returns:
+        float: The RMSD value between the two basepairs
+    """
+    if len(ideal_residues) != 2 or len(target_residues) != 2:
+        raise ValueError("Both input lists must contain exactly 2 residues")
+        
+    # Match residues by type (A with A, U with U, etc.)
+    ideal_coords = []
+    target_coords = []
+    
+    for ideal_res in ideal_residues:
+        # Find matching residue in target list
+        matching_target = next(
+            (res for res in target_residues if res.res_id == ideal_res.res_id),
+            None
+        )
+        if matching_target is None:
+            raise ValueError(f"No matching residue found for {ideal_res.res_id}")
+            
+        ideal_coords.append(ideal_res.coords)
+        target_coords.append(matching_target.coords)
+    
+    # Convert to numpy arrays
+    ideal_coords = np.array(ideal_coords)
+    target_coords = np.array(target_coords) 
+    # Calculate squared differences for each coordinate
+    squared_diffs = np.sum((ideal_coords - target_coords) ** 2, axis=1)
+    # Calculate mean of squared differences
+    mean_squared_diff = np.mean(squared_diffs)
+    # Return RMSD
+    return np.sqrt(mean_squared_diff)
+

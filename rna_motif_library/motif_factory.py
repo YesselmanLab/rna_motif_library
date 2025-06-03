@@ -1,5 +1,6 @@
 from typing import Dict, List, Optional, Set, Tuple
-
+from collections import defaultdict
+import random
 
 from rna_motif_library.basepair import Basepair
 from rna_motif_library.chain import Chains, get_rna_chains
@@ -334,9 +335,6 @@ class MotifFactory:
             non_helical_strands + strands_between_helices,
             self.cww_basepairs_lookup.values(),
         )
-        # potential_motifs, helices = self.check_for_poor_quality_motifs(
-        #    potential_motifs, helices
-        # )
         finished_motifs, unfinished_motifs = self._find_and_assign_finished_motifs(
             potential_motifs
         )
@@ -349,6 +347,14 @@ class MotifFactory:
                 continue
             else:
                 finished_motifs.append(new_motif)
+        # last sweep to make sure sstrands are merged 
+        sstrands = [m for m in finished_motifs if m.mtype == "SSTRAND"] 
+        not_sstrands = [m for m in finished_motifs if m.mtype != "SSTRAND"]
+        new_potential_motifs = self.get_non_canonical_motifs(
+            [s.strands[0] for s in sstrands],
+            self.cww_basepairs_lookup.values(),
+        )
+        finished_motifs = not_sstrands + new_potential_motifs
         finalized_motifs = []
         self.helical_residues = []
         for m in helices:
@@ -484,15 +490,31 @@ class MotifFactory:
         unprocessed_strands = non_helical_strands.copy()
         count = 0
 
+
         while unprocessed_strands:
             # Start a new motif with the first unprocessed strand
             count += 1
-            motifs.extend(
-                self._get_non_canonical_motif_from_strands(
+            new_motifs = self._get_non_canonical_motif_from_strands(
                     unprocessed_strands[0], count, unprocessed_strands, cww_basepairs
-                )
             )
-
+            motifs.extend(new_motifs)
+        """for i in range(0, 4):
+            still_unprocessed = []
+            while unprocessed_strands:
+                # Start a new motif with the first unprocessed strand
+                count += 1
+                new_motifs = self._get_non_canonical_motif_from_strands(
+                        unprocessed_strands[0], count, unprocessed_strands, cww_basepairs
+                )
+                for m in new_motifs:
+                    if len(m.strands) > 1:
+                        motifs.append(m)
+                    elif i < 1:
+                        still_unprocessed.append(m.strands[0])
+                    else:
+                        motifs.append(m)
+            unprocessed_strands = still_unprocessed
+            random.shuffle(unprocessed_strands)"""
         return motifs
 
     def get_missing_residues(
@@ -634,7 +656,7 @@ class MotifFactory:
                     chain_ends_in_bp[res.get_str()] = 1
 
         if len(end_bp_res) != sum(end_bp_res.values()):
-            """print("len end_bp_res != sum(end_bp_res.values())")
+            print("len end_bp_res != sum(end_bp_res.values())")
             print("Strands:")
             for s in strands:
                 for r in s:
@@ -646,9 +668,22 @@ class MotifFactory:
             print("Chain ends in bp:")
             for k, v in chain_ends_in_bp.items():
                 print(k, v)
-            print("--------------------------------")"""
+            print("--------------------------------")
             return False
         if len(chain_ends_in_bp) != sum(chain_ends_in_bp.values()):
+            print("len chain_ends_in_bp != sum(chain_ends_in_bp.values())")
+            print("Strands:")
+            for s in strands:
+                for r in s:
+                    print(r.get_str(), end=" ")
+                print()
+            print("End bp res:")
+            for k, v in end_bp_res.items():
+                print(k, v)
+            print("Chain ends in bp:")
+            for k, v in chain_ends_in_bp.items():
+                print(k, v)
+            print("--------------------------------")
             return False
 
         return True
@@ -734,55 +769,29 @@ class MotifFactory:
             if not self._is_multi_strand_motif_valid(
                 current_motif_strands, final_basepair_ends
             ):
-                pos = 0
                 # break strands back up
                 motifs = []
                 for strand in current_motif_strands:
                     motifs.append(
-                        Motif(
-                            f"UNKNOWN-{count}-{pos}",
-                            "UNKNOWN",
-                            "",
-                            "",
-                            "",
-                            [strand],
-                            get_basepairs_for_strands(
-                                [strand], self.basepairs, self.chains
-                            ),
-                            get_basepair_ends_for_strands([strand], cww_basepairs),
-                            [],
+                        self._generate_initial_motif_from_strands(
+                            [strand], cww_basepairs
                         )
                     )
-                    pos += 1
                 return motifs
 
-        return [
-            Motif(
-                f"UNKNOWN-{count}",
-                "UNKNOWN",
-                "",
-                "",
-                "",
-                current_motif_strands,
-                get_basepairs_for_strands(
-                    current_motif_strands, self.basepairs, self.chains
-                ),
-                get_basepair_ends_for_strands(current_motif_strands, cww_basepairs),
-                [],
-            )
-        ]
+        return [self._generate_initial_motif_from_strands(
+            current_motif_strands, cww_basepairs
+        )]
 
     # finalizing motifs ################################################################
     def _generate_initial_motif_from_strands(
         self,
         strands: List[List[Residue]],
-        mtype: str,
         cww_basepairs: Dict[str, Basepair],
     ) -> Motif:
-        self.motif_count += 1
-        return Motif(
-            f"{mtype}-{self.motif_count}",
-            mtype,
+        m = Motif(
+            f"UNKNOWN-{self.motif_count}",
+            "UNKNOWN",
             "",
             "",
             "",
@@ -791,6 +800,10 @@ class MotifFactory:
             get_basepair_ends_for_strands(strands, cww_basepairs),
             [],
         )
+        self.motif_count += 1
+        m.mtype = self._assign_motif_type(m)
+        m.name = m.mtype + "-" + str(self.motif_count)
+        return m
 
     def _name_motif(self, motif: Motif) -> str:
         name = f"{motif.mtype}-{motif.size}-{motif.sequence}-{self.pdb_id}"
@@ -1081,7 +1094,7 @@ class MotifFactory:
 
 
 if __name__ == "__main__":
-    pdb_id = "4WZD"
+    pdb_id = "7OTC"
     pdb_data = get_pdb_structure_data(pdb_id)
     motif_factory = MotifFactory(pdb_data)
     motifs = motif_factory.get_motifs()

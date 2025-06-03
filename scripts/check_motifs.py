@@ -244,6 +244,63 @@ def find_large_motifs():
     print(f"Total large motifs found: {len(flat_data)}")
 
 
+def extend_motif_with_basepairs(motif: Motif, pdb_data: PDBStructureData):
+    ss_strand = motif.strands[0]
+    prev_res = pdb_data.chains.get_previous_residue_in_chain(ss_strand[0])
+    next_res = pdb_data.chains.get_next_residue_in_chain(ss_strand[-1])
+    if prev_res is not None:
+        ss_strand = [prev_res] + ss_strand
+    if next_res is not None:
+        ss_strand = ss_strand + [next_res]
+    motif.strands = [ss_strand]
+    return motif
+
+
+def process_pdb_for_sstrand_overlap(pdb_id: str) -> dict:
+    """Process a single PDB to check SSTRAND end overlaps.
+    
+    Args:
+        pdb_id (str): The PDB ID to process
+        
+    Returns:
+        dict: Dictionary containing information about SSTRAND overlaps
+    """
+    try:
+        motifs = get_cached_motifs(pdb_id)
+        pdb_data = get_pdb_structure_data(pdb_id)
+        sstrands = [m for m in motifs if m.mtype == "SSTRAND"] 
+        for m in sstrands:
+            extend_motif_with_basepairs(m, pdb_data)  
+        strands = [m.strands[0] for m in sstrands]
+        mf = MotifFactory(pdb_data)
+        cww_basepairs = mf.cww_basepairs_lookup
+        non_canonical_motifs = mf.get_non_canonical_motifs(strands, cww_basepairs.values())
+        # Find motifs that are in sstrands but not in non_canonical_motifs
+        for m in sstrands:
+            m.to_cif()
+        for m in non_canonical_motifs:
+            if len(m.strands) > 1:
+                m.to_cif()
+                for strand in m.strands:
+                    for res in strand:
+                        print(res.get_str(), end=" ")
+                    print()
+        exit()
+
+        
+        
+        if len(non_canonical_motifs) != len(sstrands):
+            return {
+                "pdb_id": pdb_id,
+                "num_sstrands": len(sstrands),
+                "num_non_canonical": len(non_canonical_motifs),
+                "has_overlap": len(non_canonical_motifs) > 0
+            }
+        return None
+    except Exception as e:
+        print(f"Error processing {pdb_id}: {str(e)}")
+        return None
+
 @cli.command()
 def check_motifs():
     pdb_ids = get_pdbs_ids_from_jsons("motifs")
@@ -259,54 +316,28 @@ def check_motifs_analysis():
 
 @cli.command()
 def check_motif():
-    # motifs = get_cached_motifs("5UQ7")
-    motifs = get_motifs_from_json("5UQ7_motifs.json")
+    motifs = get_cached_motifs("7OTC")
+    # motifs = get_motifs_from_json("5UQ7_motifs.json")
     for m in motifs:
-        if m.name == "HAIRPIN-5-CGCGAGG-5UQ7-1":
+        res_strs = [r.get_str() for r in m.get_residues()]
+        if "a-U-1030-" in res_strs:
             print(m.name)
+            m.to_cif()
+            exit()
 
-
-def extend_motif_with_basepairs(motif: Motif, pdb_data: PDBStructureData):
-    ss_strand = motif.strands[0]
-    prev_res = pdb_data.chains.get_previous_residue_in_chain(ss_strand[0])
-    next_res = pdb_data.chains.get_next_residue_in_chain(ss_strand[-1])
-    if prev_res is not None:
-        ss_strand = [prev_res] + ss_strand
-    if next_res is not None:
-        ss_strand = ss_strand + [next_res]
-    motif.strands = [ss_strand]
-    return motif
 
 @cli.command()
 def check_sstrand_end_overlap():
-    motifs = get_cached_motifs("4WZD")
-    for m in motifs:
-        if len(m.get_residues()) > 50:
-            m.to_cif()
-            print(m.name)
+    """Check SSTRAND end overlaps across all PDBs in parallel."""
+    pdb_ids = get_pdbs_ids_from_jsons("motifs")
+    process_pdb_for_sstrand_overlap("7OTC")
     exit()
-    # motifs = get_motifs_from_json("4WZD_bak.json")
-    motifs_by_name = {m.name: m for m in motifs}
-    pdb_data = get_pdb_structure_data("4WZD") 
-    sstrands = [m for m in motifs if m.mtype == "SSTRAND"]
-    for m in sstrands:
-        extend_motif_with_basepairs(m, pdb_data)
-    strands = [m.strands[0] for m in sstrands]
-    mf = MotifFactory(pdb_data)
-    cww_basepairs = mf.cww_basepairs_lookup
-    non_canonical_motifs = mf.get_non_canonical_motifs(strands, cww_basepairs.values())
-    print(len(sstrands), len(non_canonical_motifs))
-    
-    exit()
-    m2 = motifs_by_name["SSTRAND-6-GGGGGA-4WZD-1"]
-    m1 = extend_motif_with_basepairs(m1, pdb_data)
-    m2 = extend_motif_with_basepairs(m2, pdb_data)
-    strands = [m1.strands[0], m2.strands[0]]
-    cww_basepairs_lookup_min = get_cww_basepairs(
-        pdb_data, min_two_hbond_score=0.5, min_three_hbond_score=0.5
-    )
-    basepairs = get_basepair_ends_for_strands(strands, cww_basepairs_lookup_min.values())
-    print(len(basepairs))
+    # Process PDBs in parallel batches
+    all_data = run_w_processes_in_batches(pdb_ids, process_pdb_for_sstrand_overlap, 10, 100)
+    # Convert results to DataFrame, filtering out None values
+    df = pd.DataFrame([result for result in all_data if result is not None])
+    # Save results
+    df.to_csv("sstrand_overlap_analysis.csv", index=False)
 
 
 

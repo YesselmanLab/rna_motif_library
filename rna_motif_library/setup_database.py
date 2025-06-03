@@ -533,6 +533,11 @@ def process_interactions(csv_path, processes):
 def generate_motifs(csv_path, processes):
     """ """
     setup_logging()
+    if not os.path.exists(os.path.join(DATA_PATH, "jsons", "motifs")):
+        log.info(
+            "Creating motifs directory: " + os.path.join(DATA_PATH, "jsons", "motifs")
+        )
+        os.makedirs(os.path.join(DATA_PATH, "jsons", "motifs"))
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].tolist()
     run_w_processes(pdb_ids, generate_motifs_in_pdb, processes)

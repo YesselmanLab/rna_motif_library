@@ -128,7 +128,7 @@ class Residue:
     def get_x3dna_str(self):
         res_id = self.res_id
         if self.res_id[-1].isdigit():
-            res_id = res_id[:-1]
+            res_id = res_id + "/"
         if self.ins_code != "":
             return f"{self.chain_id}.{res_id}{self.num}^{self.ins_code}"
         else:
