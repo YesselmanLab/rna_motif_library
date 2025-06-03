@@ -94,6 +94,11 @@ def run_w_processes_in_batches(
         list: Combined results from all batches
     """
     all_results = []
+    # if only one process, just run sequentially, required for cluster jobs
+    if processes == 1:
+        for item in items:
+            all_results.append(func(item))
+        return all_results
 
     # Create a single process pool for all batches
     with concurrent.futures.ProcessPoolExecutor(max_workers=processes) as executor:
@@ -206,6 +211,11 @@ def run_w_processes(
         list: Results from processing
     """
     results = []
+    # if only one process, just run sequentially, required for cluster jobs
+    if processes == 1:
+        for item in items:
+            results.append(func(item))
+        return results
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=processes) as executor:
         # Submit all tasks
