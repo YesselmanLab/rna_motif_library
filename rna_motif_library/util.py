@@ -533,6 +533,20 @@ class NonRedundantSetParser:
         return sets
 
 
+def parse_residue_identifier(residue_identifier: str) -> tuple:
+    """
+    parse a residue identifier such as "A-1-1-A"
+    into a tuple of (chain_id, res_id, res_num, ins_code)
+    """
+    spl = residue_identifier.split("-")
+    return {
+        "chain_id": spl[0],
+        "res_id": spl[1],
+        "res_num": spl[2],
+        "ins_code": spl[3],
+    }
+
+
 def parse_motif_name(motif_name: str) -> tuple:
     """
     parse a name such as HAIRPIN-1-CGG-7PWO-1

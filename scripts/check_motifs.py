@@ -13,7 +13,7 @@ from rna_motif_library.motif_factory import (
     HelixFinder,
     MotifFactory,
     get_singlet_pairs,
-    get_basepair_ends_for_strands
+    get_basepair_ends_for_strands,
 )
 from rna_motif_library.chain import get_cached_chains, Chains
 from rna_motif_library.basepair import Basepair
@@ -130,6 +130,7 @@ def check_motifs_in_pdb(pdb_id: str):
         )
         hf = HelixFinder(pdb_data_for_residues, cww_basepairs_lookup_min, [])
         m_helices = hf.get_helices()
+        contains_helix = 0
         if len(m_helices) > 0:
             contains_helix = 1
         has_singlet_pair = 0
@@ -165,12 +166,16 @@ def check_motifs_in_pdb(pdb_id: str):
                 "motif_name": m.name,
                 "motif_type": m.mtype,
                 "flanking_helices": flanking_helices,
-                "contains_helix": 1,
+                "contains_helix": 0,
                 "has_singlet_pair": 0,
                 "has_singlet_pair_end": 0,
             }
         )
     df = pd.DataFrame(data)
+    df["flanking_helices"] = df["flanking_helices"].astype(int)
+    df["contains_helix"] = df["contains_helix"].astype(int)
+    df["has_singlet_pair"] = df["has_singlet_pair"].astype(int)
+    df["has_singlet_pair_end"] = df["has_singlet_pair_end"].astype(int)
     df.to_csv(path, index=False)
 
 
@@ -181,10 +186,10 @@ def cli():
 
 def process_pdb_for_large_motifs(pdb_id: str) -> List[dict]:
     """Process a single PDB to find large motifs.
-    
+
     Args:
         pdb_id (str): The PDB ID to process
-        
+
     Returns:
         List[dict]: List of dictionaries containing information about large motifs found
     """
@@ -196,7 +201,7 @@ def process_pdb_for_large_motifs(pdb_id: str) -> List[dict]:
 
     path = os.path.join("data", "summaries", "non_redundant_motifs.csv")
     unique_motifs = list(pd.read_csv(path)["motif_name"].values)
-    
+
     for motif in motifs:
         if motif.name not in unique_motifs:
             continue
@@ -218,7 +223,7 @@ def process_pdb_for_large_motifs(pdb_id: str) -> List[dict]:
                     "num_residues": len(motif.get_residues()),
                 }
             )
-    
+
     return data
 
 
@@ -230,17 +235,19 @@ def find_large_motifs():
         os.makedirs(f"large_motifs/{mtype.lower()}", exist_ok=True)
 
     pdb_ids = get_pdbs_ids_from_jsons("motifs")
-    
+
     # Process PDBs in parallel batches
-    all_data = run_w_processes_in_batches(pdb_ids, process_pdb_for_large_motifs, 10, 100)
-    
+    all_data = run_w_processes_in_batches(
+        pdb_ids, process_pdb_for_large_motifs, 10, 100
+    )
+
     # Flatten the list of lists into a single list
     flat_data = [item for sublist in all_data for item in sublist]
-    
+
     # Save to CSV
     df = pd.DataFrame(flat_data)
     df.to_csv("large_motifs.csv", index=False)
-    
+
     print(f"Total large motifs found: {len(flat_data)}")
 
 
@@ -258,23 +265,25 @@ def extend_motif_with_basepairs(motif: Motif, pdb_data: PDBStructureData):
 
 def process_pdb_for_sstrand_overlap(pdb_id: str) -> dict:
     """Process a single PDB to check SSTRAND end overlaps.
-    
+
     Args:
         pdb_id (str): The PDB ID to process
-        
+
     Returns:
         dict: Dictionary containing information about SSTRAND overlaps
     """
     try:
         motifs = get_cached_motifs(pdb_id)
         pdb_data = get_pdb_structure_data(pdb_id)
-        sstrands = [m for m in motifs if m.mtype == "SSTRAND"] 
+        sstrands = [m for m in motifs if m.mtype == "SSTRAND"]
         for m in sstrands:
-            extend_motif_with_basepairs(m, pdb_data)  
+            extend_motif_with_basepairs(m, pdb_data)
         strands = [m.strands[0] for m in sstrands]
         mf = MotifFactory(pdb_data)
         cww_basepairs = mf.cww_basepairs_lookup
-        non_canonical_motifs = mf.get_non_canonical_motifs(strands, cww_basepairs.values())
+        non_canonical_motifs = mf.get_non_canonical_motifs(
+            strands, cww_basepairs.values()
+        )
         # Find motifs that are in sstrands but not in non_canonical_motifs
         for m in sstrands:
             m.to_cif()
@@ -287,22 +296,22 @@ def process_pdb_for_sstrand_overlap(pdb_id: str) -> dict:
                     print()
         exit()
 
-        
-        
         if len(non_canonical_motifs) != len(sstrands):
             return {
                 "pdb_id": pdb_id,
                 "num_sstrands": len(sstrands),
                 "num_non_canonical": len(non_canonical_motifs),
-                "has_overlap": len(non_canonical_motifs) > 0
+                "has_overlap": len(non_canonical_motifs) > 0,
             }
         return None
     except Exception as e:
         print(f"Error processing {pdb_id}: {str(e)}")
         return None
 
+
 @cli.command()
 def check_motifs():
+    os.makedirs("data/dataframes/check_motifs", exist_ok=True)
     pdb_ids = get_pdbs_ids_from_jsons("motifs")
     run_w_processes_in_batches(pdb_ids, check_motifs_in_pdb, 20, 100)
 
@@ -333,12 +342,13 @@ def check_sstrand_end_overlap():
     process_pdb_for_sstrand_overlap("7OTC")
     exit()
     # Process PDBs in parallel batches
-    all_data = run_w_processes_in_batches(pdb_ids, process_pdb_for_sstrand_overlap, 10, 100)
+    all_data = run_w_processes_in_batches(
+        pdb_ids, process_pdb_for_sstrand_overlap, 10, 100
+    )
     # Convert results to DataFrame, filtering out None values
     df = pd.DataFrame([result for result in all_data if result is not None])
     # Save results
     df.to_csv("sstrand_overlap_analysis.csv", index=False)
-
 
 
 if __name__ == "__main__":

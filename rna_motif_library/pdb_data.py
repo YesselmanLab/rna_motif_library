@@ -2,6 +2,8 @@ from dataclasses import dataclass
 import os
 from typing import Dict, List, Optional, Set
 
+import click
+
 from rna_motif_library.basepair import Basepair
 from rna_motif_library.chain import Chains, get_cached_chains, get_rna_chains
 from rna_motif_library.hbond import Hbond, get_cached_hbonds
@@ -65,8 +67,8 @@ def get_cww_basepairs(
     Args:
         pdb_data: PDBStructureData object containing basepairs and chains information
         valid_pairs: Optional list of valid basepair types (e.g. ['A-U', 'G-C']). If None, loads from file.
-        min_two_hbond_score: Minimum required hbond score for A-U and G-U pairs (default 1.3)
-        min_three_hbond_score: Minimum required hbond score for G-C pairs (default 2.0)
+        min_two_hbond_score: Minimum required hbond score for A-U and G-U pairs (default 0.5)
+        min_three_hbond_score: Minimum required hbond score for G-C pairs (default 0.5)
 
     Returns:
         Dictionary mapping residue pair strings (e.g. "A1-U20") to Basepair objects.
@@ -95,6 +97,7 @@ def get_cww_basepairs(
     for bp in basepairs:
         if bp.lw != "cWW" or bp.bp_type not in valid_pairs:
             continue
+        # make sure its in chains, i.e. part of the structure
         if (
             chains.get_residue_by_str(bp.res_1.get_str()) is None
             or chains.get_residue_by_str(bp.res_2.get_str()) is None
@@ -213,3 +216,26 @@ def get_singlet_pairs(
             key = f"{bp.res_1.get_str()}-{bp.res_2.get_str()}"
             singlet_pairs[key] = bp
     return singlet_pairs
+
+@click.group()
+def cli():
+    pass
+
+@cli.command()
+@click.argument("pdb_id", type=str)
+@click.option("--min_hbond_score", type=float, default=0.0)
+@click.option("-r1", "--res1", type=str, default=None)
+@click.option("-r2", "--res2", type=str, default=None)
+def list_basepairs(pdb_id, min_hbond_score, res1, res2):
+    pdb_data = get_pdb_structure_data(pdb_id)
+    for bp in pdb_data.basepairs:
+        if bp.hbond_score < min_hbond_score:
+            continue
+        if res1 is not None and bp.res_1.get_str() != res1 and bp.res_2.get_str() != res1:
+            continue
+        if res2 is not None and bp.res_2.get_str() != res2 and bp.res_1.get_str() != res2:
+            continue
+        print(bp.res_1.get_str(), bp.res_2.get_str(), bp.bp_type, bp.hbond_score, bp.lw)
+
+if __name__ == "__main__":
+    cli()

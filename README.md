@@ -3,6 +3,32 @@
 A Python package for RNA Motif Library creation.<br>
 preprint: (insert paper link here)
 
+## Download the current library
+
+
+
+## Understanding the json files
+
+### Understanding the motif indentifiers
+
+All motifs are indentified as strings as `mtype-msize-msequence-pdb_id`. This is a unique format that may be visually unappealing but is easy to work with and is easy to parse. 
+
+`mtype` is the motif type (like HAIRPIN, HELIX, etc).
+`msize` is the motif size (like 1, 2, 3, etc).
+`msequence` is the motif sequence (like A, C, G, U, etc).
+`pdb_id` is the PDB ID (like 1GID, 1GID, etc).
+
+### Understanding the residue indentifiers
+
+All residues are indentified as strings as `chain_id-res_id-res_num-ins_code`. This is a unique format that may be visually unappealing but is easy to work with and is easy to parse. These will all match the CIF files downloaded from the PDB.
+
+`chain_id` is the chain identifier (auth_asym_id in CIF format).
+`res_id` is the residue identifier (auth_comp_id in CIF format).
+`res_num` is the residue number (auth_seq_id in CIF format).
+`ins_code` is the insertion code (pdbx_PDB_ins_code in CIF format), most of the time this is empty.
+
+Although trival to parse there is a function in `util.py` named `parse_residue_identifier` that can be used to parse the residue identifier into a dictionary.
+
 
 ## Generating the database 
 

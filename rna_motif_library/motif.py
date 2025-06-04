@@ -39,6 +39,7 @@ from rna_motif_library.pdb_data import (
     get_pdb_structure_data,
     get_cww_basepairs,
     get_singlet_pairs,
+    get_basepair_ends_for_strands,
 )
 
 log = get_logger("motif")
@@ -303,6 +304,8 @@ class MotifFactoryFromOther:
         log.info(f"Processing {len(dssr_motifs)} motifs")
         for m in dssr_motifs:
             residues = self._get_residues_for_motif(m, all_residues)
+            if len(residues) == 0:
+                continue
             m = self._generate_motif(m.mtype, residues)
             motifs.append(m)
         log.info(f"Final number of motifs: {len(motifs)}")
@@ -328,61 +331,10 @@ class MotifFactoryFromOther:
             if nt in all_residues:
                 residues.append(all_residues[nt])
             else:
+                # this might be a parsing issue and might be on my side
                 log.warning(f"Residue {nt} not found in {self.pdb_id}")
-                continue
+                return []
         return residues
-
-    def _assign_end_basepairs(self, strands: List[List[Residue]]) -> List[Basepair]:
-        end_residue_ids = []
-        for s in strands:
-            end_residue_ids.append(s[0].get_str())
-            end_residue_ids.append(s[-1].get_str())
-
-        # First collect all potential end basepairs
-        end_basepairs = []
-        for bp in self.basepairs:
-            if (
-                not bp.res_1.get_str() in end_residue_ids
-                or not bp.res_2.get_str() in end_residue_ids
-            ):
-                continue
-            key = f"{bp.res_1.get_str()}-{bp.res_2.get_str()}"
-            if key in self.cww_basepairs:
-                end_basepairs.append(self.cww_basepairs[key])
-        # Track basepairs by residue
-        residue_basepairs = {}
-        for bp in end_basepairs:
-            res1 = bp.res_1.get_str()
-            res2 = bp.res_2.get_str()
-            if res1 not in residue_basepairs:
-                residue_basepairs[res1] = []
-            if res2 not in residue_basepairs:
-                residue_basepairs[res2] = []
-            residue_basepairs[res1].append(bp)
-            residue_basepairs[res2].append(bp)
-
-        # Filter out weaker basepairs, keeping only the strongest one per residue pair
-        filtered_basepairs = set()
-        processed_residues = set()
-
-        # Sort all basepairs by hbond score from strongest to weakest
-        all_bps = []
-        for bps in residue_basepairs.values():
-            all_bps.extend(bps)
-        all_bps.sort(key=lambda x: x.hbond_score, reverse=True)
-
-        # Process basepairs in order of strength
-        for bp in all_bps:
-            res1 = bp.res_1.get_str()
-            res2 = bp.res_2.get_str()
-
-            # Only add if neither residue has been processed yet
-            if res1 not in processed_residues and res2 not in processed_residues:
-                filtered_basepairs.add(bp)
-                processed_residues.add(res1)
-                processed_residues.add(res2)
-
-        return list(filtered_basepairs)
 
     def _generate_motif(self, x3dna_mtype: str, residues: List[Residue]) -> Motif:
         # We need to determine the data for the motif and build a class
@@ -410,7 +362,7 @@ class MotifFactoryFromOther:
         for bp in self.basepairs:
             if bp.res_1.get_str() in residue_ids and bp.res_2.get_str() in residue_ids:
                 basepairs.append(bp)
-        end_basepairs = self._assign_end_basepairs(strands)
+        end_basepairs = get_basepair_ends_for_strands(strands, self.basepairs)
         sequence = self._find_sequence(strands).replace("&", "-")
         mname = f"{mtype}-{sequence}-{self.pdb_id}"
         if mname in self.used_names:
@@ -909,7 +861,6 @@ def find_unique_motifs_in_non_redundant_set_entry(args):
     )
     if os.path.exists(output_path):
         return None
-    print(f"Processing set {set_id}")
     # Get motifs from representative structure
     motifs = get_cached_motifs(repr_entry.pdb_id)
     repr_motifs = get_motifs_included_in_chains(motifs, repr_entry.chain_ids)
@@ -1145,7 +1096,9 @@ def get_non_redundant_motifs(csv_path, processes):
     all_args = []
     for set_id, repr_entry, child_entries in sets:
         all_args.append((set_id, repr_entry, child_entries))
-
+    os.makedirs(
+        os.path.join(DATA_PATH, "dataframes", "non_redundant_sets"), exist_ok=True
+    )
     results = run_w_processes_in_batches(
         items=all_args,
         func=find_unique_motifs_in_non_redundant_set_entry,
@@ -1175,6 +1128,12 @@ def get_unique_motifs():
     df = df.merge(df_issues, on="motif_name", how="left")
     path = os.path.join(DATA_PATH, "summaries", "non_redundant_motifs.csv")
     df.to_csv(path, index=False)
+    df = df.query(
+        "flanking_helices == 1.0 and contains_helix == 0.0 and has_singlet_pair_end == 0.0"
+    )
+    path = os.path.join(DATA_PATH, "summaries", "non_redundant_motifs_no_issues.csv")
+    print(len(df))
+    df.to_csv(path, index=False)
 
 
 # Step 3: Get unique residues
@@ -1188,8 +1147,8 @@ def get_unique_residues(processes):
     """
     # Read input data
     df = pd.read_csv(os.path.join(DATA_PATH, "summaries", "non_redundant_motifs.csv"))
-    unique_motifs = df["motif"].values
-    df = add_motif_name_columns(df, "motif")
+    unique_motifs = df["motif_name"].values
+    df = add_motif_name_columns(df, "motif_name")
     # Prepare arguments for parallel processing
     pdb_ids = df["pdb_id"].unique()
     args = [(pdb_id, unique_motifs) for pdb_id in pdb_ids]
@@ -1234,8 +1193,6 @@ def get_dssr_motifs(processes):
     """
     pdb_ids = get_pdb_ids()
     os.makedirs(os.path.join(DATA_PATH, "dataframes", "dssr_motifs"), exist_ok=True)
-    # get_dssr_motifs_for_pdb("6QIQ")
-    # exit()
     run_w_processes_in_batches(
         items=pdb_ids,
         func=get_dssr_motifs_for_pdb,
@@ -1243,6 +1200,10 @@ def get_dssr_motifs(processes):
         batch_size=100,
         desc="Processing PDB IDs for DSSR motifs",
     )
+    df = concat_dataframes_from_files(
+        glob.glob(os.path.join(DATA_PATH, "dataframes", "dssr_motifs", "*.json"))
+    )
+    df.to_json(os.path.join("dssr_motifs.json"), orient="records")
 
 
 # Step 5: Compare DSSR motifs
@@ -1257,14 +1218,16 @@ def compare_dssr_motifs(processes):
         processes: Number of processes to use for parallel processing
     """
     pdb_ids = get_pdb_ids()
-    os.makedirs(os.path.join(DATA_PATH, "dataframes", "dssr_motifs_compared"), exist_ok=True)
+    os.makedirs(
+        os.path.join(DATA_PATH, "dataframes", "dssr_motifs_compared"), exist_ok=True
+    )
 
     # Process PDB IDs in parallel
     results = run_w_processes_in_batches(
         items=pdb_ids,
         func=process_pdb_id_for_dssr_comparison,
         processes=processes,
-        batch_size=100,
+        batch_size=200,
         desc="Comparing DSSR motifs",
     )
 

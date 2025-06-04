@@ -347,8 +347,8 @@ class MotifFactory:
                 continue
             else:
                 finished_motifs.append(new_motif)
-        # last sweep to make sure sstrands are merged 
-        sstrands = [m for m in finished_motifs if m.mtype == "SSTRAND"] 
+        # last sweep to make sure sstrands are merged
+        sstrands = [m for m in finished_motifs if m.mtype == "SSTRAND"]
         not_sstrands = [m for m in finished_motifs if m.mtype != "SSTRAND"]
         new_potential_motifs = self.get_non_canonical_motifs(
             [s.strands[0] for s in sstrands],
@@ -490,12 +490,11 @@ class MotifFactory:
         unprocessed_strands = non_helical_strands.copy()
         count = 0
 
-
         while unprocessed_strands:
             # Start a new motif with the first unprocessed strand
             count += 1
             new_motifs = self._get_non_canonical_motif_from_strands(
-                    unprocessed_strands[0], count, unprocessed_strands, cww_basepairs
+                unprocessed_strands[0], count, unprocessed_strands, cww_basepairs
             )
             motifs.extend(new_motifs)
         """for i in range(0, 4):
@@ -779,9 +778,11 @@ class MotifFactory:
                     )
                 return motifs
 
-        return [self._generate_initial_motif_from_strands(
-            current_motif_strands, cww_basepairs
-        )]
+        return [
+            self._generate_initial_motif_from_strands(
+                current_motif_strands, cww_basepairs
+            )
+        ]
 
     # finalizing motifs ################################################################
     def _generate_initial_motif_from_strands(

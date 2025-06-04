@@ -346,6 +346,8 @@ def find_tc_hbonds(processes):
         processes: Number of processes to use for parallel processing
     """
     pdb_ids = get_pdb_ids()
+    if not os.path.exists(os.path.join(DATA_PATH, "dataframes", "tc_hbonds")):
+        os.makedirs(os.path.join(DATA_PATH, "dataframes", "tc_hbonds"))
 
     # Process PDB IDs in parallel
     results = run_w_processes_in_batches(
@@ -379,6 +381,8 @@ def find_tertiary_contacts(processes):
     Args:
         processes: Number of processes to use for parallel processing
     """
+    if not os.path.exists(os.path.join(DATA_PATH, "dataframes", "tertiary_contacts")):
+        os.makedirs(os.path.join(DATA_PATH, "dataframes", "tertiary_contacts"))
     df = pd.read_csv("tertiary_contacts_hbonds.csv", dtype={"pdb_id": str})
     path = os.path.join(DATA_PATH, "summaries", "non_redundant_motifs.csv")
     unique_motifs = list(pd.read_csv(path)["motif_name"].values)
