@@ -2,6 +2,8 @@ import requests
 import json
 import sys
 import time
+import concurrent.futures
+from typing import List, Dict
 
 from rna_motif_library.logger import get_logger
 
@@ -164,3 +166,55 @@ def get_rna_structures(resolution_cutoff=3.5):
         log.error(f"Unexpected error: {e}")
         log.error(f"Error type: {type(e).__name__}")
         return []
+
+
+def get_pdb_title(pdb_id):
+    """
+    Query the RCSB PDB API and extract the title from the primary citation.
+    """
+    url = f"https://data.rcsb.org/rest/v1/core/entry/{pdb_id}"
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            citations = data.get("citation", [])
+            for c in citations:
+                if c.get("rcsb_is_primary") == "Y":
+                    return c.get("title", "").lower()
+            return ""
+        else:
+            log.error(f"PDB ID {pdb_id}: HTTP {response.status_code}")
+            return ""
+    except Exception as e:
+        log.error(f"PDB ID {pdb_id}: {e}")
+        return ""
+
+
+def get_pdb_titles_batch(pdb_ids: List[str], max_workers: int = 10) -> Dict[str, str]:
+    """
+    Get titles for multiple PDB IDs using parallel processing.
+    
+    Args:
+        pdb_ids: List of PDB IDs to fetch titles for
+        max_workers: Maximum number of concurrent threads (default: 10)
+        
+    Returns:
+        Dictionary mapping PDB IDs to their titles
+    """
+    results = {}
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks and create a mapping of future to pdb_id
+        future_to_pdb = {executor.submit(get_pdb_title, pdb_id): pdb_id for pdb_id in pdb_ids}
+        
+        # Process completed tasks as they finish
+        for future in concurrent.futures.as_completed(future_to_pdb):
+            pdb_id = future_to_pdb[future]
+            try:
+                title = future.result()
+                results[pdb_id] = title
+            except Exception as e:
+                log.error(f"Error processing {pdb_id}: {e}")
+                results[pdb_id] = ""
+    
+    return results

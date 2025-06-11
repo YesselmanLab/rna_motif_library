@@ -13,8 +13,8 @@ from rna_motif_library.util import (
     get_pdb_ids,
     NonRedundantSetParser,
     NRSEntry,
-    add_motif_name_columns,
-    parse_motif_name,
+    add_motif_indentifier_columns,
+    parse_motif_indentifier,
 )
 from rna_motif_library.tranforms import superimpose_structures, rmsd
 
@@ -166,11 +166,11 @@ def process_set(args):
     for i in range(len(all_missed_motifs)):
         if len(all_missed_motifs[i]) == 0:
             continue
-        pdb_id = parse_motif_name(all_missed_motifs[i][0].name)[-1]
+        pdb_id = parse_motif_indentifier(all_missed_motifs[i][0].name)[-1]
         for j in range(i + 1, len(all_missed_motifs)):
             if len(all_missed_motifs[j]) == 0:
                 continue
-            child_pdb_id = parse_motif_name(all_missed_motifs[j][0].name)[-1]
+            child_pdb_id = parse_motif_indentifier(all_missed_motifs[j][0].name)[-1]
             df = check_for_duplicates(
                 all_missed_motifs[i],
                 all_missed_motifs[j],
@@ -314,7 +314,7 @@ def summerize_sets():
     df.to_csv(
         os.path.join(DATA_PATH, "summaries", "non_redundant_motifs.csv"), index=False
     )
-    df = add_motif_name_columns(df, "motif")
+    df = add_motif_indentifier_columns(df, "motif")
     for i, g in df.groupby("mtype"):
         data = []
         for j, h in g.groupby("msequence"):
@@ -333,7 +333,7 @@ def summerize_sets():
 def get_unique_residues():
     df = pd.read_csv(os.path.join(DATA_PATH, "summaries", "non_redundant_motifs.csv"))
     unique_motifs = df["motif"].values
-    df = add_motif_name_columns(df, "motif")
+    df = add_motif_indentifier_columns(df, "motif")
     data = []
     res_mapping = []
     for pdb_id, g in df.groupby("pdb_id"):

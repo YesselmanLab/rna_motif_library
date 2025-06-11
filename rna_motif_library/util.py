@@ -547,7 +547,7 @@ def parse_residue_identifier(residue_identifier: str) -> tuple:
     }
 
 
-def parse_motif_name(motif_name: str) -> tuple:
+def parse_motif_indentifier(motif_name: str) -> tuple:
     """
     parse a name such as HAIRPIN-1-CGG-7PWO-1
     into a tuple of (mtype, msize, msequence, pdb_id)
@@ -566,7 +566,7 @@ def parse_motif_name(motif_name: str) -> tuple:
     return (mtype, msize, msequence, pdb_id)
 
 
-def add_motif_name_columns(df: pd.DataFrame, name_col: str) -> pd.DataFrame:
+def add_motif_indentifier_columns(df: pd.DataFrame, name_col: str) -> pd.DataFrame:
     """Add columns for each component of a motif name.
 
     Args:
@@ -576,7 +576,7 @@ def add_motif_name_columns(df: pd.DataFrame, name_col: str) -> pd.DataFrame:
     Returns:
         DataFrame with new columns for motif type, size, sequence and PDB ID
     """
-    components = df[name_col].apply(parse_motif_name)
+    components = df[name_col].apply(parse_motif_indentifier)
     df["mtype"] = components.apply(lambda x: x[0])
     df["msize"] = components.apply(lambda x: x[1])
     df["msequence"] = components.apply(lambda x: x[2])

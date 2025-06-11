@@ -4,7 +4,7 @@ from rna_motif_library.util import (
     get_pdb_ids,
     get_cached_path,
     get_nucleotide_atom_type,
-    add_motif_name_columns,
+    add_motif_indentifier_columns,
 )
 from rna_motif_library.motif import get_cached_motifs
 from rna_motif_library.settings import DATA_PATH
@@ -67,7 +67,7 @@ def get_isolatable_motifs():
 
 def get_isolatable_motifs_summary():
     df = pd.read_csv(os.path.join(DATA_PATH, "summaries", "isolatable_motifs.csv"))
-    df = add_motif_name_columns(df, "motif")
+    df = add_motif_indentifier_columns(df, "motif")
     data = []
     for j, h in df.groupby("msequence"):
         data.append({"count": len(h), "msequence": j, "repr_motif": h.iloc[0]["motif"]})

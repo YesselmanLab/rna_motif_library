@@ -2,6 +2,7 @@
 build/
 plots/
 data/
+not_in_repo/
 *egg*
 venv/
 *.pyc

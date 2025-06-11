@@ -114,4 +114,4 @@ DATA_PATH = paths.data_path
 UNITTEST_PATH = paths.unittest_path
 RESOURCES_PATH = paths.resources_path
 DSSR_EXE = paths.dssr_exe
-VERSION = 1
+VERSION = 2

@@ -165,7 +165,7 @@ def check_motifs_in_pdb(pdb_id: str):
                 "pdb_id": pdb_id,
                 "motif_name": m.name,
                 "motif_type": m.mtype,
-                "flanking_helices": flanking_helices,
+                "flanking_helices": 0,
                 "contains_helix": 0,
                 "has_singlet_pair": 0,
                 "has_singlet_pair_end": 0,
@@ -313,7 +313,7 @@ def process_pdb_for_sstrand_overlap(pdb_id: str) -> dict:
 def check_motifs():
     os.makedirs("data/dataframes/check_motifs", exist_ok=True)
     pdb_ids = get_pdbs_ids_from_jsons("motifs")
-    run_w_processes_in_batches(pdb_ids, check_motifs_in_pdb, 20, 100)
+    run_w_processes_in_batches(pdb_ids, check_motifs_in_pdb, 10, 100)
 
 
 @cli.command()

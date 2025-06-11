@@ -635,6 +635,9 @@ def assign_new_ligand_instances(df):
         lig_type[row["id"]] = row["type"]
 
     for i, row in df.iterrows():
+        if row["res_id"] not in lig_type:
+            print("missing ligand type", row["res_id"])
+            continue
         cur_lig_type = lig_type[row["res_id"]]
         if cur_lig_type != "UNKNOWN":
             df.at[i, "final_type"] = lig_type[row["res_id"]]
@@ -776,6 +779,269 @@ def process_json_file(json_file):
     except Exception as e:
         print(f"error processing {mol_name}: {e}")
         return None
+
+
+def process_ligand_polymer_info(row):
+    """Process a single ligand to get its polymer information.
+
+    Args:
+        row: DataFrame row containing ligand information
+
+    Returns:
+        dict: Dictionary containing ligand polymer information
+    """
+    ligand_id = row["id"]
+    pdb_ids = get_pdb_ids()
+
+    # Check if JSON file already exists
+    json_path = os.path.join(
+        LIGAND_DATA_PATH, "ligand_polymer_info", f"{ligand_id}.json"
+    )
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            log.error(f"Error reading existing JSON file for {ligand_id}: {e}")
+
+    try:
+        noncovalent_results = search_noncovalent_ligand(ligand_id) or []
+        covalent_results = search_covalent_ligand(ligand_id) or []
+        polymer_results = search_ligand_polymer_instances(ligand_id) or []
+
+        noncovalent_results = remove_extra_pdbs(pdb_ids, noncovalent_results)
+        covalent_results = remove_extra_pdbs(pdb_ids, covalent_results)
+        polymer_results = remove_extra_pdbs(pdb_ids, polymer_results)
+
+        result = {
+            "id": ligand_id,
+            "noncovalent_results": noncovalent_results,
+            "covalent_results": covalent_results,
+            "polymer_results": polymer_results,
+        }
+
+        # Save results to JSON file
+        with open(json_path, "w") as f:
+            json.dump(result, f)
+
+        return result
+    except Exception as e:
+        log.error(f"Error processing ligand {ligand_id}: {e}")
+        return None
+    return result
+
+
+def process_single_pdb_ligand_instances(pdb_id):
+    """Process ligand instances for a single PDB ID.
+
+    Args:
+        pdb_id (str): The PDB ID to process
+
+    Returns:
+        pd.DataFrame: DataFrame containing ligand instances for this PDB
+    """
+    exclude = (
+        canon_res_list
+        + ion_list
+        + ["HOH"]
+        + ["UNK", "UNX", "N", "DN"]  # unknown residues
+    )
+
+    path = os.path.join(LIGAND_DATA_PATH, "ligand_instances", f"{pdb_id}.csv")
+    if os.path.exists(path):
+        return pd.read_csv(path)
+
+    data = []
+    try:
+        pchains = Chains(get_cached_protein_chains(pdb_id))
+        rchains = Chains(get_cached_chains(pdb_id))
+        residues = get_cached_residues(pdb_id)
+    except:
+        log.error(f"missing residues {pdb_id}")
+        return pd.DataFrame(
+            columns=["pdb_id", "res_id", "res_str", "type", "is_nuc", "is_aa"]
+        )
+
+    for res in residues.values():
+        if res.res_id in exclude:
+            continue
+        is_nuc = is_nucleotide(res)
+        is_aa = is_amino_acid(res)
+        if is_nuc:
+            c = rchains.get_chain_for_residue(res)
+            if c is None:
+                continue
+            if len(c) > 1:
+                data.append(
+                    [
+                        pdb_id,
+                        res.res_id,
+                        res.get_str(),
+                        "RNA",
+                        is_nuc,
+                        is_aa,
+                    ]
+                )
+            else:
+                data.append(
+                    [
+                        pdb_id,
+                        res.res_id,
+                        res.get_str(),
+                        "SMALL-MOLECULE",
+                        is_nuc,
+                        is_aa,
+                    ]
+                )
+        elif is_aa:
+            c = pchains.get_chain_for_residue(res)
+            if len(c) > 1:
+                data.append(
+                    [
+                        pdb_id,
+                        res.res_id,
+                        res.get_str(),
+                        "PROTEIN",
+                        is_nuc,
+                        is_aa,
+                    ]
+                )
+            else:
+                data.append(
+                    [
+                        pdb_id,
+                        res.res_id,
+                        res.get_str(),
+                        "SMALL-MOLECULE",
+                        is_nuc,
+                        is_aa,
+                    ]
+                )
+        else:
+            data.append(
+                [
+                    pdb_id,
+                    res.res_id,
+                    res.get_str(),
+                    "SMALL-MOLECULE",
+                    is_nuc,
+                    is_aa,
+                ]
+            )
+
+    df = pd.DataFrame(
+        data, columns=["pdb_id", "res_id", "res_str", "type", "is_nuc", "is_aa"]
+    )
+    df.to_csv(path, index=False)
+    return df
+
+
+def process_single_pdb_ligand_bonds(csv_file):
+    """Process ligand bonds for a single PDB file.
+
+    Args:
+        csv_file (str): Path to the CSV file containing ligand instances
+
+    Returns:
+        pd.DataFrame: DataFrame containing ligand instances with bond information
+    """
+    pdb_id = os.path.basename(csv_file).split(".")[0]
+    exclude = ion_list + ["HOH"]
+
+    # Skip if already processed
+    if os.path.exists(
+        os.path.join(LIGAND_DATA_PATH, "ligand_instances_w_bonds", f"{pdb_id}.json")
+    ):
+        return pd.read_json(
+            os.path.join(LIGAND_DATA_PATH, "ligand_instances_w_bonds", f"{pdb_id}.json")
+        )
+
+    try:
+        df = pd.read_csv(csv_file)
+        df = df.query("type == 'SMALL-MOLECULE'").copy()
+        df["bonded_residues"] = [[] for _ in range(len(df))]
+
+        if len(df) == 0:
+            path = os.path.join(
+                LIGAND_DATA_PATH, "ligand_instances_w_bonds", f"{pdb_id}.json"
+            )
+            df.to_json(path, orient="records")
+            return df
+
+        residues = get_cached_residues(pdb_id)
+
+        # Filter out excluded residues
+        keep_residues = {
+            id: res for id, res in residues.items() if res.res_id not in exclude
+        }
+
+        # Process each ligand
+        for index, row in df.iterrows():
+            res = residues[row["res_str"]]
+            bonds = check_residue_bonds(res, keep_residues)
+            df.at[index, "bonded_residues"] = bonds
+
+        # Save individual PDB results
+        path = os.path.join(
+            LIGAND_DATA_PATH, "ligand_instances_w_bonds", f"{pdb_id}.json"
+        )
+        df.to_json(path, orient="records")
+        return df
+
+    except Exception as e:
+        log.error(f"Error processing {pdb_id}: {e}")
+        return None
+
+
+def process_single_pdb_interactions(pdb_id):
+    """Process hydrogen bond interactions for a single PDB structure.
+
+    Args:
+        pdb_id (str): PDB ID to process
+
+    Returns:
+        list: List of interaction data dictionaries
+    """
+    data = []
+    if not os.path.exists(
+        os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv")
+    ):
+        return data
+
+    try:
+        df = pd.read_csv(
+            os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv")
+        )
+        df = df.query("res_type_2 == 'LIGAND'")
+
+        for ligand_res, g in df.groupby("res_2"):
+            hbonds = []
+            for i, row in g.iterrows():
+                hbonds.append(
+                    {
+                        "res_1": row["res_1"],
+                        "atom_1": row["atom_1"],
+                        "atom_2": row["atom_2"],
+                        "score": row["score"],
+                    }
+                )
+            split_res_id = ligand_res.split("-")
+            res_id = split_res_id[0]
+            data.append(
+                {
+                    "ligand_res": ligand_res,
+                    "ligand_id": res_id,
+                    "interacting_residues": g["res_1"].unique(),
+                    "hbonds": hbonds,
+                    "num_hbonds": len(g),
+                    "hbond_score": g["score"].sum(),
+                    "pdb_id": pdb_id,
+                }
+            )
+    except Exception as e:
+        log.error(f"Error processing {pdb_id}: {e}")
+
+    return data
 
 
 # run in main cli #####################################################################
@@ -962,40 +1228,25 @@ def get_ligand_info(processes):
 
 # STEP 5 get ligand polymer instances
 @cli.command()
-def get_ligand_polymer_instances():
+@click.option("-p", "--processes", default=4, help="Number of processes to use.")
+def get_ligand_polymer_instances(processes):
+    """Get ligand polymer instances using parallel processing."""
+    setup_logging()
     df = pd.read_json(os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info.json"))
-    pdb_ids = get_pdb_ids()
-    for i, row in df.iterrows():
-        path = os.path.join(
-            LIGAND_DATA_PATH, "ligand_polymer_info", f"{row['id']}.json"
-        )
-        if os.path.exists(path):
-            continue
-        print(row["id"])
-        ligand_id = row["id"]
-        noncovalent_results = search_noncovalent_ligand(ligand_id) or []
-        covalent_results = search_covalent_ligand(ligand_id) or []
-        polymer_results = search_ligand_polymer_instances(ligand_id) or []
-        noncovalent_results = remove_extra_pdbs(pdb_ids, noncovalent_results)
-        covalent_results = remove_extra_pdbs(pdb_ids, covalent_results)
-        polymer_results = remove_extra_pdbs(pdb_ids, polymer_results)
-        d = {
-            "id": ligand_id,
-            "noncovalent_results": noncovalent_results,
-            "covalent_results": covalent_results,
-            "polymer_results": polymer_results,
-        }
-        with open(path, "w") as f:
-            json.dump(d, f)
-    json_files = glob.glob(
-        os.path.join(LIGAND_DATA_PATH, "ligand_polymer_info", "*.json")
+    os.makedirs(os.path.join(LIGAND_DATA_PATH, "ligand_polymer_info"), exist_ok=True)
+
+    results = run_w_processes_in_batches(
+        items=df.to_dict(orient="records"),
+        func=process_ligand_polymer_info,
+        processes=processes,
+        desc="Processing ligand polymer information",
     )
     all_data = []
-    for json_file in json_files:
-        f = open(json_file, "r")
-        data = json.load(f)
-        f.close()
-        all_data.append(data)
+    for result in results:
+        if result is not None:
+            all_data.append(result)
+
+    # Create DataFrame and save
     df = pd.DataFrame(all_data)
     df.rename(columns={"id": "res_id"}, inplace=True)
     df.to_json(
@@ -1006,104 +1257,31 @@ def get_ligand_polymer_instances():
 
 # STEP 6 get ligand instances
 @cli.command()
-def get_ligand_instances():
-    df = pd.read_json(os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info.json"))
-    exclude = (
-        canon_res_list
-        + ion_list
-        + ["HOH"]
-        + ["UNK", "UNX", "N", "DN"]  # unknown residues
-    )
+@click.option("-p", "--processes", default=1, help="Number of processes to use.")
+def get_ligand_instances(processes):
+    """Get ligand instances using parallel processing."""
+    setup_logging()
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.join(LIGAND_DATA_PATH, "ligand_instances"), exist_ok=True)
+    # Get all PDB IDs to process
     pdb_ids = get_pdb_ids()
-    for pdb_id in pdb_ids:
-        path = os.path.join(LIGAND_DATA_PATH, "ligand_instances", f"{pdb_id}.csv")
-        if os.path.exists(path):
-            continue
-        data = []
-        try:
-            pchains = Chains(get_cached_protein_chains(pdb_id))
-            rchains = Chains(get_cached_chains(pdb_id))
-            residues = get_cached_residues(pdb_id)
-        except:
-            print("missing residues", pdb_id)
-            continue
-        for res in residues.values():
-            if res.res_id in exclude:
-                continue
-            is_nuc = is_nucleotide(res)
-            is_aa = is_amino_acid(res)
-            if is_nuc:
-                c = rchains.get_chain_for_residue(res)
-                if c is None:
-                    continue
-                if len(c) > 1:
-                    data.append(
-                        [
-                            pdb_id,
-                            res.res_id,
-                            res.get_str(),
-                            "RNA",
-                            is_nuc,
-                            is_aa,
-                        ]
-                    )
-                else:
-                    data.append(
-                        [
-                            pdb_id,
-                            res.res_id,
-                            res.get_str(),
-                            "SMALL-MOLECULE",
-                            is_nuc,
-                            is_aa,
-                        ]
-                    )
-            elif is_aa:
-                c = pchains.get_chain_for_residue(res)
-                if len(c) > 1:
-                    data.append(
-                        [
-                            pdb_id,
-                            res.res_id,
-                            res.get_str(),
-                            "PROTEIN",
-                            is_nuc,
-                            is_aa,
-                        ]
-                    )
-                else:
-                    data.append(
-                        [
-                            pdb_id,
-                            res.res_id,
-                            res.get_str(),
-                            "SMALL-MOLECULE",
-                            is_nuc,
-                            is_aa,
-                        ]
-                    )
-            else:
-                data.append(
-                    [
-                        pdb_id,
-                        res.res_id,
-                        res.get_str(),
-                        "SMALL-MOLECULE",
-                        is_nuc,
-                        is_aa,
-                    ]
-                )
-        df = pd.DataFrame(
-            data, columns=["pdb_id", "res_id", "res_str", "type", "is_nuc", "is_aa"]
-        )
-        df.to_csv(path, index=False)
-    csv_files = glob.glob(os.path.join(LIGAND_DATA_PATH, "ligand_instances", "*.csv"))
-    dfs = []
-    for csv_file in csv_files:
-        df = pd.read_csv(csv_file)
-        dfs.append(df)
+
+    # Process PDBs in parallel
+    results = run_w_processes_in_batches(
+        items=pdb_ids,
+        func=process_single_pdb_ligand_instances,
+        processes=processes,
+        batch_size=100,
+        desc="Processing ligand instances",
+    )
+    # Combine results
+    dfs = [df for df in results if not df.empty]
+    if not dfs:
+        log.error("No valid results found")
+        return
     df = pd.concat(dfs)
     df = df.query("type == 'SMALL-MOLECULE'")
+    # Save final results
     df.to_csv(
         os.path.join(LIGAND_DATA_PATH, "summary", "ligand_instances.csv"), index=False
     )
@@ -1111,51 +1289,31 @@ def get_ligand_instances():
 
 # STEP 7 get ligand instances with bonds
 @cli.command()
-def get_ligand_instances_with_bonds():
-    csv_files = glob.glob(os.path.join(LIGAND_DATA_PATH, "ligand_instances", "*.csv"))
-    exclude = ion_list + ["HOH"]
-    for csv_file in csv_files:
-        pdb_id = os.path.basename(csv_file).split(".")[0]
-        print(pdb_id)
-        if os.path.exists(
-            os.path.join(LIGAND_DATA_PATH, "ligand_instances_w_bonds", f"{pdb_id}.json")
-        ):
-            continue
-        df = pd.read_csv(csv_file)
-        df = df.query("type == 'SMALL-MOLECULE'").copy()
-        df["bonded_residues"] = [[] for _ in range(len(df))]
-        if len(df) == 0:
-            path = os.path.join(
-                LIGAND_DATA_PATH, "ligand_instances_w_bonds", f"{pdb_id}.json"
-            )
-            df.to_json(path, orient="records")
-            continue
-        try:
-            residues = get_cached_residues(pdb_id)
-        except:
-            print("missing residues", pdb_id)
-            continue
-        keep_residues = {}
-        for id, res in residues.items():
-            if res.res_id in exclude:
-                continue
-            keep_residues[id] = res
-        for index, row in df.iterrows():
-            res = residues[row["res_str"]]
-            bonds = check_residue_bonds(res, keep_residues)
-            df.at[index, "bonded_residues"] = bonds
-        path = os.path.join(
-            LIGAND_DATA_PATH, "ligand_instances_w_bonds", f"{pdb_id}.json"
-        )
-        df.to_json(path, orient="records")
-    json_files = glob.glob(
-        os.path.join(LIGAND_DATA_PATH, "ligand_instances_w_bonds", "*.json")
+@click.option("-p", "--processes", default=4, help="Number of processes to use.")
+def get_ligand_instances_with_bonds(processes):
+    """Get ligand instances with bonds using parallel processing."""
+    setup_logging()
+    # Create output directory if it doesn't exist
+    os.makedirs(
+        os.path.join(LIGAND_DATA_PATH, "ligand_instances_w_bonds"), exist_ok=True
     )
-    dfs = []
-    for json_file in json_files:
-        df = pd.read_json(json_file)
-        dfs.append(df)
+    # Get all CSV files to process
+    csv_files = glob.glob(os.path.join(LIGAND_DATA_PATH, "ligand_instances", "*.csv"))
+    # Process files in parallel
+    results = run_w_processes_in_batches(
+        items=csv_files,
+        func=process_single_pdb_ligand_bonds,
+        processes=processes,
+        batch_size=100,
+        desc="Processing ligand bonds",
+    )
+    # Combine results
+    dfs = [df for df in results if df is not None]
+    if not dfs:
+        log.error("No valid results found")
+        return
     df = pd.concat(dfs)
+    # Save final combined results
     df.to_json(
         os.path.join(LIGAND_DATA_PATH, "summary", "ligand_instances_w_bonds.json"),
         orient="records",
@@ -1312,46 +1470,35 @@ def create_new_version():
 
 # STEP 11 get final analysis summaries
 @cli.command()
-def generate_interaction_summary():
-    pdb_ids = get_pdb_ids()
-    data = []
-    for pdb_id in pdb_ids:
-        if not os.path.exists(
-            os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv")
-        ):
-            continue
-        df = pd.read_csv(
-            os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv")
-        )
-        df = df.query("res_type_2 == 'LIGAND'")
+@click.option("-p", "--processes", default=4, help="Number of processes to use.")
+def generate_interaction_summary(processes):
+    """Generate summary of RNA-ligand interactions using parallel processing."""
+    setup_logging()
 
-        for ligand_res, g in df.groupby("res_2"):
-            hbonds = []
-            for i, row in g.iterrows():
-                hbonds.append(
-                    {
-                        "res_1": row["res_1"],
-                        "atom_1": row["atom_1"],
-                        "atom_2": row["atom_2"],
-                        "score": row["score"],
-                    }
-                )
-            split_res_id = ligand_res.split("-")
-            res_id = split_res_id[0]
-            data.append(
-                {
-                    "ligand_res": ligand_res,
-                    "ligand_id": res_id,
-                    "interacting_residues": g["res_1"].unique(),
-                    "hbonds": hbonds,
-                    "num_hbonds": len(g),
-                    "hbond_score": g["score"].sum(),
-                    "pdb_id": pdb_id,
-                }
-            )
-    df = pd.DataFrame(data)
+    # Get all PDB IDs to process
+    pdb_ids = get_pdb_ids()
+
+    # Process PDBs in parallel using batched processing
+    results = run_w_processes_in_batches(
+        items=pdb_ids,
+        func=process_single_pdb_interactions,
+        processes=processes,
+        batch_size=100,
+        desc="Processing RNA-ligand interactions",
+    )
+
+    # Combine results from all processes
+    all_data = []
+    for result in results:
+        if result is not None:
+            all_data.extend(result)
+
+    # Create final dataframe and sort by hbond score
+    df = pd.DataFrame(all_data)
     df.sort_values(by="hbond_score", ascending=False, inplace=True)
-    print(len(df))
+    log.info(f"Processed {len(df)} total interactions")
+
+    # Save results
     df.to_json("rna_ligand_interactions.json", orient="records")
 
 
@@ -1427,7 +1574,6 @@ def find_unique_ligand_interactions():
                             elif idx2 in g and idx1 not in g:
                                 g.append(idx1)
 
-        print(f"Found {len(duplicate_groups)} groups of duplicates:")
         # Set duplicate flag to first member in each group
         for group in duplicate_groups:
             for idx in group[1:]:  # Skip first member
@@ -1443,28 +1589,68 @@ def find_unique_ligand_interactions():
 @cli.command()
 def get_final_summaries():
     df = pd.read_json("rna_ligand_interactions_w_duplicates.json")
-    res_mapping = json.load(
-        open(os.path.join(DATA_PATH, "summaries", "res_mapping.json"))
-    )
+    res_mapping = {}
     count = 0
     df["interacting_motifs"] = [[] for _ in range(len(df))]
     df["num_motifs"] = [0 for _ in range(len(df))]
     for pdb_id, g in df.groupby("pdb_id"):
         print(pdb_id)
-        if pdb_id not in res_mapping:
-            res_mapping[pdb_id] = generate_res_motif_mapping(motifs)
+        motifs = get_cached_motifs(pdb_id)
+        res_mapping[pdb_id] = generate_res_motif_mapping(motifs)
         for i, row in g.iterrows():
             interacting_motifs = []
             for res in row["interacting_residues"]:
                 if res not in res_mapping[pdb_id]:
                     print("missing", res)
-                    motifs = get_cached_motifs(pdb_id)
-                    res_mapping[pdb_id] = generate_res_motif_mapping(motifs)
                 if res_mapping[pdb_id][res] not in interacting_motifs:
                     interacting_motifs.append(res_mapping[pdb_id][res])
             df.at[i, "interacting_motifs"] = interacting_motifs
             df.at[i, "num_motifs"] = len(interacting_motifs)
     df.to_json("rna_ligand_interactions_w_motifs.json", orient="records")
+
+
+@cli.command()
+def get_motif_summary():
+    RELEASE_PATH = os.path.join("release", "ligand_interactions")
+    os.makedirs(RELEASE_PATH, exist_ok=True)
+    df = pd.read_json("rna_ligand_interactions_w_motifs.json")
+    data = []
+    for pdb_id, g in df.groupby("pdb_id"):
+        motifs = get_cached_motifs(pdb_id)
+        all_residues = get_cached_residues(pdb_id)
+        motif_by_name = {m.name: m for m in motifs}
+        for i, row in g.iterrows():
+            for m_name in row["interacting_motifs"]:
+                m = motif_by_name[m_name]
+                atom_names = []
+                coords = []
+                residues = []
+                for r in m.get_residues():
+                    atom_names.append(r.atom_names)
+                    coords.append(r.coords)
+                    residues.append(r.get_str())
+                is_duplicate = row["duplicate"] != -1
+                data.append({
+                    "pdb_id": pdb_id,
+                    "ligand_res_id": row["ligand_res"],
+                    "motif_id": m.name,
+                    "motif_type": m.mtype,
+                    "motif_topology": m.size,
+                    "motif_sequence": m.sequence,
+                    "residues" : residues,
+                    "num_residues": len(residues),
+                    "atom_names": atom_names,
+                    "coords": coords,
+                    "ligand_coords": [all_residues[row["ligand_res"]].coords],
+                    "ligand_atom_names": [all_residues[row["ligand_res"]].atom_names],
+                    "is_duplicate": is_duplicate,
+                })
+    df = pd.DataFrame(data)
+    df.to_json(os.path.join(RELEASE_PATH, "all_motif_ligand_interactions_w_coords.json"), orient="records")
+    os.system("gzip -9 -f {}".format(os.path.join(RELEASE_PATH, "all_motif_ligand_interactions_w_coords.json")))
+    df = df.query("is_duplicate == 0")
+    df.to_json(os.path.join(RELEASE_PATH, "non_redundant_motif_ligand_interactions_w_coords.json"), orient="records")
+    os.system("gzip -9 -f {}".format(os.path.join(RELEASE_PATH, "non_redundant_motif_ligand_interactions_w_coords.json")))
 
 
 if __name__ == "__main__":

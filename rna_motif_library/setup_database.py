@@ -460,7 +460,6 @@ def process_residues(csv_path, processes):
     pdb_ids = df["pdb_id"].tolist()
     run_w_processes(process_residues_in_pdb, pdb_ids, processes)
 
-
 # STEP 7: process all chains
 @cli.command()
 @click.argument("csv_path", type=click.Path(exists=True))
@@ -482,6 +481,11 @@ def process_chains(csv_path, processes):
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].tolist()
     run_w_processes(process_chains_in_pdb, pdb_ids, processes)
+
+
+
+# OPTIONAL STEP: get pdb info
+exit()
 
 
 # STEP 8: handle ligand identification

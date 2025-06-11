@@ -8,7 +8,7 @@ from rna_motif_library.residue import are_residues_connected
 from rna_motif_library.util import (
     get_nucleotide_atom_type,
     get_pdb_ids,
-    parse_motif_name,
+    parse_motif_indentifier,
     file_exists_and_has_content,
 )
 from rna_motif_library.settings import DATA_PATH
@@ -24,24 +24,32 @@ def get_non_redundant_pdb_ids():
     return pdb_ids
 
 
-def get_unique_res(pdb_id, motifs):
-    path = os.path.join(DATA_PATH, "dataframes", "duplicate_motifs", f"{pdb_id}.csv")
-    dup_motifs = []
-    unique_res = []
-    if os.path.exists(path):
-        try:
-            df_dup = pd.read_csv(path)
-            dup_motifs = df_dup["dup_motif"].values
-        except Exception as e:
-            dup_motifs = []
+def get_res_to_motif_id(motifs):
+    """Process a single PDB ID to get unique residues and mapping.
 
+    Args:
+        args: Tuple containing (pdb_id, unique_motifs)
+            pdb_id: PDB ID to process
+            unique_motifs: List of unique motif names
+
+    Returns:
+        Tuple containing:
+            - Dictionary with PDB ID and residues
+            - Dictionary with PDB ID and residue to motif mapping
+    """
+    res_to_motif_id = {}
+    res = []
     for m in motifs:
-        if m.name in dup_motifs:
-            continue
         for r in m.get_residues():
-            if r.get_str() not in unique_res:
-                unique_res.append(r.get_str())
-    return unique_res
+            if r.get_str() not in res:
+                res.append(r.get_str())
+            if r.get_str() not in res_to_motif_id:
+                res_to_motif_id[r.get_str()] = m.name
+            else:
+                existing_motif = res_to_motif_id[r.get_str()]
+                if existing_motif.startswith("HELIX"):
+                    res_to_motif_id[r.get_str()] = m.name
+    return res_to_motif_id
 
 
 def are_motifs_connected(motif_1, motif_2):
@@ -137,12 +145,7 @@ def check_residue_overlap(motif_1, motif_2):
 def find_tertiary_interactions(pdb_id):
     motifs = get_cached_motifs(pdb_id)
     motifs_by_name = {m.name: m for m in motifs}
-    motif_res = {}
-    motif_res_pairs = {}
-    for motif in motifs:
-        for res in motif.get_residues():
-            motif_res[res.get_str()] = motif.name
-            motif_res_pairs[motif.name + "-" + res.get_str()] = True
+    motif_res = get_res_to_motif_id(motifs)
     hbonds = get_cached_hbonds(pdb_id)
     data = []
     for hbond in hbonds:
@@ -253,11 +256,13 @@ def process_group(g, pdb_id, unique_motifs):
         atom_types = sorted([row["atom_type_1"], row["atom_type_2"]])
         hbond_types[atom_types[0] + "-" + atom_types[1]] += 1
         hbond_score += row["score"]
-        motif_1_res.append(row["res_1"])
-        motif_2_res.append(row["res_2"])
+        if row["res_1"] not in motif_1_res:
+            motif_1_res.append(row["res_1"])
+        if row["res_2"] not in motif_2_res:
+            motif_2_res.append(row["res_2"])
 
-    motif_info_1 = parse_motif_name(g.iloc[0]["motif_1"])
-    motif_info_2 = parse_motif_name(g.iloc[0]["motif_2"])
+    motif_info_1 = parse_motif_indentifier(g.iloc[0]["motif_1"])
+    motif_info_2 = parse_motif_indentifier(g.iloc[0]["motif_2"])
     return {
         "motif_1": g.iloc[0]["motif_1"],
         "motif_2": g.iloc[0]["motif_2"],
@@ -384,7 +389,7 @@ def find_tertiary_contacts(processes):
     if not os.path.exists(os.path.join(DATA_PATH, "dataframes", "tertiary_contacts")):
         os.makedirs(os.path.join(DATA_PATH, "dataframes", "tertiary_contacts"))
     df = pd.read_csv("tertiary_contacts_hbonds.csv", dtype={"pdb_id": str})
-    path = os.path.join(DATA_PATH, "summaries", "non_redundant_motifs.csv")
+    path = os.path.join(DATA_PATH, "summaries", "non_redundant_motifs_no_issues.csv")
     unique_motifs = list(pd.read_csv(path)["motif_name"].values)
 
     # Get unique PDB IDs
@@ -418,12 +423,14 @@ def get_unique_tertiary_contacts():
     )
     df = concat_dataframes_from_files(json_files)
     df = df[~((df["unique_motif_1"] == False) & (df["unique_motif_2"] == False))]
-    df.to_json("unique_tertiary_contacts.json", orient="records")
+    df.to_json(os.path.join(DATA_PATH, "summaries", "unique_tertiary_contacts.json"), orient="records")
 
 
 @cli.command()
 def analysis():
-    pass
+    df = pd.read_json("unique_tertiary_contacts.json")
+    print(len(df))
+    exit()
 
 
 if __name__ == "__main__":

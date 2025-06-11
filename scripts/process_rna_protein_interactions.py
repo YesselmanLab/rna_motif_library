@@ -14,6 +14,7 @@ from rna_motif_library.util import (
     get_pdb_ids,
     get_non_redundant_sets,
     get_cif_header_str,
+    add_motif_indentifier_columns
 )
 from rna_motif_library.parallel_utils import run_w_processes_in_batches
 from rna_motif_library.motif import get_cached_motifs
@@ -132,7 +133,7 @@ def normalized_gini_by_datapoints(hist2d, num_simulations=500):
     return (g_obs - g_expected) / (g_max - g_expected)
 
 
-def process_pdb_hbonds(args):
+def process_pdb_hbonds(pdb_id):
     """Process hydrogen bonds for a single PDB ID.
 
     Args:
@@ -142,7 +143,6 @@ def process_pdb_hbonds(args):
     Returns:
         DataFrame containing the processed hydrogen bonds or None if processing fails
     """
-    pdb_id, all_unique_residues = args
     path = os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv")
     if not os.path.exists(path):
         return None
@@ -150,18 +150,14 @@ def process_pdb_hbonds(args):
         df = pd.read_csv(path)
     except Exception as e:
         return None
+    path = os.path.join(DATA_PATH, "dataframes", "protein_hbonds", f"{pdb_id}.csv")
+    if os.path.exists(path):
+        return pd.read_csv(path)
     df = df[df["res_type_2"] == "PROTEIN"]
     df = df.reset_index(drop=True)
-    if len(df) == 0:
-        return None
-    if pdb_id not in all_unique_residues:
-        return None
-    unique_res = all_unique_residues[pdb_id]
-    has_uniq_res = [False] * len(df)
-    for i, row in df.iterrows():
-        if row["res_1"] in unique_res:
-            has_uniq_res[i] = True
-    df = df[has_uniq_res]
+    df.drop(columns=["res_type_1", "res_type_2"], inplace=True)
+    df["score"] = df["score"].round(3)
+    df.to_csv(path, index=False)
     return df
 
 
@@ -196,7 +192,7 @@ def process_interaction_group(args):
     ]
 
 
-def process_pdb_motifs(args):
+def process_pdb_motifs(pdb_id):
     """Process motifs and hydrogen bonds for a single PDB ID.
 
     Args:
@@ -205,30 +201,37 @@ def process_pdb_motifs(args):
     Returns:
         DataFrame containing the motif hydrogen bonds or None if no motifs found
     """
-    pdb_id, group = args
+    try:
+        df = pd.read_csv(os.path.join(DATA_PATH, "dataframes", "protein_hbonds", f"{pdb_id}.csv"))
+    except:
+        return None
+    path = os.path.join(DATA_PATH, "dataframes", "motif_protein_interactions", f"{pdb_id}.json")
+    if os.path.exists(path):
+        return pd.read_json(path)
     motifs = get_cached_motifs(pdb_id)
     motif_hbond_dict = defaultdict(list)
     res_to_motif_id = generate_res_motif_mapping(motifs)
-
-    for i, row in group.iterrows():
+    for i, row in df.iterrows():
         if row["res_1"] not in res_to_motif_id:
             continue
         motif_name = res_to_motif_id[row["res_1"]]
         motif_hbond_dict[motif_name].append(
-            {
-                "res_1": row["res_1"],
-                "atom_1": row["atom_1"],
-                "res_2": row["res_2"],
-                "atom_2": row["atom_2"],
-                "score": row["score"],
-            }
+            [
+                row["res_1"],
+                row["atom_1"],
+                row["res_2"],
+                row["atom_2"],
+                row["score"],
+            ]
         )
+    df = pd.DataFrame(motif_hbond_dict.items(), columns=["motif_id", "hbonds"])
+    df["num_hbonds"] = df["hbonds"].apply(len)
+    df = df.query("num_hbonds > 2").reset_index(drop=True)
+    df = add_motif_indentifier_columns(df, "motif_id")
+    df.to_json(path, orient="records")
+    return df
 
-    if not motif_hbond_dict:
-        return None
-
-    return pd.DataFrame(motif_hbond_dict.items(), columns=["motif_name", "hbonds"])
-
+# cli #################################################################################
 
 @click.group()
 def cli():
@@ -236,35 +239,20 @@ def cli():
 
 
 @cli.command()
-@click.option("--output", type=str, default="rna_protein_hbonds.csv")
 @click.option(
     "-p", "--processes", type=int, default=1, help="Number of processes to use"
 )
-def get_rna_prot_hbonds(output, processes):
-    all_unique_residues = json.load(
-        open(os.path.join(DATA_PATH, "summaries", "unique_residues.json"))
-    )
-    all_unique_residues = {d["pdb_id"]: d["residues"] for d in all_unique_residues}
+def get_rna_prot_hbonds(processes):
     pdb_ids = get_pdb_ids()
-
     # Process PDB IDs in parallel
+    os.makedirs(os.path.join(DATA_PATH, "dataframes", "protein_hbonds"), exist_ok=True)
     results = run_w_processes_in_batches(
-        items=[(pdb_id, all_unique_residues) for pdb_id in pdb_ids],
+        items=pdb_ids,
         func=process_pdb_hbonds,
         processes=processes,
         batch_size=100,
         desc="Processing PDB IDs for RNA-protein hydrogen bonds",
     )
-
-    # Combine results
-    dfs = [df for df in results if df is not None]
-    if not dfs:
-        print("No results found")
-        return
-    df = pd.concat(dfs)
-    df.drop(columns=["res_type_1", "res_type_2"], inplace=True)
-    df["score"] = df["score"].round(3)
-    df.to_csv(output, index=False)
 
 
 @cli.command()
@@ -317,29 +305,16 @@ def analyze_rna_prot_hbonds(processes):
     "-p", "--processes", type=int, default=1, help="Number of processes to use"
 )
 def motif_analysis(processes):
-    df = pd.read_csv("rna_protein_hbonds.csv")
-
-    # Create list of PDB groups to process
-    groups = list(df.groupby("pdb_id"))
-
     # Process PDB IDs in parallel
+    pdb_ids = get_pdb_ids()
+    os.makedirs(os.path.join(DATA_PATH, "dataframes", "motif_protein_interactions"), exist_ok=True)
     results = run_w_processes_in_batches(
-        items=groups,
+        items=pdb_ids,
         func=process_pdb_motifs,
         processes=processes,
-        batch_size=50,
+        batch_size=100,
         desc="Processing PDB IDs for motif analysis",
     )
-
-    # Filter out None results and combine DataFrames
-    dfs = [df for df in results if df is not None]
-    if not dfs:
-        print("No results found")
-        return
-
-    df_motifs = pd.concat(dfs)
-    df_motifs.to_json("rna_protein_hbonds_motifs.json", orient="records")
-
 
 @cli.command()
 @click.argument("res_1")

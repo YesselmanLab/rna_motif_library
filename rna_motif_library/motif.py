@@ -21,11 +21,11 @@ from rna_motif_library.settings import RESOURCES_PATH, DATA_PATH
 from rna_motif_library.util import (
     get_cif_header_str,
     get_cached_path,
-    add_motif_name_columns,
+    add_motif_indentifier_columns,
     get_pdb_ids,
     NRSEntry,
     file_exists_and_has_content,
-    parse_motif_name,
+    parse_motif_indentifier,
     NonRedundantSetParser,
 )
 from rna_motif_library.parallel_utils import (
@@ -546,6 +546,16 @@ def get_data_from_motif(m: Motif, pdb_id: str, has_singlet_flank: bool):
 
 class MotifSetComparerer:
     def compare_motifs(self, pdb_id, df, motifs):
+        path = os.path.join(
+            DATA_PATH, "dataframes", "check_motifs", f"{pdb_id}.csv"
+        )
+        df_check_motifs = pd.read_csv(path)
+        self.low_quality_motifs = {}
+        for i, row in df_check_motifs.iterrows():
+            if row["contains_helix"] == 0:
+                self.low_quality_motifs[row["motif_name"]] = True
+            else:
+                self.low_quality_motifs[row["motif_name"]] = False
         # Get tertiary contacts info
         in_tc = self._get_tertiary_contacts(pdb_id)
         # Get motif mappings
@@ -587,16 +597,17 @@ class MotifSetComparerer:
 
     def _initialize_other_motifs_df(self, other_motifs):
         other_motifs = other_motifs.copy()
-        other_motifs["in_our_db"] = False  # Whether the motif was found in our database
-        other_motifs["misclassified"] = False  # Whether the motif was misclassified
-        other_motifs["in_other_db"] = True  # Whether the motif was found in DSSR
+        other_motifs["in_our_db"] = 0  # Whether the motif was found in our database
+        other_motifs["misclassified"] = 0  # Whether the motif was misclassified
+        other_motifs["in_other_db"] = 1  # Whether the motif was found in DSSR
         other_motifs["overlapping_motifs"] = [
             [] for _ in range(len(other_motifs))
         ]  # Motifs that overlap with the motif
         other_motifs["contained_in_motifs"] = [
             [] for _ in range(len(other_motifs))
         ]  # Motifs that are contained in the motif
-        other_motifs["in_tc"] = False  # Whether the motif is in tertiary contacts
+        other_motifs["in_tc"] = 0  # Whether the motif is in tertiary contacts
+        other_motifs["in_low_quality_motif"] = 0  # Whether the motif is in a low quality motif
         return other_motifs
 
     def _compare_motifs(self, other_motifs, motifs, seen):
@@ -608,10 +619,10 @@ class MotifSetComparerer:
                 res_dssr = sorted(row["residues"])
                 if res != res_dssr:
                     continue
-                other_motifs.at[i, "in_our_db"] = True
+                other_motifs.at[i, "in_our_db"] = 1
                 seen.append(m.name)
                 if m.mtype != row["mtype"]:
-                    other_motifs.at[i, "misclassified"] = True
+                    other_motifs.at[i, "misclassified"] = 1
                 other_motifs.at[i, "overlapping_motifs"].append(m.name)
         return other_motifs, seen
 
@@ -632,13 +643,15 @@ class MotifSetComparerer:
                         potential_tc_res.extend(in_tc[m_name])
             for r in row["residues"]:
                 if r in potential_tc_res:
-                    dssr_motifs.at[i, "in_tc"] = True
+                    dssr_motifs.at[i, "in_tc"] = 1
             dssr_motifs.at[i, "overlapping_motifs"] = overlapping_motifs
             for m in overlapping_motifs:
                 overlap_m = motifs_by_name[m]
                 overlap_m_res = [r.get_str() for r in overlap_m.get_residues()]
                 if all(r in overlap_m_res for r in row["residues"]):
                     dssr_motifs.at[i, "contained_in_motifs"].append(m)
+                    if self.low_quality_motifs[m]:
+                        dssr_motifs.at[i, "in_low_quality_motif"] = 1
         return dssr_motifs
 
     def _add_missing_motifs(self, dssr_motifs, motifs, seen, pdb_id):
@@ -656,15 +669,16 @@ class MotifSetComparerer:
                     "n_basepair_ends": len(m.basepair_ends),
                     "n_residues": len(m.get_residues()),
                     "residues": [r.get_str() for r in m.get_residues()],
-                    "correct_n_strands": True,
-                    "correct_n_basepairs": True,
-                    "in_other_db": False,
-                    "misclassified": False,
-                    "in_our_db": True,
+                    "correct_n_strands": 1,
+                    "correct_n_basepairs": 1,
+                    "in_other_db": 0,
+                    "misclassified": 0,
+                    "in_our_db": 1,
                     "overlapping_motifs": [m.name],
-                    "has_singlet_flank": False,
+                    "has_singlet_flank": 0,
                     "contained_in_motifs": [],
-                    "in_tc": False,
+                    "in_tc": 0,
+                    "in_low_quality_motif": self.low_quality_motifs[m.name],
                 }
             )
         df_missing = pd.DataFrame(data)
@@ -818,12 +832,12 @@ def _align_to_other_entry_members(unmatched_motifs):
     for i, motif_set_1 in enumerate(unmatched_motifs):
         if not motif_set_1:
             continue
-        pdb_id = parse_motif_name(motif_set_1[0].name)[-1]
+        pdb_id = parse_motif_indentifier(motif_set_1[0].name)[-1]
         # Compare against all subsequent unmatched sets
         for j, motif_set_2 in enumerate(unmatched_motifs[i + 1 :], i + 1):
             if not motif_set_2:
                 continue
-            child_pdb_id = parse_motif_name(motif_set_2[0].name)[-1]
+            child_pdb_id = parse_motif_indentifier(motif_set_2[0].name)[-1]
             # Find duplicates between unmatched sets
             duplicates = find_duplicate_motifs(motif_set_1, motif_set_2)
             duplicates = duplicates.query("is_duplicate == True")
@@ -1116,23 +1130,43 @@ def get_unique_motifs():
         os.path.join(DATA_PATH, "dataframes", "non_redundant_sets", "*.csv")
     )
     df = concat_dataframes_from_files(csv_files)
+    df.rename(columns={
+        "motif": "motif_id", 
+        "repr_motif": "non_redundant_motif_id", 
+        "rmsd": "rmsd_to_non_redundant_motif",
+        "child_pdb": "pdb_id", 
+        "repr_pdb": "non_redundant_motif_pdb_id", 
+        "from_repr": "is_part_of_non_redundant_pdb_id", 
+        }, inplace=True)
+    # Fill empty pdb_id with non_redundant_motif_pdb_id
+    df.loc[df["pdb_id"].isna(), "pdb_id"] = df.loc[df["pdb_id"].isna(), "non_redundant_motif_pdb_id"]    
+    # Fill empty motif_id with non_redundant_motif_id 
+    df.loc[df["motif_id"].isna(), "motif_id"] = df.loc[df["motif_id"].isna(), "non_redundant_motif_id"]
+    df.to_csv(
+        os.path.join(DATA_PATH, "summaries", "all_motifs.csv"),
+        index=False,
+    )
     csv_files = glob.glob(
         os.path.join(DATA_PATH, "dataframes", "check_motifs", "*.csv")
     )
     df_issues = concat_dataframes_from_files(csv_files)
     df_issues = df_issues.drop(columns=["pdb_id"])
     df = df.query("is_duplicate == False").copy()
-    df = df[["motif", "child_pdb"]]
-    print(len(df))
-    df.rename(columns={"child_pdb": "pdb_id", "motif": "motif_name"}, inplace=True)
+    df = df[["motif_id"]]
+    df.rename(columns={"motif_id": "motif_name"}, inplace=True)
     df = df.merge(df_issues, on="motif_name", how="left")
     path = os.path.join(DATA_PATH, "summaries", "non_redundant_motifs.csv")
     df.to_csv(path, index=False)
-    df = df.query(
-        "flanking_helices == 1.0 and contains_helix == 0.0 and has_singlet_pair_end == 0.0"
+    df1 = (
+        df.query(
+            "flanking_helices == 1 and contains_helix == 0 and motif_type != 'HELIX'"
+        )
+        .copy()
+        .reset_index(drop=True)
     )
+    df2 = df.query("motif_type == 'HELIX'").copy().reset_index(drop=True)
+    df = pd.concat([df1, df2])
     path = os.path.join(DATA_PATH, "summaries", "non_redundant_motifs_no_issues.csv")
-    print(len(df))
     df.to_csv(path, index=False)
 
 
@@ -1146,9 +1180,11 @@ def get_unique_residues(processes):
         processes: Number of processes to use for parallel processing
     """
     # Read input data
-    df = pd.read_csv(os.path.join(DATA_PATH, "summaries", "non_redundant_motifs.csv"))
+    df = pd.read_csv(
+        os.path.join(DATA_PATH, "summaries", "non_redundant_motifs_no_issues.csv")
+    )
     unique_motifs = df["motif_name"].values
-    df = add_motif_name_columns(df, "motif_name")
+    df = add_motif_indentifier_columns(df, "motif_name")
     # Prepare arguments for parallel processing
     pdb_ids = df["pdb_id"].unique()
     args = [(pdb_id, unique_motifs) for pdb_id in pdb_ids]
@@ -1221,7 +1257,6 @@ def compare_dssr_motifs(processes):
     os.makedirs(
         os.path.join(DATA_PATH, "dataframes", "dssr_motifs_compared"), exist_ok=True
     )
-
     # Process PDB IDs in parallel
     results = run_w_processes_in_batches(
         items=pdb_ids,

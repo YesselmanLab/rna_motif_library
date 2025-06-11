@@ -4,7 +4,7 @@ import pandas as pd
 from rna_motif_library.util import (
     ResidueTypeAssigner,
     NonRedundantSetParser,
-    parse_motif_name,
+    parse_motif_indentifier,
 )
 from rna_motif_library.settings import DATA_PATH
 
@@ -30,20 +30,25 @@ def test_get_non_redundant_sets():
 
 
 def test_parse_motif_name():
-    assert parse_motif_name("HAIRPIN-1-CGG-7PWO-1") == ("HAIRPIN", "1", "CGG", "7PWO")
-    assert parse_motif_name("HELIX-3-GCC-GGC-7PWO-4") == (
+    assert parse_motif_indentifier("HAIRPIN-1-CGG-7PWO-1") == (
+        "HAIRPIN",
+        "1",
+        "CGG",
+        "7PWO",
+    )
+    assert parse_motif_indentifier("HELIX-3-GCC-GGC-7PWO-4") == (
         "HELIX",
         "3",
         "GCC-GGC",
         "7PWO",
     )
-    assert parse_motif_name("TWOWAY-11-0-CUUUCUGCCAAAG-UG-9C6I-1") == (
+    assert parse_motif_indentifier("TWOWAY-11-0-CUUUCUGCCAAAG-UG-9C6I-1") == (
         "TWOWAY",
         "11-0",
         "CUUUCUGCCAAAG-UG",
         "9C6I",
     )
-    assert parse_motif_name(
+    assert parse_motif_indentifier(
         "NWAY-13-10-2-2-2-0-GCUCAACGGAUAAAA-UCAUAGUGAUCC-AGCA-UUUA-UUUG-CU-7OTC-1"
     ) == (
         "NWAY",
