@@ -1,0 +1,137 @@
+import subprocess
+import glob
+import os
+from typing import List, Dict
+
+from simple_slurm import Slurm
+
+
+def get_job_status(job_id: int) -> str:
+    """
+    Get the status of a SLURM job by its job ID.
+
+    Args:
+        job_id (int): The SLURM job ID
+
+    Returns:
+        str: The status of the job (e.g., 'PENDING', 'RUNNING', 'COMPLETED', 'FAILED')
+    """
+    try:
+        # Use sacct command to get job status
+        result = subprocess.run(
+            ["sacct", "-j", str(job_id), "--format=State", "--noheader"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        # Get the first line of output and strip whitespace
+        status = result.stdout.strip().split("\n")[0]
+        return status.strip().upper()
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error getting job status: {e}")
+        return "UNKNOWN"
+
+
+def wait_for_jobs(job_ids: List[int], check_interval: int = 60) -> Dict[int, str]:
+    """
+    Wait for a list of SLURM jobs to complete or fail.
+
+    Args:
+        job_ids (list[int]): List of SLURM job IDs to monitor
+        check_interval (int): Time in seconds between status checks (default: 60)
+
+    Returns:
+        dict[int, str]: Dictionary mapping job IDs to their final status
+    """
+    import time
+
+    # Initialize status dictionary
+    job_statuses = {job_id: "UNKNOWN" for job_id in job_ids}
+    active_jobs = set(job_ids)
+
+    while active_jobs:
+        for job_id in list(active_jobs):
+            status = get_job_status(job_id)
+            job_statuses[job_id] = status
+            # Remove job from active jobs if it's completed or failed
+            if status == "FAILED":
+                raise ValueError(f"Job {job_id} failed")
+            if status in ["COMPLETED", "CANCELLED", "TIMEOUT"]:
+                active_jobs.remove(job_id)
+                print(f"Job {job_id} finished with status: {status}")
+
+        if active_jobs:
+            print(f"Waiting for {len(active_jobs)} jobs to complete...")
+            time.sleep(check_interval)
+
+    return job_statuses
+
+
+def demo():
+    # Create a Slurm object
+    slurm = Slurm(
+        job_name="simple_job",
+        output="output_%j.log",
+        error="error_%j.log",
+        time="01:00:00",
+        mem="4G",
+        cpus_per_task=1,
+    )
+
+    # Define the command to run
+    command = 'echo "Hello from SLURM!"'
+
+    # Submit the job
+    job_id = slurm.sbatch(command)
+    print(f"Submitted job with ID: {job_id}")
+    # can check status every 10 seconds since it's a small job
+    job_statuses = wait_for_jobs([job_id], check_interval=10)
+    print(job_statuses)
+
+
+# steps to generate database #########################################################
+
+
+def generate_chains():
+    os.makedirs("slurm_job_outputs/generate_chains", exist_ok=True)
+    template_path = "scripts/slurm_templates/generate_chains.txt"
+    template_str = open(template_path, "r").read()
+    print(template_str)
+    # Find all csvs
+    csv_files = glob.glob("splits/*.csv")
+    job_ids = []
+    for i, csv_file in enumerate(csv_files):
+        job_name = f"generate_chains_{i}"
+        output_path = f"slurm_job_outputs/generate_chains/{job_name}_%j.out"
+        error_path = f"slurm_job_outputs/generate_chains/{job_name}_%j.err"
+        slurm_job = Slurm(
+            job_name=job_name,
+            output=output_path,
+            error=error_path,
+            time="8:00:00",
+            mem="4G",
+            cpus_per_task=1,
+        )
+        slurm_job.add_cmd(template_str.format(csv_file=csv_file))
+        job_ids.append(slurm_job.sbatch())
+        break
+    job_statuses = wait_for_jobs(job_ids, check_interval=200)
+    completed_jobs = [
+        job_id for job_id, status in job_statuses.items() if status == "COMPLETED"
+    ]
+    if len(completed_jobs) != len(csv_files):
+        raise ValueError(
+            f"Not all jobs completed: {len(completed_jobs)}/{len(csv_files)}"
+        )
+    print("All jobs completed")
+
+
+def main():
+    os.makedirs("slurm_job_outputs", exist_ok=True)
+    generate_chains()
+
+
+if __name__ == "__main__":
+    main()

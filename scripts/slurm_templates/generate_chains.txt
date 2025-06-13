@@ -1,0 +1,7 @@
+module load anaconda
+conda activate rna_motif_env
+
+python rna_motif_library/setup_database.py download-cifs {csv_path}
+python rna_motif_library/setup_database.py process-cifs {csv_path}
+python rna_motif_library/setup_database.py process-residues {csv_path}
+python rna_motif_library/setup_database.py process-chains {csv_path}
