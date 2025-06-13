@@ -190,7 +190,7 @@ def run_w_threads(
     return results
 
 
-def run_w_processes(
+def run_w_processes_w_batches(
     items: List[Any],
     func: Callable,
     processes: int,
@@ -245,9 +245,7 @@ def run_w_processes(
     return results
 
 
-def concat_dataframes_from_files(
-    file_paths: List[str]
-) -> pd.DataFrame:
+def concat_dataframes_from_files(file_paths: List[str]) -> pd.DataFrame:
     """
     Read multiple JSON or CSV files and concatenate them into a single DataFrame
     using parallel threads. File type is automatically detected from file extension.
@@ -262,12 +260,14 @@ def concat_dataframes_from_files(
     def read_file(file_path: str) -> Optional[pd.DataFrame]:
         try:
             # Detect file type from extension
-            if file_path.lower().endswith('.csv'):
+            if file_path.lower().endswith(".csv"):
                 return pd.read_csv(file_path)
-            elif file_path.lower().endswith('.json'):
+            elif file_path.lower().endswith(".json"):
                 return pd.read_json(file_path)
             else:
-                log.error(f"Unsupported file type for {file_path}. Must end in .csv or .json")
+                log.error(
+                    f"Unsupported file type for {file_path}. Must end in .csv or .json"
+                )
                 return None
         except Exception as e:
             log.error(f"Error reading file {file_path}: {e}")

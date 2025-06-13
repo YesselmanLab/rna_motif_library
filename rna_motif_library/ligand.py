@@ -677,7 +677,6 @@ def find_potential_ligands_in_pdb(pdb_id):
     path = os.path.join(LIGAND_DATA_PATH, "potential_ligand_ids", f"{pdb_id}.csv")
     if os.path.exists(path):
         return pd.read_csv(path)
-
     try:
         residues = get_cached_residues(pdb_id)
         seen = set()  # Use set for faster lookups
@@ -1630,27 +1629,49 @@ def get_motif_summary():
                     coords.append(r.coords)
                     residues.append(r.get_str())
                 is_duplicate = row["duplicate"] != -1
-                data.append({
-                    "pdb_id": pdb_id,
-                    "ligand_res_id": row["ligand_res"],
-                    "motif_id": m.name,
-                    "motif_type": m.mtype,
-                    "motif_topology": m.size,
-                    "motif_sequence": m.sequence,
-                    "residues" : residues,
-                    "num_residues": len(residues),
-                    "atom_names": atom_names,
-                    "coords": coords,
-                    "ligand_coords": [all_residues[row["ligand_res"]].coords],
-                    "ligand_atom_names": [all_residues[row["ligand_res"]].atom_names],
-                    "is_duplicate": is_duplicate,
-                })
+                data.append(
+                    {
+                        "pdb_id": pdb_id,
+                        "ligand_res_id": row["ligand_res"],
+                        "motif_id": m.name,
+                        "motif_type": m.mtype,
+                        "motif_topology": m.size,
+                        "motif_sequence": m.sequence,
+                        "residues": residues,
+                        "num_residues": len(residues),
+                        "atom_names": atom_names,
+                        "coords": coords,
+                        "ligand_coords": [all_residues[row["ligand_res"]].coords],
+                        "ligand_atom_names": [
+                            all_residues[row["ligand_res"]].atom_names
+                        ],
+                        "is_duplicate": is_duplicate,
+                    }
+                )
     df = pd.DataFrame(data)
-    df.to_json(os.path.join(RELEASE_PATH, "all_motif_ligand_interactions_w_coords.json"), orient="records")
-    os.system("gzip -9 -f {}".format(os.path.join(RELEASE_PATH, "all_motif_ligand_interactions_w_coords.json")))
+    df.to_json(
+        os.path.join(RELEASE_PATH, "all_motif_ligand_interactions_w_coords.json"),
+        orient="records",
+    )
+    os.system(
+        "gzip -9 -f {}".format(
+            os.path.join(RELEASE_PATH, "all_motif_ligand_interactions_w_coords.json")
+        )
+    )
     df = df.query("is_duplicate == 0")
-    df.to_json(os.path.join(RELEASE_PATH, "non_redundant_motif_ligand_interactions_w_coords.json"), orient="records")
-    os.system("gzip -9 -f {}".format(os.path.join(RELEASE_PATH, "non_redundant_motif_ligand_interactions_w_coords.json")))
+    df.to_json(
+        os.path.join(
+            RELEASE_PATH, "non_redundant_motif_ligand_interactions_w_coords.json"
+        ),
+        orient="records",
+    )
+    os.system(
+        "gzip -9 -f {}".format(
+            os.path.join(
+                RELEASE_PATH, "non_redundant_motif_ligand_interactions_w_coords.json"
+            )
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ from rna_motif_library.util import (
     sanitize_x3dna_atom_name,
     get_cached_path,
 )
-from rna_motif_library.parallel_utils import run_w_processes, run_w_threads
+from rna_motif_library.parallel_utils import run_w_processes_w_batches, run_w_threads
 from rna_motif_library.x3dna import get_residue_type, get_cached_dssr_output
 from rna_motif_library.motif import save_motifs_to_json
 from rna_motif_library.motif_factory import MotifFactory, get_pdb_structure_data
@@ -396,7 +396,7 @@ def download_cifs(csv_path, threads):
         os.makedirs(os.path.join(DATA_PATH, "pdbs"))
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].tolist()
-    run_w_threads(download_cif, pdb_ids, threads)
+    run_w_threads(pdb_ids, download_cif, threads)
 
 
 # STEP 4: process all cif files
@@ -423,7 +423,7 @@ def process_cifs(csv_path, processes):
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].tolist()
     cif_files = [os.path.join(DATA_PATH, "pdbs", f"{pdb_id}.cif") for pdb_id in pdb_ids]
-    run_w_processes(process_cif, cif_files, processes)
+    run_w_processes_w_batches(cif_files, process_cif, processes)
 
 
 # STEP 5: generate dssr outputs
@@ -440,7 +440,7 @@ def generate_dssr_outputs(csv_path, processes):
         os.makedirs(os.path.join(DATA_PATH, "dssr_output"))
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].tolist()
-    run_w_processes(generate_dssr_output, pdb_ids, processes)
+    run_w_processes_w_batches(pdb_ids, generate_dssr_output, processes)
 
 
 # STEP 6: process all residues
@@ -458,7 +458,8 @@ def process_residues(csv_path, processes):
         os.makedirs(os.path.join(DATA_PATH, "jsons", "residues"))
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].tolist()
-    run_w_processes(process_residues_in_pdb, pdb_ids, processes)
+    run_w_processes_w_batches(pdb_ids, process_residues_in_pdb, processes)
+
 
 # STEP 7: process all chains
 @cli.command()
@@ -480,12 +481,10 @@ def process_chains(csv_path, processes):
         os.makedirs(os.path.join(DATA_PATH, "jsons", "protein_chains"))
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].tolist()
-    run_w_processes(process_chains_in_pdb, pdb_ids, processes)
-
+    run_w_processes_w_batches(pdb_ids, process_chains_in_pdb, processes)
 
 
 # OPTIONAL STEP: get pdb info
-exit()
 
 
 # STEP 8: handle ligand identification
@@ -527,7 +526,7 @@ def process_interactions(csv_path, processes):
             log.debug(f"Directory already exists: {directory}")
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].tolist()
-    run_w_processes(pdb_ids, process_interactions_in_pdb, processes)
+    run_w_processes_w_batches(pdb_ids, process_interactions_in_pdb, processes)
 
 
 # STEP 9: generate motifs
@@ -544,7 +543,7 @@ def generate_motifs(csv_path, processes):
         os.makedirs(os.path.join(DATA_PATH, "jsons", "motifs"))
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].tolist()
-    run_w_processes(pdb_ids, generate_motifs_in_pdb, processes)
+    run_w_processes_w_batches(pdb_ids, generate_motifs_in_pdb, processes)
 
 
 if __name__ == "__main__":

@@ -1,18 +1,17 @@
 #!/bin/bash
 #SBATCH --job-name={job_name}
-#SBATCH --output={job_name}.out
-#SBATCH --error={job_name}.err
-#SBATCH --time=8:00:00
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --mem=4G
+#SBATCH --time={time_limit}
+#SBATCH --cpus-per-task={cpus}
+#SBATCH --mem={memory}
+#SBATCH --output={job_name}_%j.out
+#SBATCH --error={job_name}_%j.err
+{partition_line}
 
-module load anaconda
-conda activate rna_motif_env
+# Load any required modules
+{module_load}
 
-# python rna_motif_library/setup_database.py download-cifs {csv}
-python rna_motif_library/setup_database.py process-cifs {csv}
-python rna_motif_library/setup_database.py process-residues {csv}
-python rna_motif_library/setup_database.py process-chains {csv}
-python rna_motif_library/setup_database.py process-interactions {csv}
-python rna_motif_library/setup_database.py generate-motifs {csv}
+# Set up environment
+{environment_setup}
+
+# Run the command
+{command}
