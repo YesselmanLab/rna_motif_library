@@ -72,10 +72,13 @@ def wait_for_jobs(job_ids: List[int], check_interval: int = 60) -> Dict[int, str
         print(f"Total active jobs: {len(active_jobs)}")
 
         if active_jobs:
-            print(f"\nWaiting {check_interval} seconds before next check...")
             time.sleep(check_interval)
 
     return job_statuses
+
+
+def generate_slurm_jobs_for_splits():
+    pass
 
 
 def demo():
