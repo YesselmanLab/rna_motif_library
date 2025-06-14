@@ -1,0 +1,5 @@
+module load anaconda
+conda activate rna_motif_env
+
+python rna_motif_library/setup_database.py process-interactions {csv_path}
+python rna_motif_library/setup_database.py generate-motifs {csv_path}

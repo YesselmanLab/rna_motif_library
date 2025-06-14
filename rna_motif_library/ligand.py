@@ -1173,6 +1173,7 @@ def get_hbond_donors_and_acceptors(processes):
 def get_ligand_info(processes):
     """Process ligand information in parallel."""
     setup_logging()
+    os.makedirs(os.path.join(LIGAND_DATA_PATH, "ligand_info"), exist_ok=True)
 
     # First get ligand info from PDB
     get_ligand_info_from_pdb()

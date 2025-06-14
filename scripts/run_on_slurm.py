@@ -2,7 +2,10 @@ import subprocess
 import glob
 import os
 from typing import List, Dict
+import time
+from collections import Counter
 
+import pandas as pd
 from simple_slurm import Slurm
 
 
@@ -45,7 +48,6 @@ def wait_for_jobs(job_ids: List[int], check_interval: int = 60) -> Dict[int, str
     Returns:
         dict[int, str]: Dictionary mapping job IDs to their final status
     """
-    import time
 
     # Initialize status dictionary
     job_statuses = {job_id: "UNKNOWN" for job_id in job_ids}
@@ -60,10 +62,17 @@ def wait_for_jobs(job_ids: List[int], check_interval: int = 60) -> Dict[int, str
                 raise ValueError(f"Job {job_id} failed")
             if status in ["COMPLETED", "CANCELLED", "TIMEOUT"]:
                 active_jobs.remove(job_id)
-                print(f"Job {job_id} finished with status: {status}")
+
+        # Count current statuses
+        status_counts = Counter(job_statuses.values())
+        # Print status summary
+        print("\nCurrent job status summary:")
+        for status, count in status_counts.items():
+            print(f"{status}: {count} jobs")
+        print(f"Total active jobs: {len(active_jobs)}")
 
         if active_jobs:
-            print(f"Waiting for {len(active_jobs)} jobs to complete...")
+            print(f"\nWaiting {check_interval} seconds before next check...")
             time.sleep(check_interval)
 
     return job_statuses
@@ -91,14 +100,42 @@ def demo():
     print(job_statuses)
 
 
+# check if a step was completed #########################################################
+
+
+def are_generate_chains_completed() -> bool:
+    df = pd.read_csv("data/csvs/rna_structures.csv")
+    print("number of RNA structures in csv:", len(df))
+    cif_files = glob.glob("data/pdbs/*.cif")
+    print("number of cif files downloaded:", len(cif_files))
+    if len(cif_files) < len(df):
+        return False
+    processed_cif_files = glob.glob("data/pdbs_dfs/*.parquet")
+    print("number of processed cif files:", len(processed_cif_files))
+    if len(processed_cif_files) < len(df):
+        return False
+    residues_json_files = glob.glob("data/jsons/residues/*.json")
+    print("number of residues json files:", len(residues_json_files))
+    if len(residues_json_files) < len(df):
+        return False
+    chains_json_files = glob.glob("data/jsons/chains/*.json")
+    print("number of chains json files:", len(chains_json_files))
+    if len(chains_json_files) < len(df):
+        return False
+    return True
+
+
 # steps to generate database #########################################################
+
+
+def generate_splits_and_download_cifs():
+    pass
 
 
 def generate_chains():
     os.makedirs("slurm_job_outputs/generate_chains", exist_ok=True)
     template_path = "scripts/slurm_templates/generate_chains.txt"
     template_str = open(template_path, "r").read()
-    print(template_str)
     # Find all csvs
     csv_files = glob.glob("splits/*.csv")
     job_ids = []
@@ -114,9 +151,44 @@ def generate_chains():
             mem="4G",
             cpus_per_task=1,
         )
-        slurm_job.add_cmd(template_str.format(csv_file=csv_file))
+        slurm_job.add_cmd(template_str.format(csv_path=csv_file))
         job_ids.append(slurm_job.sbatch())
-        break
+    job_statuses = wait_for_jobs(job_ids, check_interval=200)
+    completed_jobs = [
+        job_id for job_id, status in job_statuses.items() if status == "COMPLETED"
+    ]
+    if len(completed_jobs) != len(csv_files):
+        raise ValueError(
+            f"Not all jobs completed: {len(completed_jobs)}/{len(csv_files)}"
+        )
+    print("All jobs completed")
+
+
+def generate_ligand_data():
+    # needs only one job try to run this locally
+    pass
+
+
+def generate_motifs():
+    os.makedirs("slurm_job_outputs/generate_motifs", exist_ok=True)
+    template_path = "scripts/slurm_templates/generate_motifs.txt"
+    template_str = open(template_path, "r").read()
+    csv_files = glob.glob("splits/*.csv")
+    job_ids = []
+    for i, csv_file in enumerate(csv_files):
+        job_name = f"generate_motifs_{i}"
+        output_path = f"slurm_job_outputs/generate_motifs/{job_name}_%j.out"
+        error_path = f"slurm_job_outputs/generate_motifs/{job_name}_%j.err"
+        slurm_job = Slurm(
+            job_name=job_name,
+            output=output_path,
+            error=error_path,
+            time="8:00:00",
+            mem="4G",
+            cpus_per_task=1,
+        )
+        slurm_job.add_cmd(template_str.format(csv_path=csv_file))
+        job_ids.append(slurm_job.sbatch())
     job_statuses = wait_for_jobs(job_ids, check_interval=200)
     completed_jobs = [
         job_id for job_id, status in job_statuses.items() if status == "COMPLETED"
@@ -130,7 +202,10 @@ def generate_chains():
 
 def main():
     os.makedirs("slurm_job_outputs", exist_ok=True)
-    generate_chains()
+    # are_generate_chains_completed()
+    # generate_chains()
+    # generate_ligand_data()
+    generate_motifs()
 
 
 if __name__ == "__main__":

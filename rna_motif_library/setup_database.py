@@ -484,9 +484,6 @@ def process_chains(csv_path, processes):
     run_w_processes_w_batches(pdb_ids, process_chains_in_pdb, processes)
 
 
-# OPTIONAL STEP: get pdb info
-
-
 # STEP 8: handle ligand identification
 @cli.command()
 @click.argument("csv_path", type=click.Path(exists=True))
@@ -501,6 +498,7 @@ def ligand_identification(csv_path, processes, overwrite):
 
 
 # STEP XXX: find cWW basepairs
+# generate valid cww pairs
 
 
 # STEP 8: process all interactions
@@ -545,6 +543,10 @@ def generate_motifs(csv_path, processes):
     pdb_ids = df["pdb_id"].tolist()
     run_w_processes_w_batches(pdb_ids, generate_motifs_in_pdb, processes)
 
+
+# OPTIONAL STEP: get pdb info
+# get pdb titles, num of residues, num proteins, num ligands, num hbonds, num basepairs, num motifs
+# etc, contains non-redundant set, etc
 
 if __name__ == "__main__":
     cli()
