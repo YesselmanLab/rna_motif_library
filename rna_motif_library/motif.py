@@ -2,14 +2,11 @@
 import json
 import os
 import glob
-from typing import Dict, List, Tuple, Optional, Set
-from dataclasses import dataclass
+from typing import List, Tuple, Optional
 
 # Third party imports
 import numpy as np
 import pandas as pd
-import click
-from pydssr.dssr import DSSROutput
 
 # Local imports
 from rna_motif_library.basepair import Basepair, get_cached_basepairs

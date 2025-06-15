@@ -8,6 +8,8 @@ from collections import Counter
 import pandas as pd
 from simple_slurm import Slurm
 
+from rna_motif_library.motif_analysis import split_non_redundant_set
+
 
 def get_job_status(job_id: int) -> str:
     """
@@ -75,6 +77,17 @@ def wait_for_jobs(job_ids: List[int], check_interval: int = 60) -> Dict[int, str
             time.sleep(check_interval)
 
     return job_statuses
+
+
+def check_job_completion(job_ids: List[int]):
+    n_jobs = len(job_ids)
+    job_statuses = wait_for_jobs(job_ids, check_interval=200)
+    completed_jobs = [
+        job_id for job_id, status in job_statuses.items() if status == "COMPLETED"
+    ]
+    if len(completed_jobs) != n_jobs:
+        raise ValueError(f"Not all jobs completed: {len(completed_jobs)}/{n_jobs}")
+    print("All jobs completed")
 
 
 def generate_slurm_jobs_for_splits():
@@ -192,15 +205,35 @@ def generate_motifs():
         )
         slurm_job.add_cmd(template_str.format(csv_path=csv_file))
         job_ids.append(slurm_job.sbatch())
-    job_statuses = wait_for_jobs(job_ids, check_interval=200)
-    completed_jobs = [
-        job_id for job_id, status in job_statuses.items() if status == "COMPLETED"
-    ]
-    if len(completed_jobs) != len(csv_files):
-        raise ValueError(
-            f"Not all jobs completed: {len(completed_jobs)}/{len(csv_files)}"
+    check_job_completion(job_ids)
+
+
+def generate_non_redundant_set_motifs():
+    split_non_redundant_set("data/csvs/nrlist_3.369_3.5A.csv")
+    os.makedirs("slurm_job_outputs/generate_non_redundant_set_motifs", exist_ok=True)
+    template_path = "scripts/slurm_templates/generate_non_redundant_set_motifs.txt"
+    template_str = open(template_path, "r").read()
+    csv_files = glob.glob("splits/non_redundant_set_splits/*.csv")
+    job_ids = []
+    for i, csv_file in enumerate(csv_files):
+        job_name = f"generate_non_redundant_set_motifs_{i}"
+        output_path = (
+            f"slurm_job_outputs/generate_non_redundant_set_motifs/{job_name}_%j.out"
         )
-    print("All jobs completed")
+        error_path = (
+            f"slurm_job_outputs/generate_non_redundant_set_motifs/{job_name}_%j.err"
+        )
+        slurm_job = Slurm(
+            job_name=job_name,
+            output=output_path,
+            error=error_path,
+            time="2:00:00",
+            mem="4G",
+            cpus_per_task=1,
+        )
+        slurm_job.add_cmd(template_str.format(csv_path=csv_file))
+        job_ids.append(slurm_job.sbatch())
+    check_job_completion(job_ids)
 
 
 def main():
@@ -208,7 +241,8 @@ def main():
     # are_generate_chains_completed()
     # generate_chains()
     # generate_ligand_data()
-    generate_motifs()
+    # generate_motifs()
+    generate_non_redundant_set_motifs()
 
 
 if __name__ == "__main__":

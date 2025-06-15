@@ -1,0 +1,4 @@
+module load anaconda
+conda activate rna_motif_env
+
+python rna_motif_library/motif_analysis.py run-get-non-redundant-motifs {csv_path}

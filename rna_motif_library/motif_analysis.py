@@ -664,7 +664,11 @@ def find_unique_motifs_in_non_redundant_set_entry(args):
     if os.path.exists(output_path):
         return None
     # Get motifs from representative structure
-    motifs = get_cached_motifs(repr_entry.pdb_id)
+    try:
+        motifs = get_cached_motifs(repr_entry.pdb_id)
+    except:
+        print(f"Error getting motifs for {repr_entry.pdb_id}")
+        return None
     repr_motifs = get_motifs_included_in_chains(motifs, repr_entry.chain_ids)
     # Initialize results with representative motifs
     results = [
@@ -1026,8 +1030,66 @@ def check_motifs_in_pdb(pdb_id: str):
     df.to_csv(path, index=False)
 
 
-
 # work functions that are run at cli ###################################################
+
+
+def split_non_redundant_set(csv_path: str, n_splits: int):
+    os.makedirs("splits/non_redundant_set_splits", exist_ok=True)
+    df = pd.read_csv("data/csvs/rna_residue_counts.csv")
+    rna_count_dict = {}
+    for _, row in df.iterrows():
+        rna_count_dict[row["pdb_id"]] = row["count"]
+    parser = NonRedundantSetParser()
+    f = open(csv_path, "r")
+    lines = f.readlines()
+    f.close()
+    sets = parser.parse(csv_path)
+    all_args = []
+    # Calculate total residues for each set
+    set_residues = []
+    for i, (set_id, repr_entry, child_entries) in enumerate(sets):
+        total_residues = rna_count_dict.get(repr_entry.pdb_id, 0)
+        for entry in child_entries:
+            total_residues += rna_count_dict.get(entry.pdb_id, 0)
+        set_residues.append((set_id, total_residues, lines[i]))
+
+    # Sort by total residues to help with balanced splitting
+    set_residues.sort(key=lambda x: x[1])
+
+    # Calculate target residues per split
+    total_residues = sum(r[1] for r in set_residues)
+    target_per_split = total_residues / n_splits
+
+    # Create splits
+    current_split = []
+    current_residues = 0
+    split_files = []
+
+    for set_data in set_residues:
+        set_id, residues, line = set_data
+        if current_residues + residues > target_per_split and current_split:
+            # Write current split to file
+            split_file = f"splits/non_redundant_set_splits/split_{len(split_files)}.csv"
+            with open(split_file, "w") as f:
+                for sid, residues, line in current_split:
+                    f.write(line)
+            split_files.append(split_file)
+            current_split = []
+            current_residues = 0
+
+        current_split.append((set_id, residues, line))
+        current_residues += residues
+    # Write the final split if it has any content
+    if current_split:
+        split_file = f"splits/non_redundant_set_splits/split_{len(split_files)}.csv"
+        with open(split_file, "w") as f:
+            for sid, residues, line in current_split:
+                f.write(line)
+        split_files.append(split_file)
+
+    print(f"Created {len(split_files)} splits:")
+    for i, split_file in enumerate(split_files):
+        print(f"Split {i}: {split_file}")
 
 
 def get_non_redundant_motifs(csv_path: str, processes: int = 1):
@@ -1117,12 +1179,20 @@ def get_unique_motifs():
 def get_unique_residues(processes: int = 1):
     pass
 
+
 # cli ##################################################################################
 
 
 @click.group()
 def cli():
     pass
+
+
+@cli.command()
+@click.argument("csv_path", type=click.Path(exists=True))
+@click.argument("splits", type=int)
+def run_split_non_redundant_set(csv_path, splits):
+    split_non_redundant_set(csv_path, splits)
 
 
 # Step 1: Get non-redundant motifs
@@ -1141,6 +1211,7 @@ def run_check_motifs(csv_path, processes):
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].unique()
     check_motifs(pdb_ids, processes)
+
 
 # Step 3: Get unique motifs
 # need to run scripts/check_motifs.py to get details first
