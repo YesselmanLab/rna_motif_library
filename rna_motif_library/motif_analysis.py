@@ -1052,41 +1052,38 @@ def split_non_redundant_set(csv_path: str, n_splits: int):
         for entry in child_entries:
             total_residues += rna_count_dict.get(entry.pdb_id, 0)
         set_residues.append((set_id, total_residues, lines[i]))
-
     # Sort by total residues to help with balanced splitting
     set_residues.sort(key=lambda x: x[1])
-
     # Calculate target residues per split
     total_residues = sum(r[1] for r in set_residues)
     target_per_split = total_residues / n_splits
-
     # Create splits
     current_split = []
     current_residues = 0
     split_files = []
-
+    count = 0
     for set_data in set_residues:
         set_id, residues, line = set_data
+        current_split.append((set_id, residues, line))
+        current_residues += residues
         if current_residues + residues > target_per_split and current_split:
             # Write current split to file
             split_file = f"splits/non_redundant_set_splits/split_{len(split_files)}.csv"
             with open(split_file, "w") as f:
                 for sid, residues, line in current_split:
                     f.write(line)
+                    count += 1
             split_files.append(split_file)
             current_split = []
             current_residues = 0
-
-        current_split.append((set_id, residues, line))
-        current_residues += residues
     # Write the final split if it has any content
     if current_split:
         split_file = f"splits/non_redundant_set_splits/split_{len(split_files)}.csv"
         with open(split_file, "w") as f:
             for sid, residues, line in current_split:
                 f.write(line)
+                count += 1
         split_files.append(split_file)
-
     print(f"Created {len(split_files)} splits:")
     for i, split_file in enumerate(split_files):
         print(f"Split {i}: {split_file}")
