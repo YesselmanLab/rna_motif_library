@@ -6,7 +6,10 @@ import json
 
 from rna_motif_library.settings import DATA_PATH
 from rna_motif_library.motif import get_cached_motifs
-from rna_motif_library.parallel_utils import concat_dataframes_from_files, run_w_processes_in_batches
+from rna_motif_library.parallel_utils import (
+    concat_dataframes_from_files,
+    run_w_processes_in_batches,
+)
 from rna_motif_library.util import add_motif_indentifier_columns
 
 
@@ -26,6 +29,7 @@ def process_pdb_motifs(args):
 
 
 # cli commands ########################################################################
+
 
 @click.group()
 def cli():
@@ -129,8 +133,11 @@ def get_basepairs():
         )
     )
 
+
 @cli.command()
-@click.option("-p", "--processes", type=int, default=1, help="Number of processes to use")
+@click.option(
+    "-p", "--processes", type=int, default=1, help="Number of processes to use"
+)
 def get_motifs(processes):
     RELEASE_PATH = os.path.join("release", "motifs")
     df = pd.read_csv(os.path.join(DATA_PATH, "summaries", "all_motifs.csv"))
@@ -156,6 +163,54 @@ def get_motifs(processes):
     df = pd.concat(results)
     df.to_json(os.path.join(RELEASE_PATH, "all_motifs.json"), orient="records")
     os.system("gzip -9 -f {}".format(os.path.join(RELEASE_PATH, "all_motifs.json")))
+
+    # TODO need to update this this is copied from generate_motif_summary
+    # Combine results
+    dfs = [df for df in results if df is not None]
+    df = pd.concat(dfs)
+    df.to_json(
+        os.path.join(
+            DATA_PATH,
+            "summaries",
+            "release",
+            "motifs",
+            "non_redundant_motif_summary_w_coords.json",
+        ),
+        orient="records",
+    )
+    df = df.drop(columns=["atom_names", "coords"])
+    df.to_json(
+        os.path.join(
+            DATA_PATH,
+            "summaries",
+            "release",
+            "motifs",
+            "non_redundant_motif_summary.json",
+        ),
+        orient="records",
+    )
+    os.system(
+        "gzip -9 {}".format(
+            os.path.join(
+                DATA_PATH,
+                "summaries",
+                "release",
+                "motifs",
+                "non_redundant_motif_summary.json",
+            )
+        )
+    )
+    os.system(
+        "gzip -9 {}".format(
+            os.path.join(
+                DATA_PATH,
+                "summaries",
+                "release",
+                "motifs",
+                "non_redundant_motif_summary_w_coords.json",
+            )
+        )
+    )
 
 
 @cli.command()

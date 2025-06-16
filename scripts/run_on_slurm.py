@@ -10,7 +10,6 @@ from simple_slurm import Slurm
 
 from rna_motif_library.motif_analysis import (
     split_non_redundant_set,
-    check_motifs,
     get_unique_motifs,
     get_unique_residues,
 )
@@ -241,19 +240,13 @@ def generate_non_redundant_set_motifs():
     check_job_completion(job_ids)
 
 
-def generate_unique_motifs():
-    check_motifs()
-    get_unique_motifs()
-
-
 def main():
     os.makedirs("slurm_job_outputs", exist_ok=True)
     # are_generate_chains_completed()
     # generate_chains()
     # generate_ligand_data()
-    generate_motifs()
+    # generate_motifs()
     # generate_non_redundant_set_motifs()
-    # generate_unique_motifs()
 
 
 if __name__ == "__main__":
