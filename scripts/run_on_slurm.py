@@ -13,6 +13,7 @@ from rna_motif_library.motif_analysis import (
     get_unique_motifs,
     get_unique_residues,
 )
+from rna_motif_library.parallel_utils import concat_dataframes_from_files
 
 
 def get_job_status(job_id: int) -> str:
@@ -240,6 +241,41 @@ def generate_non_redundant_set_motifs():
     check_job_completion(job_ids)
 
 
+def run_analysis():
+    os.makedirs("slurm_job_outputs/analysis", exist_ok=True)
+    template_path = "scripts/slurm_templates/analysis.txt"
+    template_str = open(template_path, "r").read()
+    csv_files = glob.glob("splits/*.csv")
+    job_ids = []
+    for i, csv_file in enumerate(csv_files):
+        job_name = f"analysis_{i}"
+        output_path = f"slurm_job_outputs/analysis/{job_name}_%j.out"
+        error_path = f"slurm_job_outputs/analysis/{job_name}_%j.err"
+        slurm_job = Slurm(
+            job_name=job_name,
+            output=output_path,
+            error=error_path,
+            time="2:00:00",
+            mem="4G",
+            cpus_per_task=1,
+        )
+        slurm_job.add_cmd(template_str.format(csv_path=csv_file))
+        job_ids.append(slurm_job.sbatch())
+    check_job_completion(job_ids)
+    df = concat_dataframes_from_files(
+        glob.glob("data/dataframes/atlas_motifs_compared/*.json")
+    )
+    df.to_json(
+        "data/summaries/other_motifs/atlas_motifs_compared.json", orient="records"
+    )
+    df = concat_dataframes_from_files(
+        glob.glob("data/dataframes/dssr_motifs_compared/*.json")
+    )
+    df.to_json(
+        "data/summaries/other_motifs/dssr_motifs_compared.json", orient="records"
+    )
+
+
 def main():
     os.makedirs("slurm_job_outputs", exist_ok=True)
     # are_generate_chains_completed()
@@ -247,6 +283,7 @@ def main():
     # generate_ligand_data()
     # generate_motifs()
     # generate_non_redundant_set_motifs()
+    run_analysis()
 
 
 if __name__ == "__main__":

@@ -1342,6 +1342,7 @@ def get_atlas_motifs(
     Args:
         processes: Number of processes to use for parallel processing
     """
+    os.makedirs(os.path.join(DATA_PATH, "dataframes", "atlas_motifs"), exist_ok=True)
     df = pd.read_json(atlas_summary_path)
     df_allowed_pdbs = pd.read_csv(allowed_pdbs_path)
     df_allowed_pdbs = df_allowed_pdbs["pdb_id"].unique()
@@ -1357,6 +1358,9 @@ def get_atlas_motifs(
 
 
 def compare_atlas_motifs(pdb_ids: List[str], processes: int = 1):
+    os.makedirs(
+        os.path.join(DATA_PATH, "dataframes", "atlas_motifs_compared"), exist_ok=True
+    )
     run_w_processes_in_batches(
         items=pdb_ids,
         func=process_pdb_id_for_atlas_comparison,
@@ -1510,8 +1514,8 @@ def run_get_unique_residues(processes):
 )
 def run_get_dssr_motifs(csv_path: str, processes: int):
     df = pd.read_csv(csv_path)
-    pdb_ids = df["pdb_id"].unique()
-    run_get_dssr_motifs(pdb_ids, processes)
+    pdb_ids = df["pdb_id"].values
+    get_dssr_motifs(pdb_ids, processes)
 
 
 # Step 5: Compare DSSR motifs
@@ -1527,7 +1531,7 @@ def run_compare_dssr_motifs(csv_path, processes):
         processes: Number of processes to use for parallel processing
     """
     df = pd.read_csv(csv_path)
-    pdb_ids = df["pdb_id"].unique()
+    pdb_ids = df["pdb_id"].values
     compare_dssr_motifs(pdb_ids, processes)
 
 

@@ -1,0 +1,7 @@
+module load anaconda
+conda activate rna_motif_env
+
+python rna_motif_library/motif_analysis.py run-get-dssr-motifs {csv_path}
+python rna_motif_library/motif_analysis.py run-compare-dssr-motifs {csv_path}
+python rna_motif_library/motif_analysis.py run-get-atlas-motifs atlas_motifs.json {csv_path}
+python rna_motif_library/motif_analysis.py run-compare-atlas-motifs {csv_path}
