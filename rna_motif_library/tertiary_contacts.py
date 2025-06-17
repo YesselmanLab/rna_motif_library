@@ -248,13 +248,6 @@ def process_group(g, pdb_id, unique_motifs):
     Returns:
         dict or None: Dictionary containing processed interaction data or None if insufficient data
     """
-
-    # if (
-    #    g.iloc[0]["motif_1"] not in unique_motifs
-    #    and g.iloc[0]["motif_2"] not in unique_motifs
-    # ):
-    #    return None
-
     if len(g) < 3:
         return None
 
@@ -341,27 +334,19 @@ def process_pdb_id_for_tertiary_contacts(args):
         None
     """
     pdb_id, unique_motifs = args
-    try:
-        df = pd.read_csv(
-            os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
-        )
-    except Exception as e:
+    if not os.path.exists(os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")):
         return
-
+    df = pd.read_csv(
+        os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
+    )
     output_path = os.path.join(
         DATA_PATH, "dataframes", "tertiary_contacts", f"{pdb_id}.json"
     )
-
-    # If file exists and has content, load and return it
-    if file_exists_and_has_content(output_path):
-        return pd.read_json(output_path)
-
-    # Otherwise try to generate new data
-    try:
-        g = df[df["pdb_id"] == pdb_id]
-        df_pdbs = process_pdb_tertiary_contacts(g, pdb_id, unique_motifs)
-        df_pdbs.to_json(output_path, orient="records")
+    if len(df) == 0:
         return
+    try:
+        df_pdbs = process_pdb_tertiary_contacts(df, pdb_id, unique_motifs)
+        df_pdbs.to_json(output_path, orient="records")
     except Exception as e:
         print(f"Error processing {pdb_id}: {e}")
         return
@@ -486,26 +471,8 @@ def run_find_tertiary_contacts(csv_path, processes):
     )
     pdb_ids = df["pdb_id"].values
     unique_motifs = list(df_unique_motifs["motif_name"].values)
+    find_tertiary_contacts(pdb_ids, unique_motifs, processes)
 
-    # Process PDB IDs in parallel
-    results = run_w_processes_in_batches(
-        items=[(pdb_id, df, unique_motifs) for pdb_id in pdb_ids],
-        func=process_pdb_id_for_tertiary_contacts,
-        processes=processes,
-        batch_size=100,
-        desc="Processing PDB IDs for tertiary contacts",
-    )
-
-    # Collect results from processed files
-    dfs = []
-    for result in results:
-        if result is not None:
-            dfs.append(result)
-
-    # Combine all results if needed
-    if dfs:
-        df_combined = pd.concat(dfs)
-        df_combined.to_json("all_tertiary_contacts.json", orient="records")
 
 
 @cli.command()
