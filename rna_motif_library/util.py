@@ -212,6 +212,34 @@ def get_cif_header_str() -> str:
     return s
 
 
+def get_res_to_motif_id(motifs):
+    """Process a single PDB ID to get unique residues and mapping.
+
+    Args:
+        args: Tuple containing (pdb_id, unique_motifs)
+            pdb_id: PDB ID to process
+            unique_motifs: List of unique motif names
+
+    Returns:
+        Tuple containing:
+            - Dictionary with PDB ID and residues
+            - Dictionary with PDB ID and residue to motif mapping
+    """
+    res_to_motif_id = {}
+    res = []
+    for m in motifs:
+        for r in m.get_residues():
+            if r.get_str() not in res:
+                res.append(r.get_str())
+            if r.get_str() not in res_to_motif_id:
+                res_to_motif_id[r.get_str()] = m.name
+            else:
+                existing_motif = res_to_motif_id[r.get_str()]
+                if existing_motif.startswith("HELIX"):
+                    res_to_motif_id[r.get_str()] = m.name
+    return res_to_motif_id
+
+
 class CifParser:
     def __init__(self):
         self.loops = {}

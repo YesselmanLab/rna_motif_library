@@ -221,26 +221,6 @@ def get_tertiary_contacts():
     )
     df = concat_dataframes_from_files(json_files)
     # df = pd.read_json("data/dataframes/tertiary_contacts/1GID.json")
-    df.rename(
-        columns={
-            "motif_1": "motif_id_1",
-            "motif_2": "motif_id_2",
-            "mtype_1": "motif_type_1",
-            "mtype_2": "motif_type_2",
-            "motif_1_res": "motif_1_interacting_residues",
-            "motif_2_res": "motif_2_interacting_residues",
-            "base-base": "num_base_base_hbonds",
-            "base-sugar": "num_base_sugar_hbonds",
-            "base-phos": "num_base_phosphate_hbonds",
-            "phos-sugar": "num_phosphate_sugar_hbonds",
-            "phos-phos": "num_phosphate_phosphate_hbonds",
-            "unique_motif_1": "is_motif_1_unique",
-            "unique_motif_2": "is_motif_2_unique",
-        },
-        inplace=True,
-    )
-    df["is_motif_1_unique"] = df["is_motif_1_unique"].astype(int)
-    df["is_motif_2_unique"] = df["is_motif_2_unique"].astype(int)
     df.to_json(
         os.path.join(RELEASE_PATH, "all_tertiary_contacts.json"), orient="records"
     )
