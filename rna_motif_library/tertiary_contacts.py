@@ -4,6 +4,7 @@ import click
 import glob
 from typing import List
 
+from rna_motif_library.hbond import get_flipped_hbond
 from rna_motif_library.motif import get_cached_motifs, get_cached_hbonds
 from rna_motif_library.residue import are_residues_connected
 from rna_motif_library.util import (
@@ -11,13 +12,14 @@ from rna_motif_library.util import (
     get_pdb_ids,
     parse_motif_indentifier,
     file_exists_and_has_content,
-    get_res_to_motif_id
+    get_res_to_motif_id,
 )
 from rna_motif_library.settings import DATA_PATH
 from rna_motif_library.parallel_utils import (
     run_w_processes_in_batches,
     concat_dataframes_from_files,
 )
+
 
 def are_motifs_connected(motif_1, motif_2):
     """
@@ -141,6 +143,12 @@ def find_tertiary_interactions(pdb_id):
         motif_2_name = motif_res[hbond.res_2.get_str()]
         if motif_1_name == motif_2_name:
             continue
+
+        # Sort motif names to ensure consistent ordering
+        if motif_1_name > motif_2_name:
+            hbond = get_flipped_hbond(hbond)
+            motif_1_name, motif_2_name = motif_2_name, motif_1_name
+
         motif_1 = motifs_by_name[motif_1_name]
         motif_2 = motifs_by_name[motif_2_name]
         if are_motifs_connected(motif_1, motif_2):
@@ -151,6 +159,7 @@ def find_tertiary_interactions(pdb_id):
             continue
         if check_residue_overlap(motif_1, motif_2):
             continue
+
         data.append(
             {
                 "pdb_id": str(pdb_id),
@@ -324,7 +333,7 @@ def process_pdb_tertiary_contacts(df, pdb_id, unique_motifs):
 
 def process_pdb_id_for_tertiary_contacts(args):
     """
-    Process a single PDB ID to find tertiary contacts. Generates a json file in the 
+    Process a single PDB ID to find tertiary contacts. Generates a json file in the
     dataframes/tertiary_contacts directory.
 
     Args:
@@ -334,7 +343,9 @@ def process_pdb_id_for_tertiary_contacts(args):
         None
     """
     pdb_id, unique_motifs = args
-    if not os.path.exists(os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")):
+    if not os.path.exists(
+        os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
+    ):
         return
     df = pd.read_csv(
         os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
@@ -402,6 +413,7 @@ def find_tertiary_contacts(
         desc="Processing PDB IDs for tertiary contacts",
     )
 
+
 def generate_tertiary_contacts_release():
     path = os.path.join(DATA_PATH, "summaries", "tertiary_contacts")
     os.makedirs(path, exist_ok=True)
@@ -410,7 +422,7 @@ def generate_tertiary_contacts_release():
     )
     df = concat_dataframes_from_files(json_files)
     df.to_json(os.path.join(path, "all_tertiary_contacts.json"), orient="records")
-    df = df[~((df["unique_motif_1"] == False) & (df["unique_motif_2"] == False))]
+    df = df[~((df["is_motif_1_unique"] == False) & (df["is_motif_2_unique"] == False))]
     df.to_json(
         os.path.join(path, "unique_tertiary_contacts.json"),
         orient="records",
@@ -474,13 +486,13 @@ def run_find_tertiary_contacts(csv_path, processes):
     find_tertiary_contacts(pdb_ids, unique_motifs, processes)
 
 
-
 @cli.command()
 def run_generate_tertiary_contacts_release():
     """
     Process and filter tertiary contacts to get only unique motif interactions.
     """
     generate_tertiary_contacts_release()
+
 
 @cli.command()
 def analysis():

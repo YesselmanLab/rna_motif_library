@@ -375,12 +375,12 @@ class MotifSetComparerer:
         else:
             df_tert = pd.DataFrame()
         for i, row in df_tert.iterrows():
-            if row["motif_1"] not in in_tc:
-                in_tc[row["motif_1"]] = []
-            in_tc[row["motif_1"]].extend(row["motif_1_res"])
-            if row["motif_2"] not in in_tc:
-                in_tc[row["motif_2"]] = []
-            in_tc[row["motif_2"]].extend(row["motif_2_res"])
+            if row["motif_1_id"] not in in_tc:
+                in_tc[row["motif_1_id"]] = []
+            in_tc[row["motif_1_id"]].extend(row["motif_1_res"])
+            if row["motif_2_id"] not in in_tc:
+                in_tc[row["motif_2_id"]] = []
+            in_tc[row["motif_2_id"]].extend(row["motif_2_res"])
         return in_tc
 
     def _initialize_other_motifs_df(self, other_motifs):
@@ -1533,6 +1533,23 @@ def run_compare_dssr_motifs(csv_path, processes):
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].values
     compare_dssr_motifs(pdb_ids, processes)
+
+
+@cli.command()
+def concat_dssr_compare_motifs():
+    json_files = glob.glob(
+        os.path.join(DATA_PATH, "dataframes", "dssr_motifs_compared", "*.json")
+    )
+    df = concat_dataframes_from_files(json_files)
+    df.to_json(
+        os.path.join(
+            DATA_PATH,
+            "summaries",
+            "other_motifs",
+            "dssr_motifs_compared.json",
+        ),
+        orient="records",
+    )
 
 
 # Step 6: Get Atlas motifs
