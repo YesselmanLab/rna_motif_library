@@ -38,7 +38,9 @@ def get_pdb_structure_data_for_residues(
     chains = Chains(get_rna_chains(residues))
     basepairs = get_basepairs_for_residue(residues, pdb_data.basepairs)
     residue_dict = {r.get_str(): r for r in residues}
-    return PDBStructureData(pdb_data.pdb_id, chains, residue_dict, basepairs, pdb_data.hbonds)
+    return PDBStructureData(
+        pdb_data.pdb_id, chains, residue_dict, basepairs, pdb_data.hbonds
+    )
 
 
 def get_valid_pairs() -> List[str]:
@@ -217,9 +219,11 @@ def get_singlet_pairs(
             singlet_pairs[key] = bp
     return singlet_pairs
 
+
 @click.group()
 def cli():
     pass
+
 
 @cli.command()
 @click.argument("pdb_id", type=str)
@@ -231,11 +235,20 @@ def list_basepairs(pdb_id, min_hbond_score, res1, res2):
     for bp in pdb_data.basepairs:
         if bp.hbond_score < min_hbond_score:
             continue
-        if res1 is not None and bp.res_1.get_str() != res1 and bp.res_2.get_str() != res1:
+        if (
+            res1 is not None
+            and bp.res_1.get_str() != res1
+            and bp.res_2.get_str() != res1
+        ):
             continue
-        if res2 is not None and bp.res_2.get_str() != res2 and bp.res_1.get_str() != res2:
+        if (
+            res2 is not None
+            and bp.res_2.get_str() != res2
+            and bp.res_1.get_str() != res2
+        ):
             continue
         print(bp.res_1.get_str(), bp.res_2.get_str(), bp.bp_type, bp.hbond_score, bp.lw)
+
 
 if __name__ == "__main__":
     cli()

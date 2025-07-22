@@ -103,12 +103,14 @@ class MotifFactoryFromOther:
 
     def get_motif_from_atlas(self, atlas_mtype, res_strs):
         residues = []
+        has_missing_res = False
         for res_str in res_strs:
             if res_str in self.residues:
                 residues.append(self.residues[res_str])
             else:
+                has_missing_res = True
                 log.warning(f"Residue {res_str} not found in {self.pdb_id}")
-        return self._generate_motif(atlas_mtype, residues)
+        return (self._generate_motif(atlas_mtype, residues), has_missing_res)
 
     def from_residues(self, residues: List[Residue]) -> Motif:
         return self._generate_motif(residues)
@@ -277,7 +279,7 @@ class ResidueId:
         return f"{self.chain}-{self.residue_type}-{self.residue_num}-{self.insert_code}"
 
 
-def parse_atlas_csv(csv_path):
+def parse_atlas_summary_csv(csv_path):
     f = open(csv_path, "r")
     group = None
     mtype = None
@@ -290,30 +292,64 @@ def parse_atlas_csv(csv_path):
         mtype = "NWAY"
     else:
         raise ValueError(f"Unknown motif type: {os.path.basename(csv_path)}")
+    count = 0
     for line in f:
         if line.startswith(">"):
             group = line.strip()[1:]
             continue
-        residue_infos = line.strip().split(",")
+        count += 1
+        residue_infos = [r[1:-1] for r in line.strip().split(",")]
         x3dna_res = []
         pdb_id = None
         for residue_info in residue_infos:
-            # remove quotes
-            residue_info = residue_info[1:-1]
             residue_id = ResidueId.from_string(residue_info)
             x3dna_res.append(residue_id.to_x3dna_residue().get_str())
             pdb_id = residue_id.pdb_id
-        if pdb_id == "1GID":
-            print(mtype, x3dna_res)
         data.append(
             {
                 "pdb_id": pdb_id,
                 "group": group,
                 "mtype": mtype,
                 "residues": x3dna_res,
+                "atlas_residues": residue_infos,
             }
         )
     return pd.DataFrame(data)
+
+
+def parse_atlas_pdb_csv(pdb_id):
+    csv_path = os.path.join(DATA_PATH, "atlas_csvs", f"{pdb_id}.csv")
+    try:
+        df = pd.read_csv(csv_path, names=["motif_id", "residue_ids"])
+    except:
+        return pd.DataFrame()
+    data = []
+    for i, row in df.iterrows():
+        mtype = None
+        if row["motif_id"].startswith("HL"):
+            mtype = "HAIRPIN"
+        elif row["motif_id"].startswith("IL"):
+            mtype = "TWOWAY"
+        elif row["motif_id"].startswith("J"):
+            mtype = "NWAY"
+        else:
+            raise ValueError(f"Unknown motif type: {row['motif_id']}")
+        residues = row["residue_ids"].split(",")
+        x3dna_res = []
+        for residue_info in residues:
+            residue_id = ResidueId.from_string(residue_info)
+            x3dna_res.append(residue_id.to_x3dna_residue().get_str())
+        data.append(
+            {
+                "pdb_id": pdb_id,
+                "group": row["motif_id"],
+                "mtype": mtype,
+                "residues": x3dna_res,
+                "atlas_residues": residues,
+            }
+        )
+    df = pd.DataFrame(data)
+    return df
 
 
 def get_data_from_motif(m: Motif, pdb_id: str, has_singlet_flank: bool):
@@ -341,9 +377,9 @@ class MotifSetComparerer:
         self.low_quality_motifs = {}
         for i, row in df_check_motifs.iterrows():
             if row["contains_helix"] == 0:
-                self.low_quality_motifs[row["motif_name"]] = True
+                self.low_quality_motifs[row["motif_name"]] = 0
             else:
-                self.low_quality_motifs[row["motif_name"]] = False
+                self.low_quality_motifs[row["motif_name"]] = 1
         # Get tertiary contacts info
         in_tc = self._get_tertiary_contacts(pdb_id)
         # Get motif mappings
@@ -821,8 +857,8 @@ def get_altas_motifs_for_pdb(args):
     """
     pdb_id, group_df = args
     path = os.path.join(DATA_PATH, "dataframes", "atlas_motifs", f"{pdb_id}.json")
-    if os.path.exists(path):
-        return None
+    # if os.path.exists(path):
+    #    return None
     try:
         pdb_data = get_pdb_structure_data(pdb_id)
         other_mf = MotifFactoryFromOther(pdb_data)
@@ -831,12 +867,19 @@ def get_altas_motifs_for_pdb(args):
         print(f"Error getting motifs for {pdb_id}: {e}")
         return None
     motifs = []
+    has_missing_residues = []
+    atlas_residues = []
     for i, row in group_df.iterrows():
-        motifs.append(other_mf.get_motif_from_atlas(row["mtype"], row["residues"]))
+        motif, has_missing_res = other_mf.get_motif_from_atlas(
+            row["mtype"], row["residues"]
+        )
+        motifs.append(motif)
+        has_missing_residues.append(has_missing_res)
+        atlas_residues.append(row["atlas_residues"])
 
     data = []
     singlet_pairs_lookup = get_singlet_pairs(cww_basepairs, pdb_data.chains)
-    for m in motifs:
+    for i, m in enumerate(motifs):
         has_singlet_flank = False
         for b in m.basepair_ends:
             key = b.res_1.get_str() + "-" + b.res_2.get_str()
@@ -844,6 +887,8 @@ def get_altas_motifs_for_pdb(args):
                 has_singlet_flank = True
                 break
         data.append(get_data_from_motif(m, pdb_id, has_singlet_flank))
+        data[-1]["has_missing_res"] = has_missing_residues[i]
+        data[-1]["atlas_residues"] = atlas_residues[i]
     df = pd.DataFrame(data)
     df.to_json(path, orient="records")
     return df
@@ -861,8 +906,8 @@ def process_pdb_id_for_atlas_comparison(pdb_id: str):
     new_path = os.path.join(
         DATA_PATH, "dataframes", "atlas_motifs_compared", f"{pdb_id}.json"
     )
-    if os.path.exists(new_path):
-        return None
+    # if os.path.exists(new_path):
+    #    return None
 
     path = os.path.join(DATA_PATH, "dataframes", "atlas_motifs", f"{pdb_id}.json")
     try:
@@ -956,6 +1001,22 @@ def check_motif_is_flanked_by_helices(
     return 1
 
 
+def check_for_missing_residues(motif: Motif):
+    # residues sometimes are just phosphate backbone and we want to remove that, so we allow for 5 missing atom
+    atom_count = {
+        "A": 18,
+        "C": 15,
+        "G": 18,
+        "U": 15,
+    }
+    for r in motif.get_residues():
+        if r.res_id not in atom_count:
+            continue
+        if len(r.atom_names) < atom_count[r.res_id]:
+            return 1
+    return 0
+
+
 def check_motifs_in_pdb(pdb_id: str):
     path = f"data/dataframes/check_motifs/{pdb_id}.csv"
     if os.path.exists(path):
@@ -980,10 +1041,12 @@ def check_motifs_in_pdb(pdb_id: str):
         pdb_data_for_residues = get_pdb_structure_data_for_residues(
             pdb_data, m.get_residues()
         )
-        hf = HelixFinder(pdb_data_for_residues, cww_basepairs_lookup_min, [])
+        hf = HelixFinder(
+            pdb_data_for_residues, cww_basepairs_lookup_min, [], allow_gus=False
+        )
         m_helices = hf.get_helices()
         contains_helix = 0
-        if len(m_helices) > 0:
+        if len(m_helices) > 0 and len(m.get_residues()) > 7:
             contains_helix = 1
         has_singlet_pair = 0
         has_singlet_pair_end = 0
@@ -995,6 +1058,9 @@ def check_motifs_in_pdb(pdb_id: str):
             key = f"{bp.res_1.get_str()}-{bp.res_2.get_str()}"
             if key in singlet_pairs:
                 has_singlet_pair_end += 1
+        # small motifs should be skipped
+        if len(m.get_residues()) < 7:
+            contains_helix = 0
         data.append(
             {
                 "pdb_id": pdb_id,
@@ -1004,6 +1070,7 @@ def check_motifs_in_pdb(pdb_id: str):
                 "contains_helix": contains_helix,
                 "has_singlet_pair": has_singlet_pair,
                 "has_singlet_pair_end": has_singlet_pair_end,
+                "has_missing_residues": check_for_missing_residues(m),
             }
         )
     for m in helices:
@@ -1021,6 +1088,7 @@ def check_motifs_in_pdb(pdb_id: str):
                 "contains_helix": 0,
                 "has_singlet_pair": 0,
                 "has_singlet_pair_end": 0,
+                "has_missing_residues": check_for_missing_residues(m),
             }
         )
     df = pd.DataFrame(data)
@@ -1077,8 +1145,6 @@ def get_non_canonical_basepair_summary(m, df_bps):
 def is_motif_isolatable(m):
     if len(m.get_residues()) < 3:
         return False
-    if m.mtype == "HELIX":
-        return False
     res = []
     for r in m.get_residues():
         res.append(r.get_str())
@@ -1115,7 +1181,7 @@ def get_tertiary_contact_summary(m, df_tc):
             "hbond_score": 0,
             "in_tertiary_contact": 0,
         }
-    df_sub = df_tc.query("motif_1 == @m.name or motif_2 == @m.name")
+    df_sub = df_tc.query("motif_1_id == @m.name or motif_2_id == @m.name")
     return {
         "num_tertiary_contacts": len(df_sub),
         "num_hbonds": df_sub["num_hbonds"].sum(),
@@ -1196,7 +1262,7 @@ def get_non_redundant_motifs(csv_path: str, processes: int = 1):
         items=all_args,
         func=find_unique_motifs_in_non_redundant_set_entry,
         processes=processes,
-        batch_size=100,
+        batch_size=300,
         desc="Processing non-redundant set entries",
     )
 
@@ -1231,14 +1297,7 @@ def get_unique_motifs():
         },
         inplace=True,
     )
-    # Fill empty pdb_id with non_redundant_motif_pdb_id
-    df.loc[df["pdb_id"].isna(), "pdb_id"] = df.loc[
-        df["pdb_id"].isna(), "non_redundant_motif_pdb_id"
-    ]
-    # Fill empty motif_id with non_redundant_motif_id
-    df.loc[df["motif_id"].isna(), "motif_id"] = df.loc[
-        df["motif_id"].isna(), "non_redundant_motif_id"
-    ]
+
     df.to_csv(
         os.path.join(DATA_PATH, "summaries", "all_motifs.csv"),
         index=False,
@@ -1247,6 +1306,9 @@ def get_unique_motifs():
         os.path.join(DATA_PATH, "dataframes", "check_motifs", "*.csv")
     )
     df_issues = concat_dataframes_from_files(csv_files)
+    df_issues.to_csv(
+        os.path.join(DATA_PATH, "summaries", "all_motifs_issues.csv"), index=False
+    )
     df_issues = df_issues.drop(columns=["pdb_id"])
     df = df.query("is_duplicate == False").copy()
     df = df[["motif_id"]]
@@ -1256,13 +1318,24 @@ def get_unique_motifs():
     df.to_csv(path, index=False)
     df1 = (
         df.query(
-            "flanking_helices == 1 and contains_helix == 0 and motif_type != 'HELIX'"
+            "flanking_helices == 1 and contains_helix == 0 and motif_type != 'HELIX' and has_missing_residues == 0"
         )
         .copy()
         .reset_index(drop=True)
     )
-    df2 = df.query("motif_type == 'HELIX'").copy().reset_index(drop=True)
+    df2 = (
+        df.query("motif_type == 'HELIX' and has_missing_residues == 0")
+        .copy()
+        .reset_index(drop=True)
+    )
     df = pd.concat([df1, df2])
+    # manual removal
+    # TODO improve this
+    df_exclude = pd.read_csv("data/summaries/exclude_motif_list.csv")
+    df = df[~df["motif_name"].isin(df_exclude["motif_id"])]
+    df_exclude_pdbs = pd.read_csv("data/summaries/exclude_pdb_ids.csv")
+    df = add_motif_indentifier_columns(df, "motif_name")
+    df = df[~df["pdb_id"].isin(df_exclude_pdbs["pdb_id"])]
     path = os.path.join(DATA_PATH, "summaries", "non_redundant_motifs_no_issues.csv")
     df.to_csv(path, index=False)
 
@@ -1335,7 +1408,7 @@ def compare_dssr_motifs(pdb_ids: List[str], processes: int):
 
 
 def get_atlas_motifs(
-    atlas_summary_path: str, allowed_pdbs_path: str, processes: int = 1
+    allowed_pdbs_path: str, processes: int = 1
 ):
     """Get Atlas motifs for all PDB IDs using parallel processing.
 
@@ -1343,11 +1416,15 @@ def get_atlas_motifs(
         processes: Number of processes to use for parallel processing
     """
     os.makedirs(os.path.join(DATA_PATH, "dataframes", "atlas_motifs"), exist_ok=True)
-    df = pd.read_json(atlas_summary_path)
     df_allowed_pdbs = pd.read_csv(allowed_pdbs_path)
     df_allowed_pdbs = df_allowed_pdbs["pdb_id"].unique()
-    df = df[df["pdb_id"].isin(df_allowed_pdbs)]
+    dfs = []
+    for pdb_id in df_allowed_pdbs:
+        df = parse_atlas_pdb_csv(pdb_id)
+        dfs.append(df)
+    df = pd.concat(dfs)
     args = [(pdb_id, group_df) for pdb_id, group_df in df.groupby("pdb_id")]
+    print(len(args))
     run_w_processes_in_batches(
         items=args,
         func=get_altas_motifs_for_pdb,
@@ -1560,7 +1637,7 @@ def get_atlas_motifs_summary(csv_paths):
     os.makedirs(os.path.join(DATA_PATH, "summaries", "other_motifs"), exist_ok=True)
     dfs = []
     for csv_path in csv_paths:
-        df = parse_atlas_csv(csv_path)
+        df = parse_atlas_summary_csv(csv_path)
         dfs.append(df)
     df = pd.concat(dfs)
     df.to_json(
@@ -1570,18 +1647,17 @@ def get_atlas_motifs_summary(csv_paths):
 
 
 @cli.command()
-@click.argument("atlas_summary_path", type=click.Path(exists=True))
 @click.argument("allowed_pdbs_path", type=click.Path(exists=True))
 @click.option(
     "-p", "--processes", type=int, default=1, help="Number of processes to use"
 )
-def run_get_atlas_motifs(atlas_summary_path, allowed_pdbs_path, processes):
+def run_get_atlas_motifs(allowed_pdbs_path, processes):
     """Get Atlas motifs for all PDB IDs using parallel processing.
 
     Args:
         processes: Number of processes to use for parallel processing
     """
-    get_atlas_motifs(atlas_summary_path, allowed_pdbs_path, processes)
+    get_atlas_motifs(allowed_pdbs_path, processes)
 
 
 @cli.command()
@@ -1597,7 +1673,22 @@ def run_compare_atlas_motifs(csv_path, processes):
     """
     df = pd.read_csv(csv_path)
     pdb_ids = df["pdb_id"].unique()
+    pdb_ids = ["4V9F"]
     compare_atlas_motifs(pdb_ids, processes)
+
+
+@cli.command()
+def concat_compare_atlas_motifs():
+    json_files = glob.glob(
+        os.path.join(DATA_PATH, "dataframes", "atlas_motifs_compared", "*.json")
+    )
+    df = concat_dataframes_from_files(json_files)
+    df.to_json(
+        os.path.join(
+            DATA_PATH, "summaries", "other_motifs", "atlas_motifs_compared.json"
+        ),
+        orient="records",
+    )
 
 
 @cli.command()
@@ -1625,6 +1716,29 @@ def run_generate_motif_summary(csv_path, processes):
         processes=processes,
         batch_size=100,
         desc="Processing PDB IDs for motif summaries",
+    )
+
+
+@cli.command()
+def concat_motif_summaries():
+    os.makedirs(os.path.join(DATA_PATH, "summaries", "motifs"), exist_ok=True)
+    json_files = glob.glob(os.path.join(DATA_PATH, "dataframes", "motifs", "*.json"))
+    df = concat_dataframes_from_files(json_files)
+    df.to_json(
+        os.path.join(
+            DATA_PATH,
+            "summaries",
+            "motifs",
+            "non_redundant_motifs_summary_w_coords.json",
+        ),
+        orient="records",
+    )
+    df = df.drop(columns=["atom_names", "coords"])
+    df.to_json(
+        os.path.join(
+            DATA_PATH, "summaries", "motifs", "non_redundant_motifs_summary.json"
+        ),
+        orient="records",
     )
 
 

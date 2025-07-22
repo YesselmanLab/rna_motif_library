@@ -21,7 +21,7 @@ from rna_motif_library.basepair import generate_basepairs, save_basepairs_to_jso
 from rna_motif_library.settings import DATA_PATH, DSSR_EXE
 from rna_motif_library.logger import get_logger, setup_logging
 from rna_motif_library.ligand import generate_ligand_info
-from rna_motif_library.pdb_queries import get_rna_structures
+from rna_motif_library.pdb_queries import get_rna_structures, get_pdb_titles_batch
 from rna_motif_library.residue import (
     Residue,
     save_residues_to_json,
@@ -547,6 +547,17 @@ def generate_motifs(csv_path, processes):
 # OPTIONAL STEP: get pdb info
 # get pdb titles, num of residues, num proteins, num ligands, num hbonds, num basepairs, num motifs
 # etc, contains non-redundant set, etc
+@cli.command()
+@click.argument("csv_path", type=click.Path(exists=True))
+def get_pdb_info(csv_path):
+    """ """
+    setup_logging()
+    df = pd.read_csv(csv_path)
+    pdb_ids = df["pdb_id"].tolist()
+    df_titles = pd.DataFrame(get_pdb_titles_batch(pdb_ids, 15))
+    df = df.merge(df_titles, on="pdb_id")
+    df.to_json("pdb_titles.json", orient="records")
+
 
 if __name__ == "__main__":
     cli()

@@ -9,8 +9,7 @@ from rna_motif_library.util import wc_basepairs_w_gu
 from rna_motif_library.hbond import get_cached_hbonds
 from rna_motif_library.x3dna import get_cached_dssr_output, X3DNAResidueFactory
 from rna_motif_library.motif_factory import MotifFactory
-
-setup_logging()
+from rna_motif_library.pdb_data import get_pdb_structure_data
 
 
 def setup_motif_factory(pdb_id: str) -> MotifFactory:
@@ -22,11 +21,8 @@ def setup_motif_factory(pdb_id: str) -> MotifFactory:
     Returns:
         Configured MotifFactory instance
     """
-    basepairs = get_cached_basepairs(pdb_id)
-    chains = get_cached_chains(pdb_id)
-    hbonds = get_cached_hbonds(pdb_id)
-    rna_chains = Chains(chains)
-    return MotifFactory(pdb_id, rna_chains, basepairs, hbonds)
+    pdb_data = get_pdb_structure_data(pdb_id)
+    return MotifFactory(pdb_data)
 
 
 def filter_motifs(
@@ -37,7 +33,11 @@ def filter_motifs(
 ):
     """Filter motifs based on type, size, and PDB ID"""
     if motif_type is not None:
-        motifs = [motif for motif in motifs if motif.mtype == motif_type]
+        if motif_type.startswith("NOT-"):
+            motif_type = motif_type[4:]
+            motifs = [motif for motif in motifs if motif.mtype != motif_type]
+        else:
+            motifs = [motif for motif in motifs if motif.mtype == motif_type]
     if motif_min_size is not None:
         motifs = [motif for motif in motifs if motif.num_residues() >= motif_min_size]
     if motif_max_size is not None:
@@ -189,6 +189,7 @@ def test(motif_name: str):
 @cli.command()
 @click.argument("motif_name")
 def shared_bp_motifs(motif_name: str):
+    setup_logging()
     spl = motif_name.split("-")
     pdb_id = spl[-2]
     motifs = get_cached_motifs(pdb_id)

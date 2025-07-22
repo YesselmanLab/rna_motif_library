@@ -1,5 +1,6 @@
 import click
 import pandas as pd
+import os
 
 from rna_motif_library.motif import get_cached_motifs
 from rna_motif_library.motif_factory import (
@@ -8,6 +9,7 @@ from rna_motif_library.motif_factory import (
     get_pdb_structure_data_for_residues,
     get_cww_basepairs,
 )
+from rna_motif_library.util import add_motif_indentifier_columns
 
 
 def find_pdbs_with_large_motifs():
@@ -36,29 +38,30 @@ def find_pdbs_with_large_motifs():
 
 
 def main():
-    df = pd.read_csv("large_motifs.csv")
-    df["num_helices"] = 0
+    df = pd.read_json("data/summaries/motifs/non_redundant_motifs_summary.json")
+    df["is_large_motif"] = (
+        (df["num_residues"] > 50)
+        & (df["motif_type"] != "NWAY")
+        & (df["motif_type"] != "HELIX")
+    )
+    df = df[df["is_large_motif"]]
+    df_copy = df.copy()
+    df_copy["count"] = [i for i in range(len(df_copy))]
+    df_copy = df_copy[["count", "pdb_id", "motif_id"]]
+    df_copy["exclude"] = 0
+    df_copy.to_csv("large_motifs.csv", index=False)
     count = 0
-    for pdb_id, g in df.groupby("pdb_id"):
-        if pdb_id != "7C79":
-            continue
-        motifs = get_cached_motifs(pdb_id)
-        pdb_data = get_pdb_structure_data(pdb_id)
-        cww_basepairs = get_cww_basepairs(
-            pdb_data, min_two_hbond_score=0.5, min_three_hbond_score=0.5
-        )
-        motif_by_name = {m.name: m for m in motifs}
-        for i, row in g.iterrows():
-            m = motif_by_name[row["motif_name"]]
-            m.to_cif()
-            res = m.get_residues()
-            pdb_data_for_residues = get_pdb_structure_data_for_residues(pdb_data, res)
-            hf = HelixFinder(pdb_data_for_residues, cww_basepairs, [])
-            helices = hf.get_helices()
-            df.loc[i, "num_helices"] = len(helices)
-            if len(helices) > 1:
-                print(pdb_id, row["motif_name"], len(helices), count)
-                count += 1
+    os.makedirs("large_motifs", exist_ok=True)
+    all_motifs = {}
+    df = add_motif_indentifier_columns(df, "motif_id")
+    for i, row in df.iterrows():
+        if row["pdb_id"] not in all_motifs:
+            all_motifs[row["pdb_id"]] = {
+                m.name: m for m in get_cached_motifs(row["pdb_id"])
+            }
+        motif = all_motifs[row["pdb_id"]][row["motif_id"]]
+        motif.to_cif(f"large_motifs/{count}.cif")
+        count += 1
 
 
 if __name__ == "__main__":

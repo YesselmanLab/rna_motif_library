@@ -170,21 +170,46 @@ def get_rna_structures(resolution_cutoff=3.5):
 
 def get_pdb_title(pdb_id):
     """
-    Query the RCSB PDB API and extract the title from the primary citation.
+    Query the RCSB PDB GraphQL API and extract the title from the struct.
     """
-    url = f"https://data.rcsb.org/rest/v1/core/entry/{pdb_id}"
+    url = "https://data.rcsb.org/graphql"
+
+    # GraphQL query for title and keyword data
+    query = """
+    query($id: String!) {
+      entry(entry_id: $id) {
+        rcsb_id
+        struct {
+          title
+        }
+        struct_keywords {
+            pdbx_keywords
+            text
+        }
+      }
+    }
+    """
+
     try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            data = response.json()
-            citations = data.get("citation", [])
-            for c in citations:
-                if c.get("rcsb_is_primary") == "Y":
-                    return c.get("title", "").lower()
-            return ""
-        else:
-            log.error(f"PDB ID {pdb_id}: HTTP {response.status_code}")
-            return ""
+        response = requests.post(
+            url, json={"query": query, "variables": {"id": pdb_id}}
+        )
+        response.raise_for_status()
+        data = response.json()
+        time.sleep(0.1)
+
+        # Extract title from struct
+        title = data.get("data", {}).get("entry", {}).get("struct", {}).get("title", "")
+        keywords = data.get("data", {}).get("entry", {}).get("struct_keywords", [])
+        return {
+            "title": title.lower() if title else "",
+            "pdbx_keywords": keywords.get("pdbx_keywords", ""),
+            "other_keywords": keywords.get("text", ""),
+        }
+
+    except requests.exceptions.RequestException as e:
+        log.error(f"PDB ID {pdb_id}: HTTP error - {e}")
+        return ""
     except Exception as e:
         log.error(f"PDB ID {pdb_id}: {e}")
         return ""
@@ -193,28 +218,38 @@ def get_pdb_title(pdb_id):
 def get_pdb_titles_batch(pdb_ids: List[str], max_workers: int = 10) -> Dict[str, str]:
     """
     Get titles for multiple PDB IDs using parallel processing.
-    
+
     Args:
         pdb_ids: List of PDB IDs to fetch titles for
         max_workers: Maximum number of concurrent threads (default: 10)
-        
+
     Returns:
         Dictionary mapping PDB IDs to their titles
     """
-    results = {}
-    
+    results = []
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks and create a mapping of future to pdb_id
-        future_to_pdb = {executor.submit(get_pdb_title, pdb_id): pdb_id for pdb_id in pdb_ids}
-        
+        future_to_pdb = {
+            executor.submit(get_pdb_title, pdb_id): pdb_id for pdb_id in pdb_ids
+        }
+
         # Process completed tasks as they finish
         for future in concurrent.futures.as_completed(future_to_pdb):
             pdb_id = future_to_pdb[future]
             try:
                 title = future.result()
-                results[pdb_id] = title
+                title["pdb_id"] = pdb_id
+                results.append(title)
             except Exception as e:
                 log.error(f"Error processing {pdb_id}: {e}")
-                results[pdb_id] = ""
-    
+                results.append(
+                    {
+                        "pdb_id": pdb_id,
+                        "title": "",
+                        "pdbx_keywords": "",
+                        "other_keywords": "",
+                    }
+                )
+
     return results

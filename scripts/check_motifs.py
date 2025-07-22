@@ -207,14 +207,9 @@ def process_pdb_for_large_motifs(pdb_id: str) -> List[dict]:
             continue
         if motif.mtype == "UNKNOWN":
             continue
-
-        if len(motif.get_residues()) > 30:
-            output_dir = f"large_motifs/{motif.mtype.lower()}"
-            try:
-                motif.to_cif(os.path.join(output_dir, motif.name + ".cif"))
-            except:
-                print("error", motif.name)
-
+        if motif.mtype == "NWAY":
+            continue
+        if len(motif.get_residues()) > 50:
             data.append(
                 {
                     "pdb_id": pdb_id,
@@ -229,16 +224,11 @@ def process_pdb_for_large_motifs(pdb_id: str) -> List[dict]:
 
 @cli.command()
 def find_large_motifs():
-    # Create directories for each motif type
-    motif_types = ["HAIRPIN", "HELIX", "NWAY", "SSTRAND", "TWOWAY"]
-    for mtype in motif_types:
-        os.makedirs(f"large_motifs/{mtype.lower()}", exist_ok=True)
-
     pdb_ids = get_pdbs_ids_from_jsons("motifs")
 
     # Process PDBs in parallel batches
     all_data = run_w_processes_in_batches(
-        pdb_ids, process_pdb_for_large_motifs, 10, 100
+        pdb_ids, process_pdb_for_large_motifs, 20, 200
     )
 
     # Flatten the list of lists into a single list

@@ -446,7 +446,7 @@ def get_ligand_info_from_pdb():
     mol_names = [os.path.basename(f).split(".")[0] for f in molecule_files]
 
     # Filter out molecules that are already processed or are canonical residues
-    mol_names = [name for name in mol_names if name not in canon_res_list]
+    mol_names = [name for name in mol_names if name not in canon_rna_res_list]
     mol_names = [
         name
         for name in mol_names
@@ -535,7 +535,9 @@ def check_residue_bonds(
             for atom2, coord2 in zip(other_res.atom_names, other_res.coords):
                 if atom2.startswith("H"):
                     continue
-                dist = np.linalg.norm(np.array(coord1) - np.array(coord2))
+                # Use np.subtract and np.dot for faster squared distance calculation, avoid sqrt unless needed
+                diff = np.subtract(coord1, coord2)
+                dist = np.dot(diff, diff) ** 0.5
                 min_dist = min(dist, min_dist)
 
                 # Can break early if we find a bond
@@ -840,7 +842,7 @@ def process_single_pdb_ligand_instances(pdb_id):
         pd.DataFrame: DataFrame containing ligand instances for this PDB
     """
     exclude = (
-        canon_res_list
+        canon_rna_res_list
         + ion_list
         + ["HOH"]
         + ["UNK", "UNX", "N", "DN"]  # unknown residues
@@ -1191,7 +1193,7 @@ def get_ligand_info(processes):
         items=pdb_ids,
         func=check_phosphate_for_pdb,
         processes=processes,
-        batch_size=50,
+        batch_size=100,
         desc="Checking phosphate status",
     )
 
@@ -1207,7 +1209,7 @@ def get_ligand_info(processes):
         items=json_files,
         func=process_json_file,
         processes=processes,
-        batch_size=50,
+        batch_size=100,
         desc="Processing JSON files",
     )
 

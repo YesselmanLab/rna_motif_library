@@ -14,9 +14,13 @@ from rna_motif_library.util import (
     get_pdb_ids,
     get_non_redundant_sets,
     get_cif_header_str,
-    add_motif_indentifier_columns
+    parse_residue_identifier,
+    add_motif_indentifier_columns,
 )
-from rna_motif_library.parallel_utils import run_w_processes_in_batches
+from rna_motif_library.parallel_utils import (
+    run_w_processes_in_batches,
+    concat_dataframes_from_files,
+)
 from rna_motif_library.motif import get_cached_motifs
 from rna_motif_library.residue import get_cached_residues, Residue
 from rna_motif_library.settings import DATA_PATH
@@ -178,7 +182,6 @@ def process_interaction_group(args):
     mean_score = g["score"].mean()
     mean_dihedral_angle = g["dihedral_angle"].mean()
     mean_angle_1 = g["angle_1"].mean()
-    print((res_1, res_2, atom_1, atom_2), len(g), normalized_gini_by_datapoints(hist))
     return [
         res_1,
         res_2,
@@ -202,12 +205,17 @@ def process_pdb_motifs(pdb_id):
         DataFrame containing the motif hydrogen bonds or None if no motifs found
     """
     try:
-        df = pd.read_csv(os.path.join(DATA_PATH, "dataframes", "protein_hbonds", f"{pdb_id}.csv"))
+        df = pd.read_csv(
+            os.path.join(DATA_PATH, "dataframes", "protein_hbonds", f"{pdb_id}.csv")
+        )
     except:
         return None
-    path = os.path.join(DATA_PATH, "dataframes", "motif_protein_interactions", f"{pdb_id}.json")
+    path = os.path.join(
+        DATA_PATH, "dataframes", "motif_protein_interactions", f"{pdb_id}.json"
+    )
     if os.path.exists(path):
         return pd.read_json(path)
+
     motifs = get_cached_motifs(pdb_id)
     motif_hbond_dict = defaultdict(list)
     res_to_motif_id = generate_res_motif_mapping(motifs)
@@ -224,14 +232,42 @@ def process_pdb_motifs(pdb_id):
                 row["score"],
             ]
         )
+
     df = pd.DataFrame(motif_hbond_dict.items(), columns=["motif_id", "hbonds"])
+    if len(df) == 0:
+        return None
     df["num_hbonds"] = df["hbonds"].apply(len)
-    df = df.query("num_hbonds > 2").reset_index(drop=True)
+    keep = [True] * len(df)
+    num_protein_chains = []
+    num_unique_res_1 = []
+    num_unique_res_2 = []
+    for i, row in df.iterrows():
+        unique_res_1 = []
+        unique_res_2 = []
+        unique_protein_chains = []
+        for hbond in row["hbonds"]:
+            if hbond[0] not in unique_res_1:
+                unique_res_1.append(hbond[0])
+            if hbond[2] not in unique_res_2:
+                unique_res_2.append(hbond[2])
+            res_info = parse_residue_identifier(hbond[2])
+            if res_info["chain_id"] not in unique_protein_chains:
+                unique_protein_chains.append(res_info["chain_id"])
+        num_protein_chains.append(len(unique_protein_chains))
+        num_unique_res_1.append(len(unique_res_1))
+        num_unique_res_2.append(len(unique_res_2))
+    df["num_protein_chains"] = num_protein_chains
+    df["num_rna_res"] = num_unique_res_1
+    df["num_protein_res"] = num_unique_res_2
+    df = df[keep]
+    df = df.sort_values(by="num_hbonds", ascending=False)
     df = add_motif_indentifier_columns(df, "motif_id")
     df.to_json(path, orient="records")
     return df
 
+
 # cli #################################################################################
+
 
 @click.group()
 def cli():
@@ -260,7 +296,14 @@ def get_rna_prot_hbonds(processes):
     "-p", "--processes", type=int, default=1, help="Number of processes to use"
 )
 def analyze_rna_prot_hbonds(processes):
-    df = pd.read_csv("rna_protein_hbonds.csv")
+    df = pd.read_json(
+        os.path.join(
+            DATA_PATH,
+            "summaries",
+            "protein_interactions",
+            "non_redundant_protein_hbonds.json",
+        )
+    )
     df["res_type_1"] = df["res_1"].str.split("-").str[1]
     df["res_type_2"] = df["res_2"].str.split("-").str[1]
 
@@ -307,7 +350,11 @@ def analyze_rna_prot_hbonds(processes):
 def motif_analysis(processes):
     # Process PDB IDs in parallel
     pdb_ids = get_pdb_ids()
-    os.makedirs(os.path.join(DATA_PATH, "dataframes", "motif_protein_interactions"), exist_ok=True)
+    os.makedirs(
+        os.path.join(DATA_PATH, "dataframes", "motif_protein_interactions"),
+        exist_ok=True,
+    )
+
     results = run_w_processes_in_batches(
         items=pdb_ids,
         func=process_pdb_motifs,
@@ -315,6 +362,74 @@ def motif_analysis(processes):
         batch_size=100,
         desc="Processing PDB IDs for motif analysis",
     )
+
+
+@cli.command()
+def concat_rna_protein_hbonds():
+    csv_files = glob.glob(
+        os.path.join(DATA_PATH, "dataframes", "protein_hbonds", "*.csv")
+    )
+    df = concat_dataframes_from_files(csv_files)
+    print(len(df))
+    path = os.path.join(
+        DATA_PATH, "summaries", "protein_interactions", "all_protein_hbonds.csv"
+    )
+    df.to_csv(path, index=False)
+    unique_res = json.load(
+        open(os.path.join(DATA_PATH, "summaries", "unique_residues.json"))
+    )
+    unique_res_dict = {}
+    for d in unique_res:
+        unique_res_dict[d["pdb_id"]] = d["residues"]
+    keep = [True] * len(df)
+    for i, row in df.iterrows():
+        if row["pdb_name"] not in unique_res_dict:
+            keep[i] = False
+            continue
+        if row["res_1"] not in unique_res_dict[row["pdb_name"]]:
+            keep[i] = False
+    df = df[keep]
+    df.to_json(
+        os.path.join(
+            DATA_PATH,
+            "summaries",
+            "protein_interactions",
+            "non_redundant_protein_hbonds.json",
+        ),
+        orient="records",
+    )
+
+
+@cli.command()
+def concat_motif_analysis():
+    json_files = glob.glob(
+        os.path.join(DATA_PATH, "dataframes", "motif_protein_interactions", "*.json")
+    )
+    df = concat_dataframes_from_files(json_files)
+    df_unique_motifs = pd.read_csv(
+        os.path.join(DATA_PATH, "summaries", "non_redundant_motifs_no_issues.csv")
+    )
+    pdb_ids = df_unique_motifs["pdb_id"].values
+    unique_motifs = list(df_unique_motifs["motif_name"].values)
+    print(len(df))
+    path = os.path.join(
+        DATA_PATH,
+        "summaries",
+        "protein_interactions",
+        "all_motif_protein_interactions.json",
+    )
+    df.to_json(path, orient="records")
+    df = df.query("motif_id in @unique_motifs")
+    df.to_json(
+        os.path.join(
+            DATA_PATH,
+            "summaries",
+            "protein_interactions",
+            "non_redundant_motif_protein_interactions.json",
+        ),
+        orient="records",
+    )
+
 
 @cli.command()
 @click.argument("res_1")

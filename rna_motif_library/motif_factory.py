@@ -28,11 +28,13 @@ class HelixFinder:
         pdb_data: PDBStructureData,
         cww_basepairs: Dict[str, Basepair],
         hairpins: List[Motif],
+        allow_gus: bool = True,
     ):
         self.chains = pdb_data.chains
         self.cww_basepairs = cww_basepairs
         self.hairpins = hairpins
         self.count = -1
+        self.allow_gus = allow_gus
 
     def get_helices(self) -> List[Motif]:
         """Find all possible helices in the structure."""
@@ -49,6 +51,18 @@ class HelixFinder:
             if (
                 bp.res_1.get_str() in hairpin_res_strs
                 or bp.res_2.get_str() in hairpin_res_strs
+            ):
+                continue
+            if (
+                not self.allow_gus
+                and bp.res_1.get_str() == "G"
+                and bp.res_2.get_str() == "U"
+            ):
+                continue
+            if (
+                not self.allow_gus
+                and bp.res_1.get_str() == "U"
+                and bp.res_2.get_str() == "G"
             ):
                 continue
             cww_basepairs.append(bp)

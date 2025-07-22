@@ -1,9 +1,12 @@
 import pandas as pd
 import os
 import click
+import itertools
+from collections import defaultdict
 
-from rna_motif_library.motif import ResidueId, get_cached_motifs
-from rna_motif_library.chain import get_rna_chains
+from rna_motif_library.motif import get_cached_motifs
+from rna_motif_library.motif_analysis import ResidueId
+from rna_motif_library.chain import get_rna_chains, write_chain_to_cif
 
 
 def get_residue_ids_from_hyperlink(hyperlink):
@@ -20,8 +23,10 @@ def get_residue_ids_from_hyperlink(hyperlink):
 
 
 def get_lora_data():
+    #df = pd.read_excel("TableS6.xlsx", sheet_name="LORA_MATCHES")
     df = pd.read_csv("LORA.tsv", sep="\t")
     data = []
+    pdb_ids = set()
     for i, row in df.iterrows():
         hyperlink = row["RES"]
         residue_ids = get_residue_ids_from_hyperlink(hyperlink)
@@ -31,12 +36,11 @@ def get_lora_data():
             res = ResidueId.from_string(res_id)
             parsed_residues.append(res.get_str())
         print(parsed_residues)
+        pdb_ids.add(residue_ids[0].split("|")[0])
         data.append(
             {
                 "pdb_id": residue_ids[0].split("|")[0],
                 "residues": parsed_residues,
-                "description": row["DESCRIPTION"],
-                "secondary_structure": row["SSE"],
             }
         )
     df = pd.DataFrame(data)
@@ -56,10 +60,141 @@ def get_res_to_motif_mapping(motifs):
     return res_to_motif_id
 
 
+class TertiaryContactComparer:
+    def __init__(self):
+        pass
+
+    def compare(self, pdb_id, df_loras, df_tc):
+        try:
+            motifs = get_cached_motifs(pdb_id)
+        except Exception as e:  
+            print(f"Error getting motifs for {pdb_id}: {e}")
+            return pd.DataFrame()
+        motif_by_name = {m.name: m for m in motifs}
+        df_lora_tcs = {}
+        for i, row in df_loras.iterrows():
+            df_lora_tcs[row["index"]] = row["residues"]
+        res_to_motif_id = get_res_to_motif_mapping(motifs)
+        df_hbonds = pd.read_csv(f"data/dataframes/tc_hbonds/{pdb_id}.csv")
+        hbond_dict = defaultdict(list)
+        for i, row in df_hbonds.iterrows():
+            motif_names = sorted([row["motif_1"], row["motif_2"]])
+            hbond_dict[motif_names[0] + "_" + motif_names[1]].append(row["score"])
+        our_tcs = {}
+        for i, row in df_tc.iterrows():
+            motif_names = sorted([row["motif_1_id"], row["motif_2_id"]])
+            our_tcs[motif_names[0] + "_" + motif_names[1]] = row
+        data = []
+        seen = {}
+        for i, row in df_loras.iterrows():
+            motif_ids = self._get_interacting_motifs(row, res_to_motif_id)
+            for m1, m2 in itertools.combinations(motif_ids, 2):
+                are_motifs_connected = self._are_motifs_connected(
+                    [motif_by_name[m1], motif_by_name[m2]]
+                )
+                motif_names = sorted([m1, m2])
+                key = motif_names[0] + "_" + motif_names[1]
+                if key in hbond_dict:
+                    hbond_score = sum(hbond_dict[key])
+                    hbond_num = len(hbond_dict[key])
+                else:
+                    hbond_score = 0
+                    hbond_num = 0
+                if key in our_tcs:
+                    in_our_db = 1
+                    seen[key] = 1
+                else:
+                    in_our_db = 0
+                if hbond_num == 0:
+                    continue
+                if in_our_db == 1:
+                    are_motifs_connected = 0
+                row_data = {
+                    "lora_index": i,
+                    "motif_1_id": m1,
+                    "motif_2_id": m2,
+                    "hbond_score": hbond_score,
+                    "num_hbonds": hbond_num,
+                    "are_connected": 1 if are_motifs_connected else 0,
+                    "in_our_db": in_our_db,
+                    "in_their_db": 1,
+                    "found_after": 0
+                }
+                data.append(row_data)
+
+        for key, row in our_tcs.items():
+            if key in seen:
+                continue
+            motif_1 = motif_by_name[row["motif_1_id"]]
+            motif_2 = motif_by_name[row["motif_2_id"]] 
+            residues_1 = []
+            residues_2 = []
+            found_1 = 0
+            found_2 = 0
+            for r in motif_1.get_residues():
+                residues_1.append(r.get_str())
+            for r in motif_2.get_residues():
+                residues_2.append(r.get_str())
+            for key, value in df_lora_tcs.items():
+                for r in value:
+                    if r in residues_1:
+                        found_1 += 1
+                    if r in residues_2:
+                        found_2 += 1
+            if found_1 > 0 and found_2 > 0:
+                in_their_db = 1
+                found_after = 1
+                print("found after")
+            else:
+                found_after = 0
+                in_their_db = 0
+            row_data = {
+                "lora_index": -1,
+                "motif_1_id": row["motif_1_id"],
+                "motif_2_id": row["motif_2_id"],
+                "hbond_score": row["hbond_score"],
+                "hbond_num": row["num_hbonds"],
+                "are_connected": 0,
+                "in_our_db": 1,
+                "in_their_db": in_their_db,
+                "found_after": found_after
+            }
+            data.append(row_data)
+        return pd.DataFrame(data)
+
+    def _get_interacting_motifs(self, row, res_to_motif_id):
+        residues = row["residues"]
+        motif_ids = set()
+        for r in residues:
+            if r in res_to_motif_id:
+                motif_ids.add(res_to_motif_id[r])
+        return motif_ids
+
+    def _are_motifs_connected(self, motifs):
+        strands = []
+        residues = []
+        motifs[0].to_cif("motif_1.cif")
+        motifs[1].to_cif("motif_2.cif")
+        for m in motifs:
+            strands.extend(m.strands)
+            res = m.get_residues()
+            for r in res:
+                if r not in residues:
+                    residues.append(r)
+        new_strands = get_rna_chains(residues)
+        return len(new_strands) < len(strands)
+
+
+def compare_lora_to_tertiary_contacts_for_pdb(args):
+    pdb_id, df_loras, df_tc = args
+    tcc = TertiaryContactComparer()
+    df_compared = tcc.compare(pdb_id, df_loras, df_tc)
+    return df_compared
+
+
 def main():
-    df = pd.read_json("unique_tertiary_contacts.json")
     df_loras = pd.read_json("lora_data.json")
-    print(len(df_loras))
+    df_loras["index"] = list(range(len(df_loras)))
     df_loras["connected_strands"] = False
     df_loras["in_our_db"] = False
     df_loras["best_score"] = 0
@@ -67,6 +202,27 @@ def main():
     df_loras["more_than_2_motifs"] = 0
     os.makedirs("lora_contacts", exist_ok=True)
     count = 0
+    pdb_ids = df_loras["pdb_id"].unique()
+    pdb_data = []
+    for pdb_id in pdb_ids:
+        df_sub = df_loras[df_loras["pdb_id"] == pdb_id]
+        try:
+            df_sub_tc = pd.read_json(f"data/dataframes/tertiary_contacts/{pdb_id}.json")
+        except Exception as e:
+            print(f"Error getting tertiary contacts for {pdb_id}: {e}")
+            continue
+        pdb_data.append([pdb_id, df_sub, df_sub_tc])
+    df_compareds = []
+    for pdb_id, df_sub, df_sub_tc in pdb_data:
+        print(pdb_id)
+        df_compared = compare_lora_to_tertiary_contacts_for_pdb(
+            (pdb_id, df_sub, df_sub_tc)
+        )
+        df_compareds.append(df_compared)
+    df_compareds = pd.concat(df_compareds)
+    print(len(df_compareds))
+    df_compareds.to_json("lora_compared.json", orient="records")
+    exit()
     for pdb_id, g in df_loras.groupby("pdb_id"):
         try:
             motifs = get_cached_motifs(pdb_id)
@@ -88,7 +244,9 @@ def main():
                     seen_residues.append(r)
                     motif_ids.append(res_to_motif_id[r])
             if len(seen_residues) != len(residues):
-                print(f"Error: {pdb_id} len(residues): {len(residues)} len(seen_residues): {len(seen_residues)}")
+                print(
+                    f"Error: {pdb_id} len(residues): {len(residues)} len(seen_residues): {len(seen_residues)}"
+                )
                 continue
             motif_ids = list(set(motif_ids))
             motifs = [motif_by_name[m] for m in motif_ids]

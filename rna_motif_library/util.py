@@ -591,7 +591,7 @@ def parse_motif_indentifier(motif_name: str) -> tuple:
     msize = "-".join([str(p) for p in size_parts])
     msequence = "-".join(spl[i:-2])
     pdb_id = spl[-2]
-    return (mtype, msize, msequence, pdb_id)
+    return (mtype, msize, msequence, str(pdb_id))
 
 
 def add_motif_indentifier_columns(df: pd.DataFrame, name_col: str) -> pd.DataFrame:
@@ -608,5 +608,5 @@ def add_motif_indentifier_columns(df: pd.DataFrame, name_col: str) -> pd.DataFra
     df["mtype"] = components.apply(lambda x: x[0])
     df["msize"] = components.apply(lambda x: x[1])
     df["msequence"] = components.apply(lambda x: x[2])
-    df["pdb_id"] = components.apply(lambda x: x[3])
+    df["pdb_id"] = components.apply(lambda x: str(x[3]))
     return df
