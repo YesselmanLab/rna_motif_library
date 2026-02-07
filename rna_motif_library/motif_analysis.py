@@ -1142,35 +1142,75 @@ def get_non_canonical_basepair_summary(m, df_bps):
     return bps
 
 
-def is_motif_isolatable(m):
-    if len(m.get_residues()) < 3:
+def are_residues_sequential(res1: Residue, chain_id: str, num: int):
+    """
+    Check if two residues are sequential (next or previous) and on the same chain.
+
+    Args:
+        res1: Residue object with .chain and .num attributes
+        chain_id: Chain ID
+        num: Residue number
+
+    Returns:
+        True if res2 is immediately before or after num on the same chain, else False.
+    """
+    # Check if both residues are on the same chain
+    if res1.chain_id != chain_id:
         return False
+    # Check if residue numbers are consecutive
+    if abs(res1.num - num) == 1:
+        return True
+    return False
+
+
+def is_motif_isolatable(m):
+    data = {
+        "num_external_hbonds": 0,
+        "num_external_phos_hbonds": 0,
+        "num_external_sugar_hbonds": 0,
+        "num_external_base_hbonds": 0,
+        "is_isolatable": 1,
+    }
+    if len(m.get_residues()) < 3:
+        data["is_isolatable"] = 0
+        return data
     res = []
     for r in m.get_residues():
         res.append(r.get_str())
+    end_res = []
+    for strand in m.strands:
+        end_res.extend([r for r in [strand[0], strand[-1]]])
     total = 0
-    base_hbond = 0
-    fail = 0
+    has_ligand_hbond = 0
     for hb in m.hbonds:
         # self hbond
         if hb.res_1.get_str() in res and hb.res_2.get_str() in res:
             continue
         if hb.res_type_2 == "LIGAND":
-            fail = True
-            break
+            has_ligand_hbond = 1
+            continue
         if hb.res_type_2 == "SOLVENT":
             continue
-        total += 1
+        is_sequential = 0
+        for r in end_res:
+            if are_residues_sequential(
+                r, hb.res_1.chain_id, hb.res_1.num
+            ) or are_residues_sequential(r, hb.res_2.chain_id, hb.res_2.num):
+                is_sequential = 1
+                break
+        if is_sequential == 1:
+            continue
+        data["num_external_hbonds"] += 1
         atom_type = get_nucleotide_atom_type(hb.atom_1)
-        if atom_type == "BASE":
-            base_hbond += 1
-    if fail:
-        return 0
-    if total > 5:
-        return 0
-    if base_hbond > 1:
-        return 0
-    return 1
+        data[f"num_external_{atom_type.lower()}_hbonds"] += 1
+    if (
+        has_ligand_hbond == 1
+        or data["num_external_hbonds"] > 5
+        or data["num_external_base_hbonds"] > 1
+    ):
+        data["is_isolatable"] = 0
+        return data
+    return data
 
 
 def get_tertiary_contact_summary(m, df_tc):
@@ -1407,9 +1447,7 @@ def compare_dssr_motifs(pdb_ids: List[str], processes: int):
     )
 
 
-def get_atlas_motifs(
-    allowed_pdbs_path: str, processes: int = 1
-):
+def get_atlas_motifs(allowed_pdbs_path: str, processes: int = 1):
     """Get Atlas motifs for all PDB IDs using parallel processing.
 
     Args:
@@ -1451,8 +1489,8 @@ def get_motifs_summary(args):
     pdb_id = args[0]
     df = args[1]
     path = os.path.join(DATA_PATH, "dataframes", "motifs", f"{pdb_id}.json")
-    if os.path.exists(path):
-        return pd.read_json(path)
+    # if os.path.exists(path):
+    #    return pd.read_json(path)
     path = os.path.join(DATA_PATH, "dataframes", "tertiary_contacts", f"{pdb_id}.json")
     if not os.path.exists(path):
         df_tc = pd.DataFrame()
@@ -1494,6 +1532,7 @@ def get_motifs_summary(args):
             ):
                 has_non_canonical_basepair_flank = 1
                 break
+        isolatable_data = is_motif_isolatable(m)
         data.append(
             {
                 "pdb_id": pdb_id,
@@ -1516,12 +1555,12 @@ def get_motifs_summary(args):
                 "has_singlet_pair": row["has_singlet_pair"],
                 "has_non_canonical_residue": int(m.sequence.count("X") > 0),
                 "has_non_canonical_basepair_flank": has_non_canonical_basepair_flank,
-                "is_isolatable": is_motif_isolatable(m),
                 "in_tertiary_contact": tc_summary["in_tertiary_contact"],
                 "num_tertiary_contacts": tc_summary["num_tertiary_contacts"],
                 "atom_names": atom_names,
                 "coords": coords,
                 "unique": 1,
+                **isolatable_data,
             }
         )
     df = pd.DataFrame(data)
@@ -1692,24 +1731,26 @@ def concat_compare_atlas_motifs():
 
 
 @cli.command()
-@click.argument("csv_path", type=click.Path(exists=True))
+# @click.argument("csv_path", type=click.Path(exists=True))
 @click.option(
     "-p", "--processes", type=int, default=1, help="Number of processes to use"
 )
-def run_generate_motif_summary(csv_path, processes):
+def run_generate_motif_summary(processes):
     """Generate summary information for all motifs in the non-redundant set.
 
     Args:
         processes: Number of processes to use for parallel processing
     """
     os.makedirs(os.path.join(DATA_PATH, "dataframes", "motifs"), exist_ok=True)
-    path = os.path.join(DATA_PATH, "summaries", "non_redundant_motifs_no_issues.csv")
+    path = os.path.join(DATA_PATH, "summaries", "all_motifs_issues.csv")
     df = pd.read_csv(path)
     df = add_motif_indentifier_columns(df, "motif_name")
+    # df = df.query("pdb_id == '157D'")
 
     # Group by PDB ID and process in parallel
     groups = list(df.groupby("pdb_id"))
-
+    # get_motifs_summary(groups[0])
+    # exit()
     run_w_processes_in_batches(
         items=groups,
         func=get_motifs_summary,

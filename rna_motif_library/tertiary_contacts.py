@@ -24,6 +24,7 @@ from rna_motif_library.parallel_utils import (
 )
 
 
+
 def are_motifs_connected(motif_1, motif_2):
     """
     Check if two motifs are connected through their strand end residues.
@@ -123,8 +124,9 @@ def check_residue_overlap(motif_1, motif_2):
     # Check for any overlapping residues
     return len(residues_1.intersection(residues_2)) > 0
 
+# main functions #######################################################################
 
-def find_tertiary_hbonds(pdb_id):
+def process_pdb_id_for_tc_hbonds(pdb_id):
     """
     Find tertiary interactions between motifs in a PDB structure.
 
@@ -134,6 +136,10 @@ def find_tertiary_hbonds(pdb_id):
     Returns:
         pd.DataFrame: DataFrame containing tertiary interaction data
     """
+    output_path = os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
+    if file_exists_and_has_content(output_path):
+        return None
+
     motifs = get_cached_motifs(pdb_id)
     motifs_by_name = {m.name: m for m in motifs}
     motif_res = get_res_to_motif_id(motifs)
@@ -178,275 +184,223 @@ def find_tertiary_hbonds(pdb_id):
             }
         )
     df = pd.DataFrame(data)
+    df.to_csv(output_path, index=False)
     return df
-
-
-def find_tertiary_interactions_basepairs(pdb_id):
-    """
-    Find tertiary interactions between motifs in a PDB structure.
-    """
-    if not os.path.exists(
-        os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
-    ):
-        return None
-    df_hbonds = pd.read_csv(
-        os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
-    )
-    tc_hbonds = {}
-    for i, row in df_hbonds.iterrows():
-        tc_hbonds[row["res_1"] + "-" + row["res_2"]] = [row["motif_1"], row["motif_2"]]
-    df = pd.read_json(
-        os.path.join(DATA_PATH, "dataframes", "basepairs", f"{pdb_id}.json")
-    )
-    data = []
-    for i, row in df.iterrows():
-        if (
-            row["res_1"] + "-" + row["res_2"] not in tc_hbonds
-            and row["res_2"] + "-" + row["res_1"] not in tc_hbonds
-        ):
-            continue
-        if row["res_1"] + "-" + row["res_2"] in tc_hbonds:
-            motifs = tc_hbonds[row["res_1"] + "-" + row["res_2"]]
-            data.append(
-                [
-                    row["res_1"],
-                    row["res_2"],
-                    motifs[0],
-                    motifs[1],
-                    row["lw"],
-                    row["hbond_score"],
-                ]
-            )
-        else:
-            motifs = tc_hbonds[row["res_2"] + "-" + row["res_1"]]
-            data.append(
-                [
-                    row["res_2"],
-                    row["res_1"],
-                    motifs[1],
-                    motifs[0],
-                    row["lw"],
-                    row["hbond_score"],
-                ]
-            )
-    df = pd.DataFrame(
-        data, columns=["res_1", "res_2", "motif_1", "motif_2", "lw", "hbond_score"]
-    )
-    return df
-
-
-def write_interactions_to_cif(motifs, dir_name, pos):
-    """
-    Write motif interactions to CIF files in a specified directory.
-
-    Args:
-        motifs (list): List of motif objects to write
-        dir_name (str): Base directory name for output
-        pos (int): Position identifier for subdirectory
-
-    Returns:
-        None
-    """
-    os.makedirs(os.path.join(dir_name, str(pos)), exist_ok=True)
-    for motif in motifs:
-        print(motif.name, end=" ")
-        motif.to_cif(os.path.join(dir_name, str(pos), f"{motif.name}.cif"))
-    print()
-
-
-def get_duplicate_motifs(pdb_id):
-    """
-    Get list of duplicate motifs for a specific PDB structure.
-
-    Args:
-        pdb_id (str): PDB identifier to check for duplicates
-
-    Returns:
-        list: List of duplicate motif names
-    """
-    path = os.path.join(DATA_PATH, "dataframes", "duplicate_motifs", f"{pdb_id}.csv")
-    if not os.path.exists(path):
-        return []
-    df = pd.read_csv(path)
-    df = df[df["is_duplicate"] == True]
-    return df["motif"].values
-
-
-# main functions #######################################################################
-
-
-def process_pdb_id_for_tc_hbonds(pdb_id):
-    """
-    Process a single PDB ID to find tertiary contact hydrogen bonds.
-
-    Args:
-        pdb_id (str): The PDB ID to process
-
-    Returns:
-        pd.DataFrame or None: DataFrame containing tertiary contact hydrogen bonds or None if processing failed
-    """
-    output_path = os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
-
-    # If file exists and has content, load and return it
-    if file_exists_and_has_content(output_path):
-        return None
-
-    # Otherwise try to generate new data
-    try:
-        df_tc = find_tertiary_hbonds(pdb_id)
-        if df_tc is None:
-            return None
-        df_tc["pdb_id"] = pdb_id
-        df_tc.to_csv(output_path, index=False)
-        return df_tc
-    except Exception as e:
-        print(f"Error processing {pdb_id}: {e}")
-        return None
 
 
 def process_pdb_id_for_tc_basepairs(pdb_id):
     """
-    Process a single PDB ID to find tertiary contact basepairs.
+    Find tertiary interactions between motifs in a PDB structure.
     """
     output_path = os.path.join(DATA_PATH, "dataframes", "tc_basepairs", f"{pdb_id}.csv")
     if file_exists_and_has_content(output_path):
         return None
-    try:
-        df_tc = find_tertiary_interactions_basepairs(pdb_id)
-        if df_tc is None:
-            return None
-        df_tc["pdb_id"] = pdb_id
-        df_tc.to_csv(output_path, index=False)
-        return df_tc
-    except Exception as e:
-        print(f"Error processing {pdb_id}: {e}")
+    path = os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
+    if not os.path.exists(path):
         return None
-
-
-def process_single_tertiary_contact(g, df_basepairs, pdb_id, unique_motifs):
-    """
-    Process a group of tertiary contact interactions for analysis.
-
-    Args:
-        g (pd.DataFrame): Group of interaction data
-        pdb_id (str): PDB identifier
-        unique_motifs (list): List of unique motif names
-
-    Returns:
-        dict or None: Dictionary containing processed interaction data or None if insufficient data
-    """
-    # if len(g) < 3:
-    #    return None
-
-    hbond_types = {
-        "base-base": 0,
-        "base-sugar": 0,
-        "base-phos": 0,
-        "sugar-sugar": 0,
-        "phos-sugar": 0,
-        "phos-phos": 0,
-    }
-    motif_1_res = []
-    motif_2_res = []
-
-    all_res = []
-    hbond_score = 0
-    for _, row in g.iterrows():
-        atom_types = sorted([row["atom_type_1"], row["atom_type_2"]])
-        hbond_types[atom_types[0] + "-" + atom_types[1]] += 1
-        hbond_score += row["score"]
-        if row["res_1"] not in motif_1_res:
-            motif_1_res.append(row["res_1"])
-        if row["res_2"] not in motif_2_res:
-            motif_2_res.append(row["res_2"])
-
-    # must have atleast 2 residues interacting for each motif
-    # if len(motif_1_res) < 2 or len(motif_2_res) < 2:
-    #    return None
-
-    num_wc_pairs = 0
-    wc_basepair_hbond_score = 0
-    basepair_hbond_score = 0
-    for _, row in df_basepairs.iterrows():
-        basepair_hbond_score += row["hbond_score"]
-        if row["lw"] != "cWW":
+    df_hbonds = pd.read_csv(path)
+    tc_hbonds = {}
+    for i, row in df_hbonds.iterrows():
+        sorted_res = sorted([row["res_1"], row["res_2"]])
+        motifs = [row["motif_1"], row["motif_2"]]
+        if sorted_res[0] != row["res_1"]:
+            motifs = motifs[::-1]
+        tc_hbonds[sorted_res[0] + "-" + sorted_res[1]] = motifs
+    df = pd.read_json(
+        os.path.join(DATA_PATH, "dataframes", "basepairs", f"{pdb_id}.json")
+    )
+    data = []
+    for _, row in df.iterrows():
+        sorted_res = sorted([row["res_1"], row["res_2"]])
+        if sorted_res[0] + "-" + sorted_res[1] not in tc_hbonds:
             continue
-        res_1_id = parse_residue_identifier(row["res_1"])["res_id"]
-        res_2_id = parse_residue_identifier(row["res_2"])["res_id"]
-        bp_type = res_1_id + "-" + res_2_id
-        if bp_type in wc_basepairs_w_gu:
-            num_wc_pairs += 1
-            wc_basepair_hbond_score += row["hbond_score"]
-
-    motif_info_1 = parse_motif_indentifier(g.iloc[0]["motif_1"])
-    motif_info_2 = parse_motif_indentifier(g.iloc[0]["motif_2"])
-    return {
-        "pdb_id": pdb_id,
-        "motif_1_id": g.iloc[0]["motif_1"],
-        "motif_2_id": g.iloc[0]["motif_2"],
-        "motif_1_type": motif_info_1[0],
-        "motif_2_type": motif_info_2[0],
-        "motif_1_size": motif_info_1[1],
-        "motif_2_size": motif_info_2[1],
-        "m_sequence_1": motif_info_1[2],
-        "m_sequence_2": motif_info_2[2],
-        "motif_1_res": motif_1_res,
-        "motif_2_res": motif_2_res,
-        "num_res_1": len(motif_1_res),
-        "num_res_2": len(motif_2_res),
-        "num_hbonds": len(g),
-        "num_basepairs": len(df_basepairs),
-        "hbond_score": hbond_score,
-        "basepair_hbond_score": basepair_hbond_score,
-        "wc_basepair_hbond_score": wc_basepair_hbond_score,
-        "num_wc_pairs": num_wc_pairs,
-        "num_base_base_hbonds": hbond_types["base-base"],
-        "num_base_sugar_hbonds": hbond_types["base-sugar"],
-        "num_base_phosphate_hbonds": hbond_types["base-phos"],
-        "num_phosphate_sugar_hbonds": hbond_types["phos-sugar"],
-        "num_phosphate_phosphate_hbonds": hbond_types["phos-phos"],
-        "is_motif_1_unique": int(g.iloc[0]["motif_1"] in unique_motifs),
-        "is_motif_2_unique": int(g.iloc[0]["motif_2"] in unique_motifs),
-    }
+        motifs = tc_hbonds[sorted_res[0] + "-" + sorted_res[1]]
+        data.append(
+            [
+                sorted_res[0],
+                sorted_res[1],
+                motifs[0],
+                motifs[1],
+                row["lw"],
+                row["hbond_score"],
+                pdb_id
+            ]
+        ) 
+    df = pd.DataFrame(
+        data, columns=["res_1", "res_2", "motif_1", "motif_2", "lw", "hbond_score", "pdb_id"]
+    )
+    df.to_csv(output_path, index=False)
+    return df
 
 
-def process_pdb_tertiary_contacts(df, pdb_id, unique_motifs):
-    """
-    Process tertiary contacts for a single PDB structure.
+class TertiaryContactProcessor:
+    def __init__(self):
+        pass 
 
-    Args:
-        df (pd.DataFrame): DataFrame containing interaction data
-        pdb_id (str): PDB identifier
-        unique_motifs (list): List of unique motif names
+    def setup(self, pdb_id, unique_motifs):
+        self.pdb_id = pdb_id
+        self.motifs = get_cached_motifs(pdb_id)
+        self.motifs_by_name = {m.name: m for m in self.motifs}
+        self.unique_motifs = unique_motifs
+        path = os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
+        try:
+            self.df_hbonds = pd.read_csv(path)
+        except:
+            self.df_hbonds = pd.DataFrame()
+        path = os.path.join(DATA_PATH, "dataframes", "tc_basepairs", f"{pdb_id}.csv")
+        if os.path.exists(path):
+            self.df_basepairs = pd.read_csv(path)
+        else:
+            self.df_basepairs = pd.DataFrame(
+                columns=["res_1", "res_2", "motif_1", "motif_2", "lw", "hbond_score"]
+            )
 
-    Returns:
-        pd.DataFrame: DataFrame containing processed tertiary contact data
-    """
-    pdb_data = []
-    if os.path.exists(
-        os.path.join(DATA_PATH, "dataframes", "tc_basepairs", f"{pdb_id}.csv")
-    ):
-        df_basepairs = pd.read_csv(
-            os.path.join(DATA_PATH, "dataframes", "tc_basepairs", f"{pdb_id}.csv")
-        )
-    else:
-        df_basepairs = pd.DataFrame(
-            columns=["res_1", "res_2", "motif_1", "motif_2", "lw", "hbond_score"]
-        )
+    def process(self):
+        if len(self.df_hbonds) == 0:
+            return pd.DataFrame()
+        all_data = []
+        for (motif_1, motif_2), g in self.df_hbonds.groupby(["motif_1", "motif_2"]):
+            data = self._process_single_tertiary_contact(motif_1, motif_2, g)
+            all_data.append(data)
+        df = pd.DataFrame(all_data)
+        return df
 
-    for (motif_1, motif_2), g in df.groupby(["motif_1", "motif_2"]):
-        # if len(g) < 3:
-        #    continue
-        df_sub = df_basepairs[
-            (df_basepairs["motif_1"] == motif_1) & (df_basepairs["motif_2"] == motif_2)
+    def _process_single_tertiary_contact(self, motif_1, motif_2, df_hbonds):
+        data = {
+            "pdb_id": self.pdb_id
+        }
+        data.update(self._get_motif_info(motif_1, motif_2)) # add motif info to total data
+        data.update(self._get_hbond_info(df_hbonds)) # add hbond to total data
+        data.update(self._get_residue_info(df_hbonds)) # add residue info to total data
+        data.update(self._get_basepair_info(motif_1, motif_2)) # add basepair info to total data
+        data.update(self._get_is_isolatable_info([motif_1, motif_2])) # add isolatable info to total data
+        return data
+        
+    def _get_motif_info(self, motif_1, motif_2):
+        motif_info_1 = parse_motif_indentifier(motif_1)
+        motif_info_2 = parse_motif_indentifier(motif_2)
+        return {
+            "motif_1_id": motif_1,
+            "motif_2_id": motif_2,
+            "is_motif_1_unique": int(motif_1 in self.unique_motifs),
+            "is_motif_2_unique": int(motif_2 in self.unique_motifs),
+            "motif_1_type": motif_info_1[0],
+            "motif_2_type": motif_info_2[0],
+            "motif_1_size": motif_info_1[1],
+            "motif_2_size": motif_info_2[1],
+            "m_sequence_1": motif_info_1[2],
+            "m_sequence_2": motif_info_2[2],
+        }
+
+    def _get_hbond_info(self, g):
+        hbond_types = {
+            "base-base": 0,
+            "base-sugar": 0,
+            "base-phos": 0,
+            "sugar-sugar": 0,
+            "phos-sugar": 0,
+            "phos-phos": 0,
+        }
+        hbond_score = 0
+        for _, row in g.iterrows():
+            atom_types = sorted([row["atom_type_1"], row["atom_type_2"]])
+            hbond_types[atom_types[0] + "-" + atom_types[1]] += 1
+            hbond_score += row["score"]
+
+        return {
+            "num_base_base_hbonds": hbond_types["base-base"],
+            "num_base_sugar_hbonds": hbond_types["base-sugar"],
+            "num_base_phosphate_hbonds": hbond_types["base-phos"],
+            "num_phosphate_sugar_hbonds": hbond_types["phos-sugar"],
+            "num_phosphate_phosphate_hbonds": hbond_types["phos-phos"],
+            "hbond_score": hbond_score,
+            "num_hbonds": len(g),
+        }
+
+    def _get_residue_info(self, g):
+        motif_1_res = []
+        motif_2_res = []
+        for _, row in g.iterrows():
+            if row["res_1"] not in motif_1_res:
+                motif_1_res.append(row["res_1"])
+            if row["res_2"] not in motif_2_res:
+                motif_2_res.append(row["res_2"])
+        return {
+            "motif_1_res": motif_1_res,
+            "motif_2_res": motif_2_res,
+            "num_res_1": len(motif_1_res),
+            "num_res_2": len(motif_2_res),
+        }
+
+    def _get_basepair_info(self, motif_1, motif_2):
+        df_basepairs = self.df_basepairs[
+            (self.df_basepairs["motif_1"] == motif_1) & (self.df_basepairs["motif_2"] == motif_2)
         ]
-        data = process_single_tertiary_contact(g, df_sub, pdb_id, unique_motifs)
-        if data is None:
-            continue
-        pdb_data.append(data)
-    df_pdb = pd.DataFrame(pdb_data)
-    return df_pdb
-
+        num_wc_pairs = 0
+        wc_basepair_hbond_score = 0
+        basepair_hbond_score = 0
+        for _, row in df_basepairs.iterrows():
+            basepair_hbond_score += row["hbond_score"]
+            if row["lw"] != "cWW":
+                continue
+            res_1_id = parse_residue_identifier(row["res_1"])["res_id"]
+            res_2_id = parse_residue_identifier(row["res_2"])["res_id"]
+            bp_type = res_1_id + "-" + res_2_id
+            if bp_type in wc_basepairs_w_gu:
+                num_wc_pairs += 1
+                wc_basepair_hbond_score += row["hbond_score"]
+        return {
+            "num_basepairs": len(df_basepairs),
+            "basepair_hbond_score": basepair_hbond_score,
+            "wc_basepair_hbond_score": wc_basepair_hbond_score,
+            "num_wc_pairs": num_wc_pairs,
+        }
+    
+    def _get_is_isolatable_info(self, motif_names):
+        motifs = [self.motifs_by_name[m] for m in motif_names]
+        df_basepairs = self.df_basepairs[
+            (self.df_basepairs["motif_1"] == motif_names[0]) & (self.df_basepairs["motif_2"] == motif_names[1])
+        ]
+        res = []
+        for m in motifs:
+            for r in m.get_residues():
+                if r.get_str() not in res:
+                    res.append(r.get_str())
+        total = 0
+        base_hbond = 0
+        ligand_hbond = 0
+        for hb in motifs[0].hbonds + motifs[1].hbonds:
+            # self hbond
+            if hb.res_1.get_str() in res and hb.res_2.get_str() in res:
+                continue
+            if hb.res_type_2 == "LIGAND":
+                continue
+            if hb.res_type_2 == "SOLVENT":
+                continue
+            total += 1
+            atom_type = get_nucleotide_atom_type(hb.atom_1)
+            if atom_type == "BASE":
+                base_hbond += 1
+        num_external_basepairs = 0
+        num_external_wc_basepairs = 0
+        for _, row in df_basepairs.iterrows():
+            if row["res_1"] not in res and row["res_2"] not in res:
+                continue
+            elif row["res_1"] in res and row["res_2"] in res:
+                continue
+            if row["lw"] == "cWW" and row["bp_type"] in wc_basepairs_w_gu:
+                num_external_wc_basepairs += 1
+            else:
+                num_external_basepairs += 1
+        return {
+            "num_external_hbonds": total,
+            "num_external_base_hbonds": base_hbond,
+            "num_ligand_hbonds": ligand_hbond,
+            "is_isolatable": int(total <= 5 and base_hbond <= 1 and ligand_hbond == 0),
+            "num_external_basepairs": num_external_basepairs,
+            "num_external_wc_basepairs": num_external_wc_basepairs,
+        }
+        
 
 def process_pdb_id_for_tertiary_contacts(args):
     """
@@ -460,24 +414,15 @@ def process_pdb_id_for_tertiary_contacts(args):
         None
     """
     pdb_id, unique_motifs = args
-    if not os.path.exists(
-        os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
-    ):
+    path = os.path.join(DATA_PATH, "dataframes", "tertiary_contacts", f"{pdb_id}.json")
+    if os.path.exists(path):
         return
-    df = pd.read_csv(
-        os.path.join(DATA_PATH, "dataframes", "tc_hbonds", f"{pdb_id}.csv")
-    )
-    output_path = os.path.join(
-        DATA_PATH, "dataframes", "tertiary_contacts", f"{pdb_id}.json"
-    )
+    p = TertiaryContactProcessor()
+    p.setup(pdb_id, unique_motifs)
+    df = p.process()
     if len(df) == 0:
         return
-    try:
-        df_pdbs = process_pdb_tertiary_contacts(df, pdb_id, unique_motifs)
-        df_pdbs.to_json(output_path, orient="records")
-    except Exception as e:
-        print(f"Error processing {pdb_id}: {e}")
-        return
+    df.to_json(path, orient="records")
 
 
 # main functions #######################################################################
@@ -546,83 +491,14 @@ def find_tertiary_contacts(
     )
 
 
-def is_tertiary_contact_isolatable(motifs, df_basepairs):
-    res = []
-    for m in motifs:
-        for r in m.get_residues():
-            if r.get_str() not in res:
-                res.append(r.get_str())
-    total = 0
-    base_hbond = 0
-    ligand_hbond = 0
-    for hb in motifs[0].hbonds + motifs[1].hbonds:
-        # self hbond
-        if hb.res_1.get_str() in res and hb.res_2.get_str() in res:
-            continue
-        if hb.res_type_2 == "LIGAND":
-            continue
-        if hb.res_type_2 == "SOLVENT":
-            continue
-        total += 1
-        atom_type = get_nucleotide_atom_type(hb.atom_1)
-        if atom_type == "BASE":
-            base_hbond += 1
-    num_external_basepairs = 0
-    num_external_wc_basepairs = 0
-    for _, row in df_basepairs.iterrows():
-        if row["res_1"] not in res and row["res_2"] not in res:
-            continue
-        elif row["res_1"] in res and row["res_2"] in res:
-            continue
-        if row["lw"] == "cWW" and row["bp_type"] in wc_basepairs_w_gu:
-            num_external_wc_basepairs += 1
-        else:
-            num_external_basepairs += 1
-    return {
-        "num_external_hbonds": total,
-        "num_external_base_hbonds": base_hbond,
-        "num_ligand_hbonds": ligand_hbond,
-        "is_isolatable": total <= 5 and base_hbond <= 1 and ligand_hbond == 0,
-        "num_external_basepairs": num_external_basepairs,
-        "num_external_wc_basepairs": num_external_wc_basepairs,
-    }
-
-
-def finalized_tertiary_contacts(path):
-    df = pd.read_json(path)
-    if len(df) == 0:
-        return pd.DataFrame()
-    _, _, _, pdb_id = parse_motif_indentifier(df.iloc[0]["motif_1_id"])
-    motifs = get_cached_motifs(pdb_id)
-    motifs_by_name = {m.name: m for m in motifs}
-    df_basepairs = pd.read_json(
-        os.path.join(DATA_PATH, "dataframes", "basepairs", f"{pdb_id}.json")
-    )
-    data = []
-    for _, row in df.iterrows():
-        tc_motifs = [motifs_by_name[m] for m in [row["motif_1_id"], row["motif_2_id"]]]
-        row_data = is_tertiary_contact_isolatable(tc_motifs, df_basepairs)
-        row_data["motif_1_id"] = row["motif_1_id"]
-        row_data["motif_2_id"] = row["motif_2_id"]
-        data.append(row_data)
-    df_data = pd.DataFrame(data)
-    df = df.merge(df_data, on=["motif_1_id", "motif_2_id"], how="left")
-    return df
-
-
 def generate_tertiary_contacts_release(processes: int = 1):
     path = os.path.join(DATA_PATH, "summaries", "tertiary_contacts")
     os.makedirs(path, exist_ok=True)
     json_files = glob.glob(
         os.path.join(DATA_PATH, "dataframes", "tertiary_contacts", "*.json")
     )
-    results = run_w_processes_in_batches(
-        items=json_files,
-        func=finalized_tertiary_contacts,
-        processes=processes,
-        batch_size=100,
-        desc="Finalizing tertiary contacts",
-    )
+    results =[]
+ 
     df = pd.concat(results)
     df.to_json(os.path.join(path, "all_tertiary_contacts.json"), orient="records")
     df = df[~((df["is_motif_1_unique"] == False) & (df["is_motif_2_unique"] == False))]
@@ -696,9 +572,8 @@ def run_find_tertiary_contacts(csv_path, processes):
     df_unique_motifs = pd.read_csv(
         os.path.join(DATA_PATH, "summaries", "non_redundant_motifs_no_issues.csv")
     )
-    pdb_ids = df["pdb_id"].values
     unique_motifs = list(df_unique_motifs["motif_name"].values)
-    # process_pdb_id_for_tertiary_contacts(("1GID", unique_motifs))
+    pdb_ids = df["pdb_id"].values
     find_tertiary_contacts(pdb_ids, unique_motifs, processes)
 
 

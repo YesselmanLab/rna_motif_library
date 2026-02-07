@@ -21,22 +21,10 @@ def add_residue_count(df: pd.DataFrame) -> pd.DataFrame:
 
 def main():
     df = pd.read_json(
-        os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "data",
-            "summaries",
-            "tertiary_contacts",
-            "unique_tertiary_contacts.json",
-        )
-    )
-    df = pd.read_json(
-        "lora_compared.json"
+        "data/summaries/tertiary_contacts/lora/lora_compared_w_features.json"
     )
     df = df[df["in_their_db"] == False]
-    print(len(df))
-    exit()
-    df = df[df["hbond_num"] > 10]
+    df = df[df["num_hbonds"] > 10]
     # df = df[df["is_isolatable"] == True]
     # df.sort_values("num_hbonds", ascending=False, inplace=True)
     all_motifs = {}
@@ -45,9 +33,7 @@ def main():
     for i, row in df.iterrows():
         _, _, _, pdb_id = parse_motif_indentifier(row["motif_1_id"])
         if pdb_id not in all_motifs:
-            all_motifs[pdb_id] = {
-                m.name: m for m in get_cached_motifs(pdb_id)
-            }
+            all_motifs[pdb_id] = {m.name: m for m in get_cached_motifs(pdb_id)}
         try:
             motif_1 = all_motifs[pdb_id][row["motif_1_id"]]
             motif_2 = all_motifs[pdb_id][row["motif_2_id"]]

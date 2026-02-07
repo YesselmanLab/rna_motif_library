@@ -182,6 +182,8 @@ def process_interaction_group(args):
     mean_score = g["score"].mean()
     mean_dihedral_angle = g["dihedral_angle"].mean()
     mean_angle_1 = g["angle_1"].mean()
+    mean_angle_2 = g["angle_2"].mean()
+    mean_distance = g["distance"].mean()
     return [
         res_1,
         res_2,
@@ -192,6 +194,8 @@ def process_interaction_group(args):
         mean_score,
         mean_dihedral_angle,
         mean_angle_1,
+        mean_angle_2,
+        mean_distance,
     ]
 
 
@@ -307,6 +311,10 @@ def analyze_rna_prot_hbonds(processes):
     df["res_type_1"] = df["res_1"].str.split("-").str[1]
     df["res_type_2"] = df["res_2"].str.split("-").str[1]
 
+    df_struct = pd.read_csv("data/csvs/rna_structures.csv")
+    df_struct.rename(columns={"pdb_id": "pdb_name"}, inplace=True)
+    df = df.merge(df_struct, on="pdb_name", how="left")
+
     # Create list of groups to process
     groups = list(df.groupby(["res_type_1", "res_type_2", "atom_1", "atom_2"]))
 
@@ -337,6 +345,8 @@ def analyze_rna_prot_hbonds(processes):
             "mean_score",
             "mean_dihedral_angle",
             "mean_angle_1",
+            "mean_angle_2",
+            "mean_distance",
         ],
     )
     df.sort_values(by="normalized_gini", ascending=False, inplace=True)

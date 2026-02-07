@@ -20,12 +20,20 @@ from rdkit.Chem.rdMolDescriptors import (
     CalcNumAromaticRings,
     CalcNumRings,
 )
+from rdkit.Chem import (
+    Crippen,
+    Lipinski,
+    rdMolDescriptors,
+    Descriptors,
+    rdMolDescriptors,
+)
 
 from rna_motif_library.util import (
     get_pdb_ids,
     ion_list,
     canon_rna_res_list,
     canon_res_list,
+    canon_amino_acid_list,
     CifParser,
 )
 from rna_motif_library.parallel_utils import (
@@ -577,6 +585,75 @@ def read_sdf_file(file_path):
         return []
 
 
+def is_aminoglycoside_like(smiles):
+    if not isinstance(smiles, str) or not smiles.strip():
+        return False
+
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return False
+
+    ring_info = mol.GetRingInfo()
+    ring_atom_sets = ring_info.AtomRings()
+    total_rings = len(ring_atom_sets)
+
+    # Count non-aromatic rings
+    aromatic_rings = 0
+    for ring in ring_info.BondRings():
+        if all(mol.GetBondWithIdx(b).GetIsAromatic() for b in ring):
+            aromatic_rings += 1
+    non_aromatic_rings = total_rings - aromatic_rings
+    if non_aromatic_rings < 1:
+        return False
+
+    # Require at least 1 sp3 hybridized nitrogen
+    sp3_nitrogens = sum(
+        1
+        for atom in mol.GetAtoms()
+        if atom.GetSymbol() == "N"
+        and atom.GetHybridization() == Chem.rdchem.HybridizationType.SP3
+    )
+    if sp3_nitrogens < 1:
+        return False
+
+    # Check for oxygen-containing rings connected to sp2/sp3 nitrogen
+    for ring in ring_atom_sets:
+        ring_atoms = [mol.GetAtomWithIdx(i) for i in ring]
+        if any(a.GetSymbol() == "O" for a in ring_atoms):
+            for atom in ring_atoms:
+                for neighbor in atom.GetNeighbors():
+                    if neighbor.GetSymbol() == "N" and neighbor.GetHybridization() in (
+                        Chem.rdchem.HybridizationType.SP2,
+                        Chem.rdchem.HybridizationType.SP3,
+                    ):
+                        return True
+                    for nn in neighbor.GetNeighbors():
+                        if nn.GetSymbol() == "N" and nn.GetHybridization() in (
+                            Chem.rdchem.HybridizationType.SP2,
+                            Chem.rdchem.HybridizationType.SP3,
+                        ):
+                            return True
+    return False
+
+
+def is_druglike_lipinski(row):
+    smiles = row.get("smiles", "")
+    if not isinstance(smiles, str) or not smiles.strip():
+        return False
+
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return False
+
+    # Lipinski's Rule of Five Criteria
+    mw = Descriptors.MolWt(mol)  # Molecular weight
+    h_donors = row["h_acceptors"]  # H-bond donors
+    h_acceptors = row["h_acceptors"]  # H-bond acceptors
+    logp = Crippen.MolLogP(mol)  # Partition coefficient
+
+    return h_donors <= 5 and h_acceptors <= 10 and mw < 500 and logp <= 5
+
+
 def assign_ligand_type_features(df):
     """
     Assign ligand type features to each row in the dataframe
@@ -619,6 +696,8 @@ def assign_ligand_type_features(df):
                 df.at[i, "rings"] = -1
                 count += 1
     print(f"Failed to generate 3D structure for {count} rows")
+    df["aminoglycoside"] = df["smiles"].apply(is_aminoglycoside_like)
+    df["druglike"] = df.apply(is_druglike_lipinski, axis=1)
     df.to_csv(
         os.path.join(LIGAND_DATA_PATH, "summary", "ligand_features.csv"),
         index=False,
@@ -868,6 +947,14 @@ def process_single_pdb_ligand_instances(pdb_id):
             continue
         is_nuc = is_nucleotide(res)
         is_aa = is_amino_acid(res)
+        # remove amino acids that are just one atom
+        if res.res_id in canon_amino_acid_list:
+            if len(res.coords) < 4:
+                continue
+            if res.get_atom_coords("N") is None:
+                continue
+            if res.get_atom_coords("C") is None:
+                continue
         if is_nuc:
             c = rchains.get_chain_for_residue(res)
             if c is None:
@@ -994,7 +1081,7 @@ def process_single_pdb_ligand_bonds(csv_file):
         return None
 
 
-def process_single_pdb_interactions(pdb_id):
+def process_single_pdb_interactions(item):
     """Process hydrogen bond interactions for a single PDB structure.
 
     Args:
@@ -1003,46 +1090,182 @@ def process_single_pdb_interactions(pdb_id):
     Returns:
         list: List of interaction data dictionaries
     """
+    pdb_id, group = item
     data = []
     if not os.path.exists(
         os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv")
     ):
         return data
+    lig_types = {row["res_str"]: row["ligand_type"] for _, row in group.iterrows()}
 
-    try:
-        df = pd.read_csv(
-            os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv")
-        )
-        df = df.query("res_type_2 == 'LIGAND'")
+    df = pd.read_csv(os.path.join(DATA_PATH, "dataframes", "hbonds", f"{pdb_id}.csv"))
+    df = df.query("res_type_2 == 'LIGAND'")
 
-        for ligand_res, g in df.groupby("res_2"):
-            hbonds = []
-            for i, row in g.iterrows():
-                hbonds.append(
-                    {
-                        "res_1": row["res_1"],
-                        "atom_1": row["atom_1"],
-                        "atom_2": row["atom_2"],
-                        "score": row["score"],
-                    }
-                )
-            split_res_id = ligand_res.split("-")
-            res_id = split_res_id[0]
-            data.append(
+    for ligand_res, g in df.groupby("res_2"):
+        # TODO should be able to get rid of this when hydrogen bonding data is updated
+        if ligand_res not in lig_types:
+            continue
+        hbonds = []
+        for i, row in g.iterrows():
+            hbonds.append(
                 {
-                    "ligand_res": ligand_res,
-                    "ligand_id": res_id,
-                    "interacting_residues": g["res_1"].unique(),
-                    "hbonds": hbonds,
-                    "num_hbonds": len(g),
-                    "hbond_score": g["score"].sum(),
-                    "pdb_id": pdb_id,
+                    "res_1": row["res_1"],
+                    "atom_1": row["atom_1"],
+                    "atom_2": row["atom_2"],
+                    "score": row["score"],
                 }
             )
-    except Exception as e:
-        log.error(f"Error processing {pdb_id}: {e}")
+        split_res_id = ligand_res.split("-")
+        res_id = split_res_id[1]
+        data.append(
+            {
+                "ligand_res": ligand_res,
+                "ligand_id": res_id,
+                "ligand_type": lig_types[ligand_res],
+                "interacting_residues": g["res_1"].unique(),
+                "hbonds": hbonds,
+                "num_hbonds": len(g),
+                "hbond_score": g["score"].sum(),
+                "pdb_id": pdb_id,
+            }
+        )
 
     return data
+
+
+def _compute_duplicate_mapping_for_group(item: tuple) -> dict:
+    """
+    Worker that computes duplicate mapping for a single PDB group.
+
+    Args:
+        item: Tuple of (pdb_id, group_records) where group_records is a list of dicts:
+              {"idx": original_df_index, "ligand_res": str, "interacting_residues": List[str]}
+
+    Returns:
+        dict: Mapping of duplicate row index -> representative row index (first in group)
+    """
+    pdb_id, group_records = item
+    if len(group_records) < 2:
+        return {}
+    try:
+        residues = get_cached_residues(pdb_id)
+    except Exception:
+        # Missing residues for this pdb; skip
+        return {}
+
+    # Build list of (residue_objects_list, original_index)
+    all_residue_objects_with_index: List[Tuple[List[Any], int]] = []
+    for rec in group_records:
+        ligand_res = rec["ligand_res"]
+        try:
+            residue_objects = [residues[ligand_res]] + [
+                residues[r] for r in rec["interacting_residues"]
+            ]
+        except Exception:
+            # If any residue is missing, skip this record
+            continue
+        all_residue_objects_with_index.append((residue_objects, rec["idx"]))
+
+    # Group by number of residues in the interaction to avoid mismatched lengths
+    length_to_group: Dict[int, List[Tuple[List[Any], int]]] = {}
+    for residue_objects, idx in all_residue_objects_with_index:
+        length_to_group.setdefault(len(residue_objects), []).append(
+            (residue_objects, idx)
+        )
+
+    # Compare within each length group and collect duplicate groups
+    duplicate_groups: List[List[int]] = []
+    for _, group in length_to_group.items():
+        if len(group) < 2:
+            continue
+        for i in range(len(group)):
+            for j in range(i + 1, len(group)):
+                coords1: List[np.ndarray] = []
+                for res in group[i][0]:
+                    coords1.extend(res.coords)
+                coords1 = np.array(coords1)
+
+                coords2: List[np.ndarray] = []
+                for res in group[j][0]:
+                    coords2.extend(res.coords)
+                coords2 = np.array(coords2)
+
+                if len(coords1) != len(coords2):
+                    continue
+
+                # Superimpose and compute RMSD
+                _, final_rmsd, _ = pymol_align(coords1, coords2)
+                if final_rmsd > len(group[i][0]) * 0.2:
+                    continue
+
+                idx1, idx2 = group[i][1], group[j][1]
+                # Start a new duplicate group if neither index is already in an existing group
+                if not any(
+                    (idx1 in existing or idx2 in existing)
+                    for existing in duplicate_groups
+                ):
+                    duplicate_groups.append([idx1, idx2])
+                else:
+                    # Add missing index to the existing group that contains the other
+                    for existing in duplicate_groups:
+                        if idx1 in existing and idx2 not in existing:
+                            existing.append(idx2)
+                        elif idx2 in existing and idx1 not in existing:
+                            existing.append(idx1)
+
+    # Build mapping of duplicate -> representative (first member of each group)
+    duplicate_mapping: Dict[int, int] = {}
+    for group in duplicate_groups:
+        if len(group) < 2:
+            continue
+        representative = group[0]
+        for idx in group[1:]:
+            duplicate_mapping[idx] = representative
+
+    return duplicate_mapping
+
+
+def process_motif_summary_group(item):
+    pdb_id, g = item
+    try:
+        motifs = get_cached_motifs(pdb_id)
+        all_residues = get_cached_residues(pdb_id)
+        motif_by_name = {m.name: m for m in motifs}
+        group_data = []
+        for i, row in g.iterrows():
+            for m_name in row["interacting_motifs"]:
+                m = motif_by_name[m_name]
+                atom_names = []
+                coords = []
+                residues = []
+                for r in m.get_residues():
+                    atom_names.append(r.atom_names)
+                    coords.append(r.coords)
+                    residues.append(r.get_str())
+                is_duplicate = row["duplicate"] != -1
+                group_data.append(
+                    {
+                        "pdb_id": pdb_id,
+                        "ligand_res_id": row["ligand_res"],
+                        "motif_id": m.name,
+                        "motif_type": m.mtype,
+                        "motif_topology": m.size,
+                        "motif_sequence": m.sequence,
+                        "residues": residues,
+                        "num_residues": len(residues),
+                        "atom_names": atom_names,
+                        "coords": coords,
+                        "ligand_coords": [all_residues[row["ligand_res"]].coords],
+                        "ligand_atom_names": [
+                            all_residues[row["ligand_res"]].atom_names
+                        ],
+                        "is_duplicate": is_duplicate,
+                    }
+                )
+        return group_data
+    except Exception as e:
+        log.error(f"Error processing {pdb_id}: {e}")
+        return []
 
 
 # run in main cli #####################################################################
@@ -1267,7 +1490,6 @@ def get_ligand_instances(processes):
     os.makedirs(os.path.join(LIGAND_DATA_PATH, "ligand_instances"), exist_ok=True)
     # Get all PDB IDs to process
     pdb_ids = get_pdb_ids()
-
     # Process PDBs in parallel
     results = run_w_processes_in_batches(
         items=pdb_ids,
@@ -1326,8 +1548,17 @@ def get_ligand_instances_with_bonds(processes):
 @cli.command()
 def get_ligand_features():
     df = pd.read_csv(os.path.join(LIGAND_DATA_PATH, "summary", "ligand_instances.csv"))
-    df_sm = pd.DataFrame({"id": df["res_id"].unique()})
-    assign_ligand_type_features(df_sm)
+    df_info = pd.read_json(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info.json")
+    )
+    df.rename(columns={"res_id": "id"}, inplace=True)
+    df = df.drop_duplicates(subset=["id"])
+    df = pd.merge(df, df_info, on="id", how="left")
+    df = df[["id", "smiles"]]
+    assign_ligand_type_features(df)
+    df.to_csv(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_features.csv"), index=False
+    )
 
 
 # STEP 9 generate final ligand info
@@ -1344,7 +1575,15 @@ def generate_final_ligand_info():
         os.path.join(LIGAND_DATA_PATH, "summary", "ligand_features.csv")
     )
     df_features = df_features[
-        ["id", "h_acceptors", "h_donors", "aromatic_rings", "rings"]
+        [
+            "id",
+            "h_acceptors",
+            "h_donors",
+            "aromatic_rings",
+            "rings",
+            "aminoglycoside",
+            "druglike",
+        ]
     ]
     df = pd.merge(df, df_features, on="id", how="left")
     df_solvent = pd.read_csv(
@@ -1414,12 +1653,53 @@ def assign_final_indenties():
     for i, row in df_prev.iterrows():
         prev_assignments[row["res_id"] + row["pdb_id"]] = row["final_type"]
     df = pd.read_csv(os.path.join(LIGAND_DATA_PATH, "summary", "ligand_instances.csv"))
+    df_info = pd.read_json(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_info_final.json")
+    )
     df["final_type"] = ""
     for i, row in df.iterrows():
         key = row["res_id"] + row["pdb_id"]
         if key in prev_assignments:
             df.at[i, "final_type"] = prev_assignments[key]
     assign_new_ligand_instances(df)
+    df_pdb = pd.read_json(os.path.join(DATA_PATH, "summaries", "pdb_info.json"))
+    riboswitch_bound = {}
+    df["riboswitch_bound"] = False
+    df["aminoglycoside"] = False
+    df["druglike"] = False
+    df["ligand_type"] = ""
+    for i, row in df_pdb.iterrows():
+        if "riboswitch" in row["title"] or "riboswitch" in row["other_keywords"]:
+            riboswitch_bound[row["pdb_id"]] = True
+        else:
+            riboswitch_bound[row["pdb_id"]] = False
+    for i, row in df.iterrows():
+        if row["final_type"] != "LIGAND":
+            continue
+        if row["pdb_id"] in riboswitch_bound:
+            df.at[i, "riboswitch_bound"] = riboswitch_bound[row["pdb_id"]]
+        else:
+            df.at[i, "riboswitch_bound"] = False
+        info_row = df_info[df_info["id"] == row["res_id"]]
+        if len(info_row) == 0:
+            continue
+        info_row = info_row.iloc[0]
+        df.at[i, "aminoglycoside"] = info_row["aminoglycoside"]
+        df.at[i, "druglike"] = info_row["druglike"]
+    ligand_types = []
+    for i, row in df.iterrows():
+        if row["final_type"] != "LIGAND":
+            ligand_types.append("NOT-LIGAND")
+            continue
+        if row["riboswitch_bound"]:
+            ligand_types.append("RIBOSWITCH-BOUND")
+        elif row["aminoglycoside"]:
+            ligand_types.append("AMINOGLYCOSIDE")
+        elif row["druglike"]:
+            ligand_types.append("DRUG-LIKE")
+        else:
+            ligand_types.append("OTHER")
+    df["ligand_type"] = ligand_types
     df.to_json(
         os.path.join(LIGAND_DATA_PATH, "summary", "ligand_instances_final.json"),
         orient="records",
@@ -1479,10 +1759,15 @@ def generate_interaction_summary(processes):
 
     # Get all PDB IDs to process
     pdb_ids = get_pdb_ids()
+    df = pd.read_json(
+        os.path.join(LIGAND_DATA_PATH, "summary", "ligand_instances_final.json")
+    )
 
+    # Group the dataframe by pdb_id and send (pdb_id, group) to the worker
+    items = [(pdb_id, group) for pdb_id, group in df.groupby("pdb_id")]
     # Process PDBs in parallel using batched processing
     results = run_w_processes_in_batches(
-        items=pdb_ids,
+        items=items,
         func=process_single_pdb_interactions,
         processes=processes,
         batch_size=100,
@@ -1505,85 +1790,41 @@ def generate_interaction_summary(processes):
 
 
 @cli.command()
-def find_unique_ligand_interactions():
+@click.option("-p", "--processes", default=4, help="Number of processes to use.")
+def find_unique_ligand_interactions(processes):
     df = pd.read_json("rna_ligand_interactions.json")
     df["duplicate"] = -1
-    dup_count = 0
+
+    # Prepare per-PDB items for parallel processing
+    items: List[Tuple[str, List[Dict[str, Any]]]] = []
     for pdb_id, g in df.groupby("pdb_id"):
-        if len(g) == 1:
+        if len(g) <= 1:
             continue
-        try:
-            residues = get_cached_residues(pdb_id)
-        except:
-            print("missing residues", pdb_id)
+        group_records: List[Dict[str, Any]] = []
+        for idx, row in g.iterrows():
+            group_records.append(
+                {
+                    "idx": idx,
+                    "ligand_res": row["ligand_res"],
+                    "interacting_residues": row["interacting_residues"],
+                }
+            )
+        items.append((pdb_id, group_records))
+
+    # Run workers in parallel and merge duplicate mappings
+    results = run_w_processes_in_batches(
+        items=items,
+        func=_compute_duplicate_mapping_for_group,
+        processes=processes,
+        batch_size=100,
+        desc="Finding duplicate ligand interactions",
+    )
+
+    for mapping in results:
+        if not mapping:
             continue
-        all_res_objs = []
-        pos = []
-        # Keep track of duplicates
-        duplicate_groups = []
-        current_group = []
-
-        # Store residue objects and their row indices
-        for i, row in g.iterrows():
-            res_1 = row["ligand_res"]
-            res_objs = [residues[res_1]] + [
-                residues[r] for r in row["interacting_residues"]
-            ]
-            all_res_objs.append((res_objs, i))  # Store tuple of res_objs and index
-            pos.append(i)
-
-        # Group res_objs by length
-        length_groups = {}
-        for res_objs, idx in all_res_objs:
-            length = len(res_objs)
-            if length not in length_groups:
-                length_groups[length] = []
-            length_groups[length].append((res_objs, idx))  # Store tuple
-
-        # Compare groups of same length
-        for length, group in length_groups.items():
-            if len(group) < 2:  # Need at least 2 to compare
-                continue
-            # Compare each pair in the group
-            for i in range(len(group)):
-                for j in range(i + 1, len(group)):
-                    coords1 = []
-                    for res in group[i][0]:  # group[i][0] contains res_objs
-                        coords1.extend(res.coords)
-                    coords1 = np.array(coords1)
-                    coords2 = []
-                    for res in group[j][0]:  # group[j][0] contains res_objs
-                        coords2.extend(res.coords)
-                    coords2 = np.array(coords2)
-                    if len(coords1) != len(coords2):
-                        continue
-
-                    # Superimpose and get RMSD
-                    aligned_coords, final_rmsd, stats = pymol_align(coords1, coords2)
-                    if final_rmsd > len(group[i][0]) * 0.2:
-                        continue
-                    dup_count += 1
-                    idx1, idx2 = group[i][1], group[j][1]  # Get original row indices
-                    # Add both indices to current group if not already in a group
-                    if not any(idx1 in g or idx2 in g for g in duplicate_groups):
-                        current_group = [idx1, idx2]
-                        duplicate_groups.append(current_group)
-                    # Add index to existing group if other index is already in a group
-                    else:
-                        for g in duplicate_groups:
-                            if idx1 in g and idx2 not in g:
-                                g.append(idx2)
-                            elif idx2 in g and idx1 not in g:
-                                g.append(idx1)
-
-        # Set duplicate flag to first member in each group
-        for group in duplicate_groups:
-            for idx in group[1:]:  # Skip first member
-                df.at[idx, "duplicate"] = group[
-                    0
-                ]  # Set duplicate to first member's index
-        for group in duplicate_groups:
-            print(f"Group: {group}")
+        for dup_idx, rep_idx in mapping.items():
+            df.at[dup_idx, "duplicate"] = rep_idx
 
     df.to_json("rna_ligand_interactions_w_duplicates.json", orient="records")
 
@@ -1612,47 +1853,32 @@ def get_final_summaries():
 
 
 @cli.command()
-def get_motif_summary():
+@click.option("-p", "--processes", default=4, help="Number of processes to use.")
+def get_motif_summary(processes):
     RELEASE_PATH = os.path.join("release", "ligand_interactions")
     os.makedirs(RELEASE_PATH, exist_ok=True)
     df = pd.read_json("rna_ligand_interactions_w_motifs.json")
+
+    # Prepare items for parallel processing: (pdb_id, group_df)
+    items = [(pdb_id, g) for pdb_id, g in df.groupby("pdb_id")]
+
+    # Run in parallel
+    results = run_w_processes_in_batches(
+        items=items,
+        func=process_motif_summary_group,
+        processes=processes,
+        batch_size=100,
+        desc="Generating motif-ligand summaries",
+    )
+
+    # Flatten results
     data = []
-    for pdb_id, g in df.groupby("pdb_id"):
-        motifs = get_cached_motifs(pdb_id)
-        all_residues = get_cached_residues(pdb_id)
-        motif_by_name = {m.name: m for m in motifs}
-        for i, row in g.iterrows():
-            for m_name in row["interacting_motifs"]:
-                m = motif_by_name[m_name]
-                atom_names = []
-                coords = []
-                residues = []
-                for r in m.get_residues():
-                    atom_names.append(r.atom_names)
-                    coords.append(r.coords)
-                    residues.append(r.get_str())
-                is_duplicate = row["duplicate"] != -1
-                data.append(
-                    {
-                        "pdb_id": pdb_id,
-                        "ligand_res_id": row["ligand_res"],
-                        "motif_id": m.name,
-                        "motif_type": m.mtype,
-                        "motif_topology": m.size,
-                        "motif_sequence": m.sequence,
-                        "residues": residues,
-                        "num_residues": len(residues),
-                        "atom_names": atom_names,
-                        "coords": coords,
-                        "ligand_coords": [all_residues[row["ligand_res"]].coords],
-                        "ligand_atom_names": [
-                            all_residues[row["ligand_res"]].atom_names
-                        ],
-                        "is_duplicate": is_duplicate,
-                    }
-                )
-    df = pd.DataFrame(data)
-    df.to_json(
+    for group_data in results:
+        if group_data:
+            data.extend(group_data)
+
+    df_out = pd.DataFrame(data)
+    df_out.to_json(
         os.path.join(RELEASE_PATH, "all_motif_ligand_interactions_w_coords.json"),
         orient="records",
     )
@@ -1661,8 +1887,8 @@ def get_motif_summary():
             os.path.join(RELEASE_PATH, "all_motif_ligand_interactions_w_coords.json")
         )
     )
-    df = df.query("is_duplicate == 0")
-    df.to_json(
+    df_nonredundant = df_out.query("is_duplicate == 0")
+    df_nonredundant.to_json(
         os.path.join(
             RELEASE_PATH, "non_redundant_motif_ligand_interactions_w_coords.json"
         ),

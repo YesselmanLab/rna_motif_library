@@ -1,13 +1,16 @@
 import pandas as pd
 import os
-import click
 import itertools
 from collections import defaultdict
 
 from rna_motif_library.motif import get_cached_motifs
 from rna_motif_library.motif_analysis import ResidueId
 from rna_motif_library.chain import get_rna_chains, write_chain_to_cif
+from rna_motif_library.util import parse_motif_indentifier
 
+DATA_PATH = "data/summaries/tertiary_contacts/lora"
+
+# process the lora data from TableS8 as recommended by the authors #####################
 
 def get_residue_ids_from_hyperlink(hyperlink):
     start_idx = hyperlink.find('"') + 1
@@ -44,8 +47,9 @@ def get_lora_data():
             }
         )
     df = pd.DataFrame(data)
-    df.to_json("lora_data.json", orient="records")
+    df.to_json(os.path.join(DATA_PATH, "lora_data.json"), orient="records")
 
+# compare the lora data to our database ################################################
 
 def get_res_to_motif_mapping(motifs):
     res_to_motif_id = {}
@@ -111,8 +115,8 @@ class TertiaryContactComparer:
                     are_motifs_connected = 0
                 row_data = {
                     "lora_index": i,
-                    "motif_1_id": m1,
-                    "motif_2_id": m2,
+                    "motif_1_id": motif_names[0],
+                    "motif_2_id": motif_names[1],
                     "hbond_score": hbond_score,
                     "num_hbonds": hbond_num,
                     "are_connected": 1 if are_motifs_connected else 0,
@@ -153,7 +157,7 @@ class TertiaryContactComparer:
                 "motif_1_id": row["motif_1_id"],
                 "motif_2_id": row["motif_2_id"],
                 "hbond_score": row["hbond_score"],
-                "hbond_num": row["num_hbonds"],
+                "num_hbonds": row["num_hbonds"],
                 "are_connected": 0,
                 "in_our_db": 1,
                 "in_their_db": in_their_db,
@@ -185,22 +189,14 @@ class TertiaryContactComparer:
         return len(new_strands) < len(strands)
 
 
-def compare_lora_to_tertiary_contacts_for_pdb(args):
-    pdb_id, df_loras, df_tc = args
-    tcc = TertiaryContactComparer()
-    df_compared = tcc.compare(pdb_id, df_loras, df_tc)
-    return df_compared
-
-
-def main():
-    df_loras = pd.read_json("lora_data.json")
+def generate_initial_comparision():
+    df_loras = pd.read_json(os.path.join(DATA_PATH, "lora_data.json"))
     df_loras["index"] = list(range(len(df_loras)))
     df_loras["connected_strands"] = False
     df_loras["in_our_db"] = False
     df_loras["best_score"] = 0
     df_loras["hbond_score"] = 0
     df_loras["more_than_2_motifs"] = 0
-    os.makedirs("lora_contacts", exist_ok=True)
     count = 0
     pdb_ids = df_loras["pdb_id"].unique()
     pdb_data = []
@@ -214,109 +210,31 @@ def main():
         pdb_data.append([pdb_id, df_sub, df_sub_tc])
     df_compareds = []
     for pdb_id, df_sub, df_sub_tc in pdb_data:
-        print(pdb_id)
-        df_compared = compare_lora_to_tertiary_contacts_for_pdb(
-            (pdb_id, df_sub, df_sub_tc)
-        )
+        tcc = TertiaryContactComparer()
+        df_compared = tcc.compare(pdb_id, df_loras, df_sub_tc)
         df_compareds.append(df_compared)
     df_compareds = pd.concat(df_compareds)
-    print(len(df_compareds))
-    df_compareds.to_json("lora_compared.json", orient="records")
-    exit()
-    for pdb_id, g in df_loras.groupby("pdb_id"):
-        try:
-            motifs = get_cached_motifs(pdb_id)
-        except Exception as e:
-            print(f"Error getting motifs for {pdb_id}: {e}")
-            continue
-        try:
-            df_hbonds = pd.read_csv(f"data/dataframes/tc_hbonds/{pdb_id}.csv")
-        except Exception as e:
-            df_hbonds = pd.DataFrame()
-        motif_by_name = {m.name: m for m in motifs}
-        res_to_motif_id = get_res_to_motif_mapping(motifs)
-        for i, row in g.iterrows():
-            residues = row["residues"]
-            motif_ids = []
-            seen_residues = []
-            for r in residues:
-                if r in res_to_motif_id:
-                    seen_residues.append(r)
-                    motif_ids.append(res_to_motif_id[r])
-            if len(seen_residues) != len(residues):
-                print(
-                    f"Error: {pdb_id} len(residues): {len(residues)} len(seen_residues): {len(seen_residues)}"
-                )
-                continue
-            motif_ids = list(set(motif_ids))
-            motifs = [motif_by_name[m] for m in motif_ids]
-            strands = []
-            residues = []
-            for m in motifs:
-                strands.extend(m.strands)
-                res = m.get_residues()
-                for r in res:
-                    if r not in residues:
-                        residues.append(r)
-            new_strands = get_rna_chains(residues)
-            hbond_score = 0
-            for j, row in df_hbonds.iterrows():
-                if row["motif_1"] in motif_ids or row["motif_2"] in motif_ids:
-                    hbond_score += row["score"]
-            df_loras.loc[i, "hbond_score"] = hbond_score
-            if len(motif_ids) > 2:
-                df_loras.loc[i, "more_than_2_motifs"] = True
-                continue
-            if len(new_strands) < len(strands):
-                df_loras.loc[i, "connected_strands"] = True
-                if count > 10:
-                    for m in motifs:
-                        m.to_cif(f"lora_{m.name}.cif")
-                    exit()
-                continue
-            res = [r.get_str() for r in residues]
-            best_score = 0
-            best_index = None
-            df_loras.loc[i, "hbond_score"] = hbond_score
-            df_sub = df[df["pdb_id"] == pdb_id]
-            for j, other_row in df_sub.iterrows():
-                found_1 = 0
-                found_2 = 0
-                for r in other_row["motif_1_res"]:
-                    if r in res:
-                        found_1 += 1
-                for r in other_row["motif_2_res"]:
-                    if r in res:
-                        found_2 += 1
-                score = found_1 + found_2
-                if found_1 == 0 or found_2 == 0:
-                    score = 0
-                score = score / (
-                    len(other_row["motif_1_res"]) + len(other_row["motif_2_res"])
-                )
-                if score > best_score:
-                    best_score = score
-                    best_index = j
-            if best_index is None:
-                continue
-            if best_score > 0.1:
-                df_loras.loc[i, "in_our_db"] = True
-            df_loras.loc[i, "best_score"] = best_score
-            os.makedirs(f"lora_contacts/{count}", exist_ok=True)
-            try:
-                for m in motifs:
-                    m.to_cif(f"lora_contacts/{count}/lora_{m.name}.cif")
-            except Exception as e:
-                print(f"Error writing motifs for {pdb_id}: {e}")
-            """row = df_sub.loc[best_index]
-            m1 = motif_by_name[row["motif_1"]]
-            m2 = motif_by_name[row["motif_2"]]
-            m1.to_cif(f"lora_contacts/{count}/{m1.name}.cif")
-            m2.to_cif(f"lora_contacts/{count}/{m2.name}.cif")
-            """
-            print(count, best_score)
-            count += 1
-    df_loras.to_json("lora_contacts_processed.json", orient="records")
+    df_compareds.to_json(os.path.join(DATA_PATH, "lora_compared.json"), orient="records") 
+
+# get more information about tertiary not found in LORA ################################
+
+def get_more_information_about_tertiary_not_found_in_lora():
+    df_compared = pd.read_json(os.path.join(DATA_PATH, "lora_compared.json"))
+    df_compared = df_compared[["motif_1_id", "motif_2_id", "in_our_db", "in_their_db"]]
+    df_compared["pdb_id"] = df_compared["motif_1_id"].apply(lambda x: parse_motif_indentifier(x)[-1])
+    dfs = []
+    for pdb_id, g in df_compared.groupby("pdb_id"):
+        df_sub_tc = pd.read_json(f"data/dataframes/tertiary_contacts/{pdb_id}.json")
+        dfs.append(df_sub_tc)
+    df_tcs = pd.concat(dfs)
+    df_tcs.drop(columns=["pdb_id"], inplace=True)
+    df_compared = pd.merge(df_compared, df_tcs, on=["motif_1_id", "motif_2_id"])
+    df_compared.to_json(os.path.join(DATA_PATH, "lora_compared_w_features.json"), orient="records")
+
+
+def main():
+    # generate_initial_comparision()
+    get_more_information_about_tertiary_not_found_in_lora()
 
 
 if __name__ == "__main__":

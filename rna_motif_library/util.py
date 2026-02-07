@@ -519,6 +519,24 @@ def get_non_redundant_sets(csv_path: str) -> dict:
     return d
 
 
+def write_interactions_to_cif(motifs, dir_name, pos):
+    """
+    Write motif interactions to CIF files in a specified directory.
+
+    Args:
+        motifs (list): List of motif objects to write
+        dir_name (str): Base directory name for output
+        pos (int): Position identifier for subdirectory
+
+    Returns:
+        None
+    """
+    os.makedirs(os.path.join(dir_name, str(pos)), exist_ok=True)
+    for motif in motifs:
+        print(motif.name, end=" ")
+        motif.to_cif(os.path.join(dir_name, str(pos), f"{motif.name}.cif"))
+    print()
+
 # NRS : Non Redundant Set
 @dataclass(frozen=True, order=True)
 class NRSEntry:

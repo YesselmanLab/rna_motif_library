@@ -186,6 +186,9 @@ def get_pdb_title(pdb_id):
             pdbx_keywords
             text
         }
+        exptl {
+            method
+        } 
       }
     }
     """
@@ -196,15 +199,19 @@ def get_pdb_title(pdb_id):
         )
         response.raise_for_status()
         data = response.json()
-        time.sleep(0.1)
+        time.sleep(0.5)
 
         # Extract title from struct
         title = data.get("data", {}).get("entry", {}).get("struct", {}).get("title", "")
         keywords = data.get("data", {}).get("entry", {}).get("struct_keywords", [])
+        method = (
+            data.get("data", {}).get("entry", {}).get("exptl", {})[0].get("method", "")
+        )
         return {
             "title": title.lower() if title else "",
             "pdbx_keywords": keywords.get("pdbx_keywords", ""),
             "other_keywords": keywords.get("text", ""),
+            "method": method,
         }
 
     except requests.exceptions.RequestException as e:
