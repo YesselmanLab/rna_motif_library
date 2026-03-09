@@ -69,14 +69,6 @@ def format_basepairs(bp_json):
     return " ".join(f"{bp[0]}:{bp[1]}" for bp in bps)
 
 
-def format_closing(closing_json):
-    """Format closing basepairs JSON to '5p=CG:cWW 3p=AU:cWW'."""
-    bps = _parse_json_col(closing_json)
-    if len(bps) < 2:
-        return "?"
-    return f"5p={bps[0][0]}:{bps[0][1]} 3p={bps[1][0]}:{bps[1][1]}"
-
-
 def motif_summary_str(row):
     """Build a one-line summary of a motif from its tracking row."""
     parts = [
@@ -86,8 +78,6 @@ def motif_summary_str(row):
     bp_str = format_basepairs(row.get("basepairs", "[]"))
     if bp_str != "none":
         parts.append(f"bps={bp_str}")
-    closing_str = format_closing(row.get("closing_basepairs", "[]"))
-    parts.append(f"closing=[{closing_str}]")
     parts.append(f"res={row.get('resolution', '?')}")
     n_prot = row.get("num_protein_hbonds", 0)
     n_lig = row.get("num_ligand_hbonds", 0)
@@ -112,7 +102,6 @@ def print_motif_details(row, indent="  "):
     print(f"{indent}topology:   {row['motif_topology']}  "
           f"bulge={row.get('is_bulge', '?')}")
     print(f"{indent}basepairs:  {format_basepairs(row.get('basepairs', '[]'))}")
-    print(f"{indent}closing:    {format_closing(row.get('closing_basepairs', '[]'))}")
     print(f"{indent}resolution: {row.get('resolution', '?')}  "
           f"residues={row.get('num_residues', '?')}")
     hb = row.get("num_hbonds", "?")
@@ -376,10 +365,9 @@ def view_clusters(tracking_path, rep_id, topology, reason, max_members, output_d
         print()
         for _, row in members.iterrows():
             bp_str = format_basepairs(row.get("basepairs", "[]"))
-            closing_str = format_closing(row.get("closing_basepairs", "[]"))
             print(f"  {row['motif_id']}  [{row['rejection_reason']}]")
             print(f"    {row['motif_sequence']}  bps={bp_str}  "
-                  f"closing=[{closing_str}]  res={row.get('resolution', '?')}")
+                  f"res={row.get('resolution', '?')}")
 
     # Load representative motif
     ref_motif = load_motif(rep_id, rep_row["pdb_id"], motif_cache)
