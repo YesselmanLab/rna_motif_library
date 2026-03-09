@@ -7,13 +7,13 @@ a PyMOL script for visualization.
 
 Usage:
     # View all motifs mapping to a specific representative
-    python scripts/view_twoway_clusters.py -t tracking.json -r TWOWAY-1-1-AGC-GUU-4V9F-2 -o cluster_view
+    python scripts/view_twoway_clusters.py -t tracking.json -r TWOWAY-1-1-GAC-GCC-7ECN-1 -o cluster_view
 
     # View all kept motifs for a topology
     python scripts/view_twoway_clusters.py -t tracking.json --topology 3-3 -o topo_view
 
     # View with specific rejection reason filter
-    python scripts/view_twoway_clusters.py -t tracking.json -r TWOWAY-1-1-AGC-GUU-4V9F-2 -o cluster_view --reason sequence_dedup
+    python scripts/view_twoway_clusters.py -t tracking.json -r TWOWAY-1-1-GAC-GCC-7ECN-1 -o cluster_view --reason sequence_dedup
 
     # Then open in PyMOL:
     pymol cluster_view/view.pml
@@ -333,7 +333,7 @@ def view_clusters(tracking_path, rep_id, topology, reason, max_members, output_d
     # =========================================================================
     rep_row = df[df["motif_id"] == rep_id]
     if len(rep_row) == 0:
-        print(f"Representative {rep_id} not found in tracking CSV")
+        print(f"Representative {rep_id} not found in tracking JSON")
         return
 
     rep_row = rep_row.iloc[0]

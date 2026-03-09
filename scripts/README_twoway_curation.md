@@ -167,7 +167,7 @@ python scripts/filter_twoway_motifs.py \
 ```bash
 python scripts/view_twoway_clusters.py \
     -t data/summaries/motifs/twoway_tracking.json \
-    -r TWOWAY-1-1-AGC-GUU-4V9F-2 \
+    -r TWOWAY-1-1-GAC-GCC-7ECN-1 \
     -o cluster_view
 
 pymol cluster_view/view.pml
@@ -178,7 +178,7 @@ pymol cluster_view/view.pml
 ```bash
 python scripts/view_twoway_clusters.py \
     -t data/summaries/motifs/twoway_tracking.json \
-    -r TWOWAY-1-1-AGC-GUU-4V9F-2 \
+    -r TWOWAY-1-1-GAC-GCC-7ECN-1 \
     -o cluster_view \
     --reason sequence_dedup
 ```
@@ -200,7 +200,7 @@ pymol topo_view/view.pml
 
 | Column | Example | Description |
 |--------|---------|-------------|
-| `motif_id` | `TWOWAY-1-1-AGC-GUU-4V9F-2` | Unique motif identifier |
+| `motif_id` | `TWOWAY-1-1-GAC-GCC-7ECN-1` | Unique motif identifier |
 | `pdb_id` | `4V9F` | Source PDB structure |
 | `sequence` | `CAGCG-CGUUC` | Extended sequence with flanking helix pair |
 | `structure` | `((.((&)))` | Dot-bracket for extended sequence |
@@ -232,4 +232,4 @@ All columns from the curated JSON plus:
 |--------|---------|-------------|
 | `status` | `kept` / `rejected` | Whether the motif was kept |
 | `rejection_reason` | `sequence_dedup` | Why it was rejected (empty if kept) |
-| `representative_motif_id` | `TWOWAY-1-1-AGC-GUU-4V9F-2` | The kept motif this maps to |
+| `representative_motif_id` | `TWOWAY-1-1-GAC-GCC-7ECN-1` | The kept motif this maps to |
