@@ -156,11 +156,14 @@ def write_pymol_script(output_dir, rep_name, rep_info, member_data):
         member_data: list of (name, reason, summary_str) tuples
     """
     pml_path = os.path.join(output_dir, "view.pml")
+    abs_output_dir = os.path.abspath(output_dir)
     lines = []
     lines.append("# Auto-generated PyMOL script for TWOWAY cluster viewing")
     lines.append(f"# Representative: {rep_name}")
     lines.append(f"# {rep_info}")
     lines.append(f"# Total members: {len(member_data) + 1}")
+    lines.append("")
+    lines.append(f"cd {abs_output_dir}")
     lines.append("")
 
     # Load representative
@@ -215,9 +218,12 @@ def write_topology_pymol_script(output_dir, motif_entries):
         motif_entries: list of (name, summary_str) tuples
     """
     pml_path = os.path.join(output_dir, "view.pml")
+    abs_output_dir = os.path.abspath(output_dir)
     lines = []
     lines.append("# Auto-generated PyMOL script for topology view")
     lines.append(f"# {len(motif_entries)} motifs")
+    lines.append("")
+    lines.append(f"cd {abs_output_dir}")
     lines.append("")
 
     for i, (name, summary) in enumerate(motif_entries):
