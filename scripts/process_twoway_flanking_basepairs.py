@@ -6,7 +6,7 @@ basepairs at the 5' and 3' ends. It generates extended sequences and dot-bracket
 structures that include the flanking basepairs.
 
 Usage:
-    python scripts/process_twoway_flanking_basepairs.py process -p 10 -o twoway_flanking_basepairs.csv
+    python scripts/process_twoway_flanking_basepairs.py process -p 10 -o twoway_flanking_basepairs.json
 """
 
 import os
@@ -294,8 +294,8 @@ def cli():
     "-o",
     "--output",
     "output_path",
-    default="twoway_flanking_basepairs.csv",
-    help="Output CSV path",
+    default="twoway_flanking_basepairs.json",
+    help="Output JSON path",
 )
 @click.option(
     "-p",
@@ -365,8 +365,8 @@ def process(input_path, output_path, processes, chunk_size):
         # Save intermediate results
         if all_results:
             df_intermediate = pd.DataFrame(all_results)
-            intermediate_path = output_path.replace(".csv", "_intermediate.csv")
-            df_intermediate.to_csv(intermediate_path, index=False)
+            intermediate_path = output_path.replace(".json", "_intermediate.json")
+            df_intermediate.to_json(intermediate_path, orient="records", indent=2)
             print(f"[Saved] Intermediate results to {intermediate_path}")
 
         print("-" * 60)
@@ -390,11 +390,11 @@ def process(input_path, output_path, processes, chunk_size):
     df_results = df_results[column_order]
 
     # Save final results
-    df_results.to_csv(output_path, index=False)
+    df_results.to_json(output_path, orient="records", indent=2)
     log.info(f"Final results saved to {output_path}")
 
     # Remove intermediate file
-    intermediate_path = output_path.replace(".csv", "_intermediate.csv")
+    intermediate_path = output_path.replace(".json", "_intermediate.json")
     if os.path.exists(intermediate_path):
         os.remove(intermediate_path)
         log.info(f"Removed intermediate file {intermediate_path}")

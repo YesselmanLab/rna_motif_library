@@ -7,10 +7,10 @@ is correctly predicted when embedded in a proper hairpin context with random hel
 Based on the approach from twoway-lib-generation.
 
 Usage:
-    python scripts/validate_twoway_structures.py -i filtered.csv -o validated.csv
+    python scripts/validate_twoway_structures.py -i filtered.json -o validated.json
 
     # With custom parameters
-    python scripts/validate_twoway_structures.py -i filtered.csv -o validated.csv --helix-len 3 --repeats 5
+    python scripts/validate_twoway_structures.py -i filtered.json -o validated.json --helix-len 3 --repeats 5
 """
 
 from dataclasses import dataclass
@@ -271,14 +271,14 @@ def validate_motif(row: dict, helix_len: int, repeats: int, seed: int) -> FoldRe
     "input_path",
     required=True,
     type=click.Path(exists=True),
-    help="Input CSV from filter_twoway_motifs.py",
+    help="Input JSON from filter_twoway_motifs.py",
 )
 @click.option(
     "-o",
     "--output",
     "output_path",
     required=True,
-    help="Output CSV path",
+    help="Output JSON path",
 )
 @click.option(
     "--helix-len",
@@ -334,7 +334,7 @@ def validate(
     """Validate TWOWAY structures by embedding in hairpin and folding."""
     # Load input
     log.info(f"Reading {input_path}")
-    df = pd.read_csv(input_path)
+    df = pd.read_json(input_path)
     log.info(f"Loaded {len(df)} motifs")
     log.info(f"Helix length: {helix_len}, Repeats: {repeats}, Seed: {seed}")
 
@@ -377,7 +377,7 @@ def validate(
         log.info(f"Filtered to {len(df_results)} motifs with accuracy >= {min_accuracy}")
 
     # Save results
-    df_results.to_csv(output_path, index=False)
+    df_results.to_json(output_path, orient="records", indent=2)
     log.info(f"Saved {len(df_results)} results to {output_path}")
 
     # Print summary

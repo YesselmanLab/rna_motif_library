@@ -9,14 +9,14 @@ high-quality representatives through:
 4. Basepair type diversity - motifs with different internal basepair patterns are kept
 
 Usage:
-    python scripts/curate_twoway_motifs.py -i validated_twoway.csv -o curated_twoway.csv
+    python scripts/curate_twoway_motifs.py -i validated_twoway.json -o curated_twoway.json
 
     # With custom thresholds
-    python scripts/curate_twoway_motifs.py -i validated_twoway.csv -o curated_twoway.csv \
+    python scripts/curate_twoway_motifs.py -i validated_twoway.json -o curated_twoway.json \
         --min-accuracy 0.9 --rmsd-threshold 1.0 --max-per-core 5
 
     # Skip RMSD clustering (faster, for testing)
-    python scripts/curate_twoway_motifs.py -i validated_twoway.csv -o curated_twoway.csv --skip-rmsd
+    python scripts/curate_twoway_motifs.py -i validated_twoway.json -o curated_twoway.json --skip-rmsd
 """
 
 import os
@@ -297,14 +297,14 @@ def parse_strand_sizes(sequence: str) -> Tuple[int, int]:
     "input_path",
     required=True,
     type=click.Path(exists=True),
-    help="Input CSV from validate_twoway_structures.py or filter_twoway_motifs.py",
+    help="Input JSON from validate_twoway_structures.py or filter_twoway_motifs.py",
 )
 @click.option(
     "-o",
     "--output",
     "output_path",
     required=True,
-    help="Output CSV path",
+    help="Output JSON path",
 )
 @click.option(
     "--require-both-cww/--no-require-both-cww",
@@ -374,7 +374,7 @@ def curate_motifs(
 
     # Load input data
     log.info(f"Reading {input_path}")
-    df = pd.read_csv(input_path)
+    df = pd.read_json(input_path)
     initial_count = len(df)
     log.info(f"Loaded {initial_count} motifs")
 
@@ -604,7 +604,7 @@ def curate_motifs(
     df_out = df_out.reset_index(drop=True)
 
     # Save output
-    df_out.to_csv(output_path, index=False)
+    df_out.to_json(output_path, orient="records", indent=2)
     log.info(f"Saved {len(df_out)} curated motifs to {output_path}")
 
     # =========================================================================

@@ -7,13 +7,13 @@ a PyMOL script for visualization.
 
 Usage:
     # View all motifs mapping to a specific representative
-    python scripts/view_twoway_clusters.py -t tracking.csv -r TWOWAY-1-1-AGC-GUU-4V9F-2 -o cluster_view
+    python scripts/view_twoway_clusters.py -t tracking.json -r TWOWAY-1-1-AGC-GUU-4V9F-2 -o cluster_view
 
     # View all kept motifs for a topology
-    python scripts/view_twoway_clusters.py -t tracking.csv --topology 3-3 -o topo_view
+    python scripts/view_twoway_clusters.py -t tracking.json --topology 3-3 -o topo_view
 
     # View with specific rejection reason filter
-    python scripts/view_twoway_clusters.py -t tracking.csv -r TWOWAY-1-1-AGC-GUU-4V9F-2 -o cluster_view --reason sequence_dedup
+    python scripts/view_twoway_clusters.py -t tracking.json -r TWOWAY-1-1-AGC-GUU-4V9F-2 -o cluster_view --reason sequence_dedup
 
     # Then open in PyMOL:
     pymol cluster_view/view.pml
@@ -51,6 +51,8 @@ def _safe(val):
 
 def _parse_json_col(val):
     """Parse a JSON column, returning [] for empty/NaN."""
+    if isinstance(val, list):
+        return val
     if pd.isna(val) or val == "" or val == "[]":
         return []
     try:
@@ -256,7 +258,7 @@ def safe_name(motif_id):
 @click.option(
     "-t", "--tracking", "tracking_path", required=True,
     type=click.Path(exists=True),
-    help="Tracking CSV from filter_twoway_motifs.py",
+    help="Tracking JSON from filter_twoway_motifs.py",
 )
 @click.option(
     "-r", "--representative", "rep_id", default=None,
@@ -280,7 +282,7 @@ def safe_name(motif_id):
 )
 def view_clusters(tracking_path, rep_id, topology, reason, max_members, output_dir):
     """View TWOWAY motif clusters aligned in PyMOL."""
-    df = pd.read_csv(tracking_path)
+    df = pd.read_json(tracking_path)
 
     if rep_id is None and topology is None:
         print("Must specify either --representative or --topology")

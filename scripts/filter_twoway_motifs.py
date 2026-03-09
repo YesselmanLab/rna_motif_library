@@ -2,8 +2,8 @@
 Filter and deduplicate TWOWAY motifs to a curated representative set.
 
 Reads from data/summaries/motifs/non_redundant_motifs_summary.json and produces:
-1. A curated CSV of ~456 unique representative motifs
-2. A tracking CSV of ALL 16,806 motifs with status, rejection reason, and representative
+1. A curated JSON of ~456 unique representative motifs
+2. A tracking JSON of ALL 16,806 motifs with status, rejection reason, and representative
 
 Pipeline:
 1. Max residue filter (default: 15)
@@ -15,20 +15,22 @@ Pipeline:
 6. No-bp: keep N per topology (best resolution)
 
 Usage:
-    python scripts/filter_twoway_motifs.py -o curated_twoway.csv
-    python scripts/filter_twoway_motifs.py -o curated.csv --tracking-output tracking.csv
-    python scripts/filter_twoway_motifs.py -o curated.csv --topo-cap 20 --no-bp-per-topo 2
+    python scripts/filter_twoway_motifs.py -o curated_twoway.json
+    python scripts/filter_twoway_motifs.py -o curated.json --tracking-output tracking.json
+    python scripts/filter_twoway_motifs.py -o curated.json --topo-cap 20 --no-bp-per-topo 2
 """
 
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
-
-import json
+from random import Random
 
 import click
 import numpy as np
 import pandas as pd
+import RNA
 
+from rna_motif_library.basepair import get_cached_basepairs
+from rna_motif_library.chain import Chains, get_cached_chains
 from rna_motif_library.logger import get_logger
 from rna_motif_library.motif import get_cached_motifs
 from rna_motif_library.settings import DATA_PATH
@@ -47,6 +49,200 @@ def load_resolution_data():
     return dict(zip(df["pdb_id"], df["resolution"]))
 
 
+WC_PAIRS = [("A", "U"), ("U", "A"), ("G", "C"), ("C", "G")]
+
+
+def _random_helix(length, rng):
+    """Generate a random Watson-Crick helix."""
+    bp_combo = [rng.choice(WC_PAIRS) for _ in range(length)]
+    strand1 = "".join(bp[0] for bp in bp_combo)
+    strand2 = "".join(bp[1] for bp in reversed(bp_combo))
+    return strand1, strand2
+
+
+def get_internal_residues(motif_sequence):
+    """
+    Get internal (unpaired/dot) residues from a motif sequence.
+
+    Strips the first and last residue from each strand (closing basepair
+    residues) and returns the remaining internal nucleotides.
+    """
+    parts = motif_sequence.split("-")
+    if len(parts) != 2:
+        return ""
+    s1, s2 = parts
+    internal_s1 = s1[1:-1] if len(s1) > 2 else ""
+    internal_s2 = s2[1:-1] if len(s2) > 2 else ""
+    return internal_s1 + internal_s2
+
+
+def has_ac_internal(motif_sequence):
+    """Check if motif has at least one A or C in internal positions."""
+    internal = get_internal_residues(motif_sequence)
+    if not internal:
+        return True  # No internal residues to check
+    return any(n in "AC" for n in internal)
+
+
+def count_ac_internal(motif_sequence):
+    """Count A/C nucleotides in internal positions (for sorting priority)."""
+    internal = get_internal_residues(motif_sequence)
+    if not internal:
+        return 0
+    return sum(1 for n in internal if n in "AC")
+
+
+def compute_vienna_accuracy(motif_sequence, motif_topology, helix_len=5, seed=42):
+    """
+    Compute ViennaRNA prediction accuracy for a TWOWAY motif.
+
+    Embeds the motif in a hairpin construct and checks if ViennaRNA
+    correctly predicts the flanking pairs and internal unpaired regions.
+
+    Returns accuracy (0.0-1.0) for the motif region.
+    """
+    parts = motif_sequence.split("-")
+    if len(parts) != 2:
+        return 0.0
+    s1_seq, s2_seq = parts
+    if "X" in s1_seq or "X" in s2_seq:
+        return 0.0
+
+    topo_parts = motif_topology.split("-")
+    t1, t2 = int(topo_parts[0]), int(topo_parts[1])
+
+    # Expected structure: flanking pairs + internal dots
+    struct_s1 = "(" + "." * t1 + "("
+    struct_s2 = ")" + "." * t2 + ")"
+
+    # Build hairpin construct: helix + motif_s1 + helix + GAAA + helix + motif_s2 + helix
+    rng = Random(seed)
+    h1_s1, h1_s2 = _random_helix(helix_len, rng)
+    h2_s1, h2_s2 = _random_helix(helix_len, rng)
+
+    full_seq = h1_s1 + s1_seq + h2_s1 + "GAAA" + h2_s2 + s2_seq + h1_s2
+    h_open = "(" * helix_len
+    h_close = ")" * helix_len
+    full_expected = h_open + struct_s1 + h_open + "...." + h_close + struct_s2 + h_close
+
+    # Fold
+    fc = RNA.fold_compound(full_seq)
+    predicted, _ = fc.mfe()
+
+    # Compute accuracy for motif region only
+    s1_start = helix_len
+    s1_end = s1_start + len(s1_seq)
+    s2_start = s1_end + helix_len + 4 + helix_len
+    s2_end = s2_start + len(s2_seq)
+
+    total = 0
+    matches = 0
+    for i in range(s1_start, s1_end):
+        total += 1
+        if full_expected[i] == predicted[i]:
+            matches += 1
+    for i in range(s2_start, s2_end):
+        total += 1
+        if full_expected[i] == predicted[i]:
+            matches += 1
+
+    return matches / total if total > 0 else 0.0
+
+
+def derive_structure(motif_topology):
+    """
+    Derive dot-bracket structure for a TWOWAY motif from its topology.
+
+    Flanking residues are paired, internal residues are unpaired.
+    E.g. topology "1-0" -> "(.(&))", topology "2-3" -> "(..(&...))"
+    """
+    parts = motif_topology.split("-")
+    if len(parts) != 2:
+        return ""
+    t1, t2 = int(parts[0]), int(parts[1])
+    struct_s1 = "(" + "." * t1 + "("
+    struct_s2 = ")" + "." * t2 + ")"
+    return f"{struct_s1}&{struct_s2}"
+
+
+def compute_extended_seq_struct(motif_id, pdb_id, motif_sequence, motif_topology):
+    """
+    Compute extended sequence and structure by adding the flanking helix
+    basepair outside the motif.
+
+    Returns (extended_sequence, extended_structure) or (motif_sequence, structure)
+    if flanking data can't be loaded.
+    """
+    structure = derive_structure(motif_topology)
+    try:
+        motifs = get_cached_motifs(pdb_id)
+        chains_list = get_cached_chains(pdb_id)
+        chains = Chains(chains_list)
+        basepairs = get_cached_basepairs(pdb_id)
+    except Exception:
+        return motif_sequence, structure
+
+    # Find motif
+    motif = None
+    for m in motifs:
+        if m.name == motif_id:
+            motif = m
+            break
+    if motif is None or len(motif.strands) != 2:
+        return motif_sequence, structure
+
+    # Build basepair lookup
+    bp_lookup = {}
+    for bp in basepairs:
+        k1 = f"{bp.res_1.get_str()}-{bp.res_2.get_str()}"
+        k2 = f"{bp.res_2.get_str()}-{bp.res_1.get_str()}"
+        bp_lookup[k1] = bp
+        bp_lookup[k2] = bp
+
+    # Get flanking residues in the chain
+    s0, s1 = motif.strands[0], motif.strands[1]
+    first_0 = chains.get_residue_by_str(s0[0].get_str())
+    last_0 = chains.get_residue_by_str(s0[-1].get_str())
+    first_1 = chains.get_residue_by_str(s1[0].get_str())
+    last_1 = chains.get_residue_by_str(s1[-1].get_str())
+
+    prev_0 = chains.get_previous_residue_in_chain(first_0) if first_0 else None
+    next_0 = chains.get_next_residue_in_chain(last_0) if last_0 else None
+    prev_1 = chains.get_previous_residue_in_chain(first_1) if first_1 else None
+    next_1 = chains.get_next_residue_in_chain(last_1) if last_1 else None
+
+    # Check for flanking basepairs (antiparallel)
+    def _check_bp(r1, r2):
+        if r1 is None or r2 is None:
+            return None
+        return bp_lookup.get(f"{r1.get_str()}-{r2.get_str()}")
+
+    bp_5p = _check_bp(prev_0, next_1)
+    bp_3p = _check_bp(next_0, prev_1)
+
+    seq_parts = motif_sequence.split("-")
+    struct_parts = structure.split("&")
+    ext_s0_seq, ext_s1_seq = seq_parts[0], seq_parts[1]
+    ext_s0_ss, ext_s1_ss = struct_parts[0], struct_parts[1]
+
+    def _nuc(res):
+        return res.res_id if res.res_id in "AGCU" else "X"
+
+    if bp_5p is not None:
+        ext_s0_seq = _nuc(prev_0) + ext_s0_seq
+        ext_s1_seq = ext_s1_seq + _nuc(next_1)
+        ext_s0_ss = "(" + ext_s0_ss
+        ext_s1_ss = ext_s1_ss + ")"
+
+    if bp_3p is not None:
+        ext_s0_seq = ext_s0_seq + _nuc(next_0)
+        ext_s1_seq = _nuc(prev_1) + ext_s1_seq
+        ext_s0_ss = ext_s0_ss + "("
+        ext_s1_ss = ")" + ext_s1_ss
+
+    return f"{ext_s0_seq}-{ext_s1_seq}", f"{ext_s0_ss}&{ext_s1_ss}"
+
+
 def _nuc_id(res_str):
     """Extract nucleotide identity from residue string like '1-A-100-'."""
     return res_str.split("-")[1]
@@ -63,10 +259,10 @@ def get_cross_strand_bp_info(row, min_score=1.0):
     """
     bps = row["non_canonical_bps"]
     if not bps:
-        return "", "[]"
+        return "", []
     seq_parts = row["motif_sequence"].split("-")
     if len(seq_parts) != 2:
-        return "", "[]"
+        return "", []
     s1_len = len(seq_parts[0])
     res = row["residues"]
     strand1_set = set(res[:s1_len])
@@ -85,7 +281,7 @@ def get_cross_strand_bp_info(row, min_score=1.0):
         if is_cross:
             lw_types.append(lw)
             bp_details.append([_nuc_id(r1) + _nuc_id(r2), lw])
-    return ",".join(sorted(lw_types)), json.dumps(bp_details)
+    return ",".join(sorted(lw_types)), bp_details
 
 
 def add_comprehensive_columns(df):
@@ -110,20 +306,6 @@ def add_comprehensive_columns(df):
     df["is_bulge"] = df["motif_topology"].apply(
         lambda x: "0" in x.split("-") if "-" in x else False
     )
-
-    # Closing basepairs — derive nucleotide pair from sequence
-    # 5' closing: strand1[0] pairs with strand2[-1]
-    # 3' closing: strand1[-1] pairs with strand2[0]
-    def _get_closing_bps(row):
-        s1 = row["strand1_sequence"]
-        s2 = row["strand2_sequence"]
-        if not s1 or not s2:
-            return "[]"
-        bp_5p = [s1[0] + s2[-1], "cWW"]
-        bp_3p = [s1[-1] + s2[0], "cWW"]
-        return json.dumps([bp_5p, bp_3p])
-
-    df["closing_basepairs"] = df.apply(_get_closing_bps, axis=1)
 
     return df
 
@@ -249,11 +431,11 @@ def resolve_representative_chains(tracking):
 @click.command()
 @click.option(
     "-o", "--output", "output_path", required=True,
-    help="Output CSV path for curated motifs",
+    help="Output JSON path for curated motifs",
 )
 @click.option(
     "--tracking-output", "tracking_path", default=None,
-    help="Output CSV path for full tracking of all motifs (optional)",
+    help="Output JSON path for full tracking of all motifs (optional)",
 )
 @click.option(
     "--max-residues", type=int, default=15,
@@ -311,6 +493,7 @@ def filter_motifs(
     )
     df_tw["bp_sig"] = bp_info.apply(lambda x: x[0])
     df_tw["basepairs"] = bp_info.apply(lambda x: x[1])
+    df_tw["structure"] = df_tw["motif_topology"].apply(derive_structure)
 
     # Initialize tracking for ALL motifs
     tracking = {}
@@ -322,7 +505,18 @@ def filter_motifs(
         }
 
     # =========================================================================
-    # Step 1: Max residue filter
+    # Step 1a: Isolatable filter
+    # =========================================================================
+    not_isolatable = df_tw["is_isolatable"] != 1
+    for motif_id in df_tw.loc[not_isolatable, "motif_id"]:
+        tracking[motif_id]["status"] = "rejected"
+        tracking[motif_id]["rejection_reason"] = "not_isolatable"
+
+    df_tw = df_tw[~not_isolatable].copy()
+    print(f"After is_isolatable filter: {len(df_tw)} (removed {not_isolatable.sum()})")
+
+    # =========================================================================
+    # Step 1b: Max residue filter
     # =========================================================================
     too_large = df_tw["num_residues"] > max_residues
     for motif_id in df_tw.loc[too_large, "motif_id"]:
@@ -351,6 +545,41 @@ def filter_motifs(
     print(f"After sequence dedup: {len(df_tw)} unique sequences (removed {before - len(df_tw)})")
 
     # =========================================================================
+    # Step 2.5: Require at least one A/C in internal (dot) positions
+    # =========================================================================
+    no_ac = ~df_tw["motif_sequence"].apply(has_ac_internal)
+    for motif_id in df_tw.loc[no_ac, "motif_id"]:
+        tracking[motif_id]["status"] = "rejected"
+        tracking[motif_id]["rejection_reason"] = "no_ac_internal"
+
+    df_tw = df_tw[~no_ac].copy()
+    print(f"After A/C internal filter: {len(df_tw)} (removed {no_ac.sum()})")
+
+    # =========================================================================
+    # Step 2.6: ViennaRNA secondary structure validation
+    # =========================================================================
+    print(f"Computing ViennaRNA accuracy for {len(df_tw)} motifs...")
+    df_tw["accuracy"] = df_tw.apply(
+        lambda row: compute_vienna_accuracy(
+            row["motif_sequence"], row["motif_topology"]
+        ),
+        axis=1,
+    )
+    # Priority: small motifs (<=6 residues) with good structure get priority 0
+    df_tw["_structure_priority"] = 1
+    small_and_good = (df_tw["num_residues"] <= 6) & (df_tw["accuracy"] >= 0.9)
+    df_tw.loc[small_and_good, "_structure_priority"] = 0
+    # A/C count for sorting: more A/C in internal positions = better (negate for ascending sort)
+    df_tw["_ac_count"] = -df_tw["motif_sequence"].apply(count_ac_internal)
+    n_favored = small_and_good.sum()
+    mean_acc = df_tw["accuracy"].mean()
+    perfect = (df_tw["accuracy"] == 1.0).sum()
+    print(
+        f"  Mean accuracy: {mean_acc:.3f}, perfect: {perfect}/{len(df_tw)}, "
+        f"small+good (<=6 res, >=0.9 acc): {n_favored}"
+    )
+
+    # =========================================================================
     # Step 3: Split into with-bp and no-bp
     # =========================================================================
     has_bp = df_tw["bp_sig"] != ""
@@ -364,7 +593,7 @@ def filter_motifs(
     # Step 4: With-bp — dedup by (topology, bp_sig)
     # =========================================================================
     df_with_bp["dedup_key"] = df_with_bp["motif_topology"] + "|" + df_with_bp["bp_sig"]
-    df_with_bp = df_with_bp.sort_values(["resolution", "motif_id"])
+    df_with_bp = df_with_bp.sort_values(["_structure_priority", "_ac_count", "resolution", "motif_id"])
 
     dedup_groups = df_with_bp.groupby("dedup_key")
     keep_ids_dedup = set()
@@ -464,9 +693,27 @@ def filter_motifs(
         )
 
     # =========================================================================
-    # Step 6: No-bp — N per topology (best resolution)
+    # Step 6: No-bp — N per topology, prioritizing A/C bulge residues
     # =========================================================================
-    df_no_bp = df_no_bp.sort_values(["resolution", "motif_id"])
+
+    def _bulge_ac_priority(row):
+        """Score bulge motifs: 0 if all internal residues are A/C, 1 otherwise."""
+        topo_parts = row["motif_topology"].split("-")
+        if "0" not in topo_parts:
+            return 0
+        seq_parts = row["motif_sequence"].split("-")
+        if topo_parts[1] == "0":
+            bulge_seq = seq_parts[0]
+        else:
+            bulge_seq = seq_parts[1]
+        # Strip flanking residues to get internal bulge nucleotides
+        internal = bulge_seq[1:-1] if len(bulge_seq) > 2 else bulge_seq
+        return 0 if all(n in "AC" for n in internal) else 1
+
+    df_no_bp["_ac_priority"] = df_no_bp.apply(_bulge_ac_priority, axis=1)
+    df_no_bp = df_no_bp.sort_values(
+        ["_structure_priority", "_ac_priority", "_ac_count", "resolution", "motif_id"]
+    )
     no_bp_topo_groups = df_no_bp.groupby("motif_topology")
     keep_ids_nobp = set()
     for topo, group in no_bp_topo_groups:
@@ -477,6 +724,7 @@ def filter_motifs(
             tracking[row["motif_id"]]["status"] = "rejected"
             tracking[row["motif_id"]]["rejection_reason"] = "no_bp_topology_cap"
             tracking[row["motif_id"]]["representative_motif_id"] = best_kept_id
+    df_no_bp = df_no_bp.drop(columns=["_ac_priority"])
 
     before = len(df_no_bp)
     df_no_bp = df_no_bp[df_no_bp["motif_id"].isin(keep_ids_nobp)].copy()
@@ -512,12 +760,28 @@ def filter_motifs(
     print(f"  Total TWOWAY motifs: {len(tracking)}")
     print(f"  Kept: {n_kept}")
     print(f"  Rejected: {n_rejected}")
+    print(f"    not_isolatable: {sum(1 for v in tracking.values() if v['rejection_reason'] == 'not_isolatable')}")
     print(f"    too_many_residues: {sum(1 for v in tracking.values() if v['rejection_reason'] == 'too_many_residues')}")
     print(f"    sequence_dedup: {sum(1 for v in tracking.values() if v['rejection_reason'] == 'sequence_dedup')}")
+    print(f"    no_ac_internal: {sum(1 for v in tracking.values() if v['rejection_reason'] == 'no_ac_internal')}")
     print(f"    topology_bp_sig_dedup: {sum(1 for v in tracking.values() if v['rejection_reason'] == 'topology_bp_sig_dedup')}")
     print(f"    topology_cap: {sum(1 for v in tracking.values() if v['rejection_reason'] == 'topology_cap')}")
     print(f"    no_bp_topology_cap: {sum(1 for v in tracking.values() if v['rejection_reason'] == 'no_bp_topology_cap')}")
     print(f"{'='*60}")
+
+    # =========================================================================
+    # Add extended sequence/structure (with second flanking pair from helix)
+    # =========================================================================
+    print("Computing extended sequences with flanking helix basepairs...")
+    ext_data = df_result.apply(
+        lambda row: compute_extended_seq_struct(
+            row["motif_id"], row["pdb_id"],
+            row["motif_sequence"], row["motif_topology"],
+        ),
+        axis=1,
+    )
+    df_result["sequence"] = ext_data.apply(lambda x: x[0])
+    df_result["structure"] = ext_data.apply(lambda x: x[1])
 
     # =========================================================================
     # Add comprehensive columns to curated set
@@ -526,10 +790,11 @@ def filter_motifs(
     df_result = add_comprehensive_columns(df_result)
 
     output_cols = [
-        "motif_id", "pdb_id", "motif_sequence", "motif_topology",
+        "motif_id", "pdb_id", "sequence", "structure",
+        "motif_sequence", "motif_topology",
         "strand1_sequence", "strand2_sequence", "is_bulge",
-        "bp_sig", "basepairs", "closing_basepairs",
-        "resolution", "num_residues", "num_non_canonical_basepairs",
+        "bp_sig", "basepairs",
+        "resolution", "accuracy", "num_residues", "num_non_canonical_basepairs",
         "num_hbonds", "num_protein_hbonds", "num_ligand_hbonds",
         "in_tertiary_contact", "num_tertiary_contacts",
         "has_non_canonical_residue", "has_non_canonical_basepair_flank",
@@ -537,7 +802,7 @@ def filter_motifs(
     ]
     output_cols = [c for c in output_cols if c in df_result.columns]
     df_out = df_result[output_cols]
-    df_out.to_csv(output_path, index=False)
+    df_out.to_json(output_path, orient="records", indent=2)
     print(f"\nSaved {len(df_out)} curated motifs to {output_path}")
 
     # =========================================================================
@@ -553,6 +818,7 @@ def filter_motifs(
         )
         df_tracking["bp_sig"] = bp_info_all.apply(lambda x: x[0])
         df_tracking["basepairs"] = bp_info_all.apply(lambda x: x[1])
+        df_tracking["structure"] = df_tracking["motif_topology"].apply(derive_structure)
         df_tracking["status"] = df_tracking["motif_id"].map(
             lambda x: tracking[x]["status"]
         )
@@ -575,9 +841,9 @@ def filter_motifs(
         ].fillna("")
 
         tracking_cols = [
-            "motif_id", "pdb_id", "motif_sequence", "motif_topology",
+            "motif_id", "pdb_id", "motif_sequence", "structure", "motif_topology",
             "strand1_sequence", "strand2_sequence", "is_bulge",
-            "bp_sig", "basepairs", "closing_basepairs",
+            "bp_sig", "basepairs",
             "resolution", "num_residues", "num_non_canonical_basepairs",
             "num_hbonds", "num_protein_hbonds", "num_ligand_hbonds",
             "in_tertiary_contact", "num_tertiary_contacts",
@@ -589,7 +855,7 @@ def filter_motifs(
         df_tracking = df_tracking[tracking_cols].sort_values(
             ["status", "rejection_reason", "motif_topology", "motif_sequence"]
         )
-        df_tracking.to_csv(tracking_path, index=False)
+        df_tracking.to_json(tracking_path, orient="records", indent=2)
         print(f"Saved {len(df_tracking)} motif tracking records to {tracking_path}")
 
 
