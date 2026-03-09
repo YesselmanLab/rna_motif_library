@@ -413,8 +413,14 @@ def resolve_representative_chains(tracking):
     """
     Resolve representative chains so every rejected motif points to a final kept motif.
     E.g., A->B->C where C is kept: A's representative becomes C.
+
+    Preserves the original (direct) representative in 'direct_representative_motif_id'
+    before overwriting with the final chain-resolved representative.
     """
     for motif_id, info in tracking.items():
+        # Save original direct representative before chain resolution
+        info["direct_representative_motif_id"] = info["representative_motif_id"]
+
         if info["status"] != "rejected" or not info["representative_motif_id"]:
             continue
         # Follow the chain
@@ -831,6 +837,9 @@ def filter_motifs(
         df_tracking["representative_motif_id"] = df_tracking["motif_id"].map(
             lambda x: tracking[x]["representative_motif_id"]
         )
+        df_tracking["direct_representative_motif_id"] = df_tracking["motif_id"].map(
+            lambda x: tracking[x]["direct_representative_motif_id"]
+        )
 
         # Add comprehensive columns
         print("Computing comprehensive columns for tracking set...")
@@ -842,6 +851,9 @@ def filter_motifs(
         df_tracking["representative_motif_id"] = df_tracking[
             "representative_motif_id"
         ].fillna("")
+        df_tracking["direct_representative_motif_id"] = df_tracking[
+            "direct_representative_motif_id"
+        ].fillna("")
 
         tracking_cols = [
             "motif_id", "pdb_id", "motif_sequence", "structure", "motif_topology",
@@ -852,7 +864,8 @@ def filter_motifs(
             "in_tertiary_contact", "num_tertiary_contacts",
             "has_non_canonical_residue", "has_non_canonical_basepair_flank",
             "is_isolatable",
-            "status", "rejection_reason", "representative_motif_id",
+            "status", "rejection_reason",
+            "representative_motif_id", "direct_representative_motif_id",
         ]
         tracking_cols = [c for c in tracking_cols if c in df_tracking.columns]
         df_tracking = df_tracking[tracking_cols].sort_values(

@@ -346,9 +346,10 @@ def view_clusters(tracking_path, rep_id, topology, reason, max_members, output_d
     if rep_row["status"] != "kept":
         print(f"Warning: {rep_id} is not a kept motif (status={rep_row['status']})")
 
-    # Find all motifs that map to this representative
+    # Find direct cluster members (rejected because this representative was better)
+    rep_col = "direct_representative_motif_id" if "direct_representative_motif_id" in df.columns else "representative_motif_id"
     members = df[
-        (df["representative_motif_id"] == rep_id) & (df["motif_id"] != rep_id)
+        (df[rep_col] == rep_id) & (df["motif_id"] != rep_id)
     ]
     if reason:
         members = members[members["rejection_reason"] == reason]
