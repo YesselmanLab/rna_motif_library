@@ -2,7 +2,7 @@
 
 ## Overview
 
-The curation pipeline reduces ~16,800 TWOWAY motifs from the non-redundant structure set down to ~247 representative motifs through sequential filtering. Every motif is tracked with its rejection reason and representative assignment.
+The curation pipeline reduces ~16,800 TWOWAY motifs from the non-redundant structure set down to ~359 representative motifs through sequential filtering. Every motif is tracked with its rejection reason and representative assignment.
 
 ## Algorithm
 
@@ -51,9 +51,11 @@ This accuracy is not used as a hard filter but as a **sorting preference**: moti
 
 ### Step 3: Split into with-basepair and no-basepair populations
 
-Motifs are split based on whether they have cross-strand non-canonical basepairs (score >= 1.0). The two populations are handled differently because motifs with internal basepairs have more structural diversity that needs to be preserved.
+Motifs are split based on whether they have any basepairs between nucleotides on opposite strands of the internal loop. Only basepairs with a hydrogen bond score >= 0.5 are counted — this threshold filters out weak or marginal interactions so that only confident basepair assignments influence the classification. A motif like a single-nucleotide bulge with no cross-strand interactions goes into the "no-basepair" population, while an internal loop with a sheared G-A pair (cSH) goes into "with-basepair."
 
-- **Basepair score threshold**: `>= 1.0`
+The two populations are handled differently because motifs with internal basepairs have more structural diversity (different basepair types and geometries) that needs to be preserved.
+
+- **Basepair hydrogen bond score threshold**: `>= 0.5`
 
 ### Step 4: With-basepair — topology + basepair signature dedup
 
@@ -67,11 +69,12 @@ Sorting within groups prioritizes:
 
 - **Rejection reason**: `topology_bp_sig_dedup`
 
-### Step 5: With-basepair — topology cap via RMSD diversity
+### Step 5: With-basepair — topology cap via RMSD diversity (disabled by default)
 
-For topologies that still exceed the per-topology cap after dedup, a farthest-point greedy algorithm selects the maximally diverse subset based on pairwise C1' RMSD. This ensures structural diversity is preserved rather than just keeping the best-resolution structures.
+This step is **disabled by default** because the topology + basepair signature dedup in Step 4 already keeps exactly one motif per unique (topology, basepair_signature) combination, which preserves all structurally distinct motif types. Applying a per-topology cap on top of this would discard motifs with unique basepair signatures.
 
-The algorithm:
+If enabled via `--topo-cap N`, a farthest-point greedy algorithm selects the maximally diverse subset based on pairwise C1' RMSD:
+
 1. Compute all pairwise RMSDs (C1' superposition) within the topology
 2. Start with the best-resolution motif
 3. Iteratively add the motif that is farthest from all already-selected motifs
@@ -79,7 +82,7 @@ The algorithm:
 
 Rejected motifs are mapped to their nearest selected representative.
 
-- **Cutoff**: `topo_cap = 15` motifs per topology
+- **Default**: disabled (`--topo-cap` not set)
 - **RMSD computation**: C1' atom superposition
 - **Workers**: 20 parallel processes
 - **Rejection reason**: `topology_cap`
@@ -116,10 +119,11 @@ The original motif-only sequence is preserved in `motif_sequence`.
 | Sequence dedup | 1,866 | 1,038 | `sequence_dedup` |
 | A/C internal filter | 164 | 874 | `no_ac_internal` |
 | ViennaRNA accuracy | 0 | 874 | (sorting only) |
-| Topology+bp_sig dedup | 214 | — | `topology_bp_sig_dedup` |
-| Topology cap (15) | 7 | — | `topology_cap` |
-| No-bp topology cap (3) | 406 | — | `no_bp_topology_cap` |
-| **Final** | | **247** | |
+| Split: with-bp / no-bp | — | 571 / 303 | |
+| Topology+bp_sig dedup | 277 | 294 | `topology_bp_sig_dedup` |
+| Topology cap | 0 | 294 | `topology_cap` (disabled) |
+| No-bp topology cap (3) | 238 | 65 | `no_bp_topology_cap` |
+| **Final** | | **359** | |
 
 ## Usage
 
@@ -142,9 +146,9 @@ python scripts/filter_twoway_motifs.py \
     -o curated.json \
     --tracking-output tracking.json \
     --max-residues 12 \
-    --topo-cap 20 \
     --no-bp-per-topo 5 \
     --bp-score-threshold 0.5 \
+    --topo-cap 20 \
     --workers 10 \
     -v
 ```
@@ -153,7 +157,7 @@ python scripts/filter_twoway_motifs.py \
 
 | File | Records | Description |
 |------|---------|-------------|
-| `curated_twoway.json` | ~247 | Kept representative motifs |
+| `curated_twoway.json` | ~359 | Kept representative motifs |
 | `twoway_tracking.json` | ~16,806 | All motifs with status, rejection reason, and representative |
 
 ## Viewing Clusters in PyMOL

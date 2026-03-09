@@ -442,12 +442,12 @@ def resolve_representative_chains(tracking):
     help="Maximum total residues per motif (default: 15)",
 )
 @click.option(
-    "--bp-score-threshold", type=float, default=1.0,
-    help="Minimum hbond score for basepair to count (default: 1.0)",
+    "--bp-score-threshold", type=float, default=0.5,
+    help="Minimum hbond score for basepair to count (default: 0.5)",
 )
 @click.option(
-    "--topo-cap", type=int, default=15,
-    help="Max motifs per topology for with-bp population (default: 15)",
+    "--topo-cap", type=int, default=None,
+    help="Max motifs per topology for with-bp population (default: no cap, dedup handles redundancy)",
 )
 @click.option(
     "--no-bp-per-topo", type=int, default=3,
@@ -610,87 +610,90 @@ def filter_motifs(
     print(f"With-bp after (topology, bp_sig) dedup: {len(df_with_bp)} (from {before})")
 
     # =========================================================================
-    # Step 5: With-bp — topology cap via RMSD diversity selection
+    # Step 5: With-bp — optional topology cap via RMSD diversity selection
     # =========================================================================
-    topo_counts = df_with_bp["motif_topology"].value_counts()
-    topos_needing_cap = topo_counts[topo_counts > topo_cap]
+    if topo_cap is not None:
+        topo_counts = df_with_bp["motif_topology"].value_counts()
+        topos_needing_cap = topo_counts[topo_counts > topo_cap]
 
-    if len(topos_needing_cap) > 0:
-        print(
-            f"Topologies exceeding cap of {topo_cap}: "
-            f"{len(topos_needing_cap)} (will use RMSD diversity selection)"
-        )
-
-        work_items = []
-        for topo in topos_needing_cap.index:
-            topo_df = df_with_bp[df_with_bp["motif_topology"] == topo].sort_values(
-                ["resolution", "motif_id"]
+        if len(topos_needing_cap) > 0:
+            print(
+                f"Topologies exceeding cap of {topo_cap}: "
+                f"{len(topos_needing_cap)} (will use RMSD diversity selection)"
             )
-            entries = []
-            for _, row in topo_df.iterrows():
-                entries.append({
-                    "motif_id": row["motif_id"],
-                    "pdb_id": row["pdb_id"],
-                    "resolution": row["resolution"],
-                    "bp_sig": row["bp_sig"],
-                })
-            work_items.append({"topology": topo, "entries": entries})
 
-        print(f"Computing RMSD matrices for {len(work_items)} topologies...")
-        rmsd_results = {}
-        with ProcessPoolExecutor(max_workers=workers) as executor:
-            futures = {
-                executor.submit(compute_rmsds_for_topology, w): w["topology"]
-                for w in work_items
-            }
-            for future in as_completed(futures):
-                topo = futures[future]
-                try:
-                    result = future.result()
-                    rmsd_results[topo] = result
-                except Exception as e:
-                    log.error(f"Error computing RMSDs for {topo}: {e}")
-
-        keep_ids_cap = set()
-        # Keep all motifs from topologies that don't need capping
-        for topo in topo_counts.index:
-            if topo not in topos_needing_cap.index:
-                topo_ids = df_with_bp[df_with_bp["motif_topology"] == topo][
-                    "motif_id"
-                ].tolist()
-                keep_ids_cap.update(topo_ids)
-
-        # Apply farthest-point selection and track rejections
-        for topo, result in rmsd_results.items():
-            entries = result["entries"]
-            matrix = result["rmsd_matrix"]
-            if matrix is not None:
-                selected, rejected_with_rep = select_diverse_subset(
-                    entries, matrix, topo_cap
+            work_items = []
+            for topo in topos_needing_cap.index:
+                topo_df = df_with_bp[df_with_bp["motif_topology"] == topo].sort_values(
+                    ["resolution", "motif_id"]
                 )
-            else:
-                selected = entries[:topo_cap]
-                rejected_with_rep = [
-                    (e, entries[0]["motif_id"]) for e in entries[topo_cap:]
-                ]
+                entries = []
+                for _, row in topo_df.iterrows():
+                    entries.append({
+                        "motif_id": row["motif_id"],
+                        "pdb_id": row["pdb_id"],
+                        "resolution": row["resolution"],
+                        "bp_sig": row["bp_sig"],
+                    })
+                work_items.append({"topology": topo, "entries": entries})
 
-            keep_ids_cap.update(e["motif_id"] for e in selected)
+            print(f"Computing RMSD matrices for {len(work_items)} topologies...")
+            rmsd_results = {}
+            with ProcessPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(compute_rmsds_for_topology, w): w["topology"]
+                    for w in work_items
+                }
+                for future in as_completed(futures):
+                    topo = futures[future]
+                    try:
+                        result = future.result()
+                        rmsd_results[topo] = result
+                    except Exception as e:
+                        log.error(f"Error computing RMSDs for {topo}: {e}")
 
-            for rejected_entry, nearest_rep_id in rejected_with_rep:
-                tracking[rejected_entry["motif_id"]]["status"] = "rejected"
-                tracking[rejected_entry["motif_id"]]["rejection_reason"] = "topology_cap"
-                tracking[rejected_entry["motif_id"]][
-                    "representative_motif_id"
-                ] = nearest_rep_id
+            keep_ids_cap = set()
+            # Keep all motifs from topologies that don't need capping
+            for topo in topo_counts.index:
+                if topo not in topos_needing_cap.index:
+                    topo_ids = df_with_bp[df_with_bp["motif_topology"] == topo][
+                        "motif_id"
+                    ].tolist()
+                    keep_ids_cap.update(topo_ids)
 
-            if verbose:
-                print(f"  {topo}: {len(entries)} -> {len(selected)}")
+            # Apply farthest-point selection and track rejections
+            for topo, result in rmsd_results.items():
+                entries = result["entries"]
+                matrix = result["rmsd_matrix"]
+                if matrix is not None:
+                    selected, rejected_with_rep = select_diverse_subset(
+                        entries, matrix, topo_cap
+                    )
+                else:
+                    selected = entries[:topo_cap]
+                    rejected_with_rep = [
+                        (e, entries[0]["motif_id"]) for e in entries[topo_cap:]
+                    ]
 
-        before_cap = len(df_with_bp)
-        df_with_bp = df_with_bp[df_with_bp["motif_id"].isin(keep_ids_cap)].copy()
-        print(
-            f"With-bp after topology cap ({topo_cap}): {len(df_with_bp)} (from {before_cap})"
-        )
+                keep_ids_cap.update(e["motif_id"] for e in selected)
+
+                for rejected_entry, nearest_rep_id in rejected_with_rep:
+                    tracking[rejected_entry["motif_id"]]["status"] = "rejected"
+                    tracking[rejected_entry["motif_id"]]["rejection_reason"] = "topology_cap"
+                    tracking[rejected_entry["motif_id"]][
+                        "representative_motif_id"
+                    ] = nearest_rep_id
+
+                if verbose:
+                    print(f"  {topo}: {len(entries)} -> {len(selected)}")
+
+            before_cap = len(df_with_bp)
+            df_with_bp = df_with_bp[df_with_bp["motif_id"].isin(keep_ids_cap)].copy()
+            print(
+                f"With-bp after topology cap ({topo_cap}): {len(df_with_bp)} (from {before_cap})"
+            )
+    else:
+        print(f"With-bp: keeping all {len(df_with_bp)} (no topology cap)")
 
     # =========================================================================
     # Step 6: No-bp — N per topology, prioritizing A/C bulge residues
