@@ -605,6 +605,19 @@ def filter_motifs(
         print(f"After exclude list: {len(df_tw)} (removed {excluded.sum()})")
 
     # =========================================================================
+    # Step 0b: Force-include list (manually curated replacement motifs)
+    # =========================================================================
+    force_include_csv = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "resources", "exclude_list", "force_include_twoway_motifs.csv",
+    )
+    force_include_ids = set()
+    if os.path.exists(force_include_csv):
+        force_df = pd.read_csv(force_include_csv)
+        force_include_ids = set(force_df["motif_id"])
+        print(f"Force-include list: {len(force_include_ids)} motifs")
+
+    # =========================================================================
     # Step 1a: Isolatable filter
     # =========================================================================
     not_isolatable = df_tw["is_isolatable"] != 1
@@ -636,8 +649,14 @@ def filter_motifs(
     flank_bp_cache = {}
     n_flank_swaps = 0
     n_flank_dropped = 0
+    n_force_picks = 0
     for seq, group in seq_groups:
-        if max_flank_ratio is not None:
+        # Check if any force-include motif is in this sequence group
+        forced = group[group["motif_id"].isin(force_include_ids)]
+        if len(forced) > 0:
+            chosen_id = forced.iloc[0]["motif_id"]
+            n_force_picks += 1
+        elif max_flank_ratio is not None:
             # Try each copy in resolution order; pick the first that passes
             # the flanking competing ratio check
             chosen_id = None
@@ -677,6 +696,8 @@ def filter_motifs(
     before = len(df_tw)
     df_tw = df_tw[df_tw["motif_id"].isin(keep_ids_seq)].copy()
     print(f"After sequence dedup: {len(df_tw)} unique sequences (removed {before - len(df_tw)})")
+    if n_force_picks > 0:
+        print(f"  Force-include picks: {n_force_picks}")
     if max_flank_ratio is not None:
         print(f"  Flanking bp swaps: {n_flank_swaps} (picked later copy with clean flanking)")
         print(f"  Flanking bp warnings: {n_flank_dropped} (no clean copy exists, kept best resolution)")
@@ -737,7 +758,13 @@ def filter_motifs(
     for key, group in dedup_groups:
         best_id = group.iloc[0]["motif_id"]
         keep_ids_dedup.add(best_id)
+        # Also keep any force-include motifs in this group
+        forced_in_group = group[group["motif_id"].isin(force_include_ids)]
+        for fid in forced_in_group["motif_id"]:
+            keep_ids_dedup.add(fid)
         for _, row in group.iloc[1:].iterrows():
+            if row["motif_id"] in force_include_ids:
+                continue
             tracking[row["motif_id"]]["status"] = "rejected"
             tracking[row["motif_id"]]["rejection_reason"] = "topology_bp_sig_dedup"
             tracking[row["motif_id"]]["representative_motif_id"] = best_id
@@ -857,13 +884,22 @@ def filter_motifs(
     no_bp_topo_groups = df_no_bp.groupby("motif_topology")
     keep_ids_nobp = set()
     for topo, group in no_bp_topo_groups:
-        kept = group.head(no_bp_per_topo)
+        # Always keep force-include motifs
+        forced_in_group = group[group["motif_id"].isin(force_include_ids)]
+        keep_ids_nobp.update(forced_in_group["motif_id"].tolist())
+        # Fill remaining slots from the rest
+        non_forced = group[~group["motif_id"].isin(force_include_ids)]
+        n_forced = len(forced_in_group)
+        n_remaining = max(0, no_bp_per_topo - n_forced)
+        kept = non_forced.head(n_remaining)
         keep_ids_nobp.update(kept["motif_id"].tolist())
-        best_kept_id = kept.iloc[0]["motif_id"]
-        for _, row in group.iloc[no_bp_per_topo:].iterrows():
-            tracking[row["motif_id"]]["status"] = "rejected"
-            tracking[row["motif_id"]]["rejection_reason"] = "no_bp_topology_cap"
-            tracking[row["motif_id"]]["representative_motif_id"] = best_kept_id
+        all_kept = set(forced_in_group["motif_id"].tolist() + kept["motif_id"].tolist())
+        best_kept_id = group.iloc[0]["motif_id"]
+        for _, row in group.iterrows():
+            if row["motif_id"] not in all_kept:
+                tracking[row["motif_id"]]["status"] = "rejected"
+                tracking[row["motif_id"]]["rejection_reason"] = "no_bp_topology_cap"
+                tracking[row["motif_id"]]["representative_motif_id"] = best_kept_id
     df_no_bp = df_no_bp.drop(columns=["_ac_priority"])
 
     before = len(df_no_bp)
