@@ -588,6 +588,23 @@ def filter_motifs(
         }
 
     # =========================================================================
+    # Step 0: Exclude list (manually curated poor-geometry motifs)
+    # =========================================================================
+    exclude_csv = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "resources", "exclude_list", "excluded_twoway_motifs.csv",
+    )
+    if os.path.exists(exclude_csv):
+        exclude_df = pd.read_csv(exclude_csv)
+        exclude_ids = set(exclude_df["motif_id"])
+        excluded = df_tw["motif_id"].isin(exclude_ids)
+        for motif_id in df_tw.loc[excluded, "motif_id"]:
+            tracking[motif_id]["status"] = "rejected"
+            tracking[motif_id]["rejection_reason"] = "exclude_list"
+        df_tw = df_tw[~excluded].copy()
+        print(f"After exclude list: {len(df_tw)} (removed {excluded.sum()})")
+
+    # =========================================================================
     # Step 1a: Isolatable filter
     # =========================================================================
     not_isolatable = df_tw["is_isolatable"] != 1
@@ -883,6 +900,7 @@ def filter_motifs(
     print(f"  Total TWOWAY motifs: {len(tracking)}")
     print(f"  Kept: {n_kept}")
     print(f"  Rejected: {n_rejected}")
+    print(f"    exclude_list: {sum(1 for v in tracking.values() if v['rejection_reason'] == 'exclude_list')}")
     print(f"    not_isolatable: {sum(1 for v in tracking.values() if v['rejection_reason'] == 'not_isolatable')}")
     print(f"    too_many_residues: {sum(1 for v in tracking.values() if v['rejection_reason'] == 'too_many_residues')}")
     print(f"    sequence_dedup: {sum(1 for v in tracking.values() if v['rejection_reason'] == 'sequence_dedup')}")
