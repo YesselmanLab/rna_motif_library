@@ -251,24 +251,47 @@ def safe_name(motif_id):
 
 
 def _view_all(curated_path, output_dir):
-    """Export all curated motifs and generate a PyMOL script grouped by topology."""
+    """Export all curated motifs aligned by topology and generate a PyMOL script."""
     df = pd.read_json(curated_path)
     os.makedirs(output_dir, exist_ok=True)
-    motif_cache = {}
 
-    print(f"Loading {len(df)} curated motifs...")
+    # Load all motif objects, grouped by PDB to minimize disk reads
+    print(f"Loading {len(df)} curated motifs from {df['pdb_id'].nunique()} PDBs...")
+    motif_objects = {}  # motif_id -> Motif
+    for i, (pdb_id, pdb_df) in enumerate(df.groupby("pdb_id")):
+        print(f"\r  Loading PDB {i + 1}/{df['pdb_id'].nunique()}...", end="", flush=True)
+        try:
+            motif_list = get_cached_motifs(pdb_id)
+            motif_lookup = {m.name: m for m in motif_list}
+        except Exception:
+            continue
+        for _, row in pdb_df.iterrows():
+            motif = motif_lookup.get(row["motif_id"])
+            if motif is not None:
+                motif_objects[row["motif_id"]] = motif
+    print()
 
+    # Align within each topology group and export
+    print("Aligning and exporting by topology...")
     topo_groups = {}
     exported = 0
-    for _, row in df.iterrows():
-        motif = load_motif(row["motif_id"], row["pdb_id"], motif_cache)
-        if motif is None:
-            continue
-        name = safe_name(row["motif_id"])
-        motif.to_cif(os.path.join(output_dir, f"{name}.cif"))
-        topo = row["motif_topology"]
-        topo_groups.setdefault(topo, []).append((name, motif_summary_str(row)))
-        exported += 1
+    for topo, topo_df in df.groupby("motif_topology"):
+        topo_df = topo_df.sort_values("resolution")
+        ref_motif = None
+        for _, row in topo_df.iterrows():
+            motif = motif_objects.get(row["motif_id"])
+            if motif is None:
+                continue
+            name = safe_name(row["motif_id"])
+            if ref_motif is None:
+                ref_motif = motif
+                motif.to_cif(os.path.join(output_dir, f"{name}.cif"))
+            else:
+                aligned = align_motif_to_target(motif, ref_motif)
+                out = aligned if aligned is not None else motif
+                out.to_cif(os.path.join(output_dir, f"{name}.cif"))
+            topo_groups.setdefault(topo, []).append((name, motif_summary_str(row)))
+            exported += 1
 
     pml_path = write_all_pymol_script(output_dir, topo_groups)
     print(f"Wrote {exported} CIF files and {pml_path}")

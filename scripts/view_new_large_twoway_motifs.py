@@ -130,7 +130,7 @@ def get_new_large_motifs():
     # Exclude motifs with poor geometry
     exclude_csv = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
-        "resources", "exclude_list", "large_twoway_poor_geometry.csv",
+        "resources", "exclude_list", "excluded_twoway_motifs.csv",
     )
     if os.path.exists(exclude_csv):
         exclude_df = pd.read_csv(exclude_csv)
