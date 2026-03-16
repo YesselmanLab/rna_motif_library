@@ -2,17 +2,19 @@
 Filter and deduplicate TWOWAY motifs to a curated representative set.
 
 Reads from data/summaries/motifs/non_redundant_motifs_summary.json and produces:
-1. A curated JSON of ~456 unique representative motifs
-2. A tracking JSON of ALL 16,806 motifs with status, rejection reason, and representative
+1. A curated JSON of ~359 unique representative motifs
+2. A tracking JSON of ALL ~16,806 motifs with status, rejection reason, and representative
 
 Pipeline:
-1. Max residue filter (default: 15)
+1. Isolatable filter + max residue filter (default: 15)
 2. Sequence dedup (keep best resolution per unique sequence)
-3. Compute cross-strand basepair signature (score >= 1.0)
-4. Split into with-basepair and no-basepair populations
-5. With-bp: dedup by (topology, bp_sig), then cap per topology
+3. A/C internal residue filter
+4. ViennaRNA accuracy scoring (sorting preference, not hard filter)
+5. Compute cross-strand basepair signature (score >= 0.5)
+6. Split into with-basepair and no-basepair populations
+7. With-bp: dedup by (topology, bp_sig), optional cap per topology
    using farthest-point RMSD diversity selection
-6. No-bp: keep N per topology (best resolution)
+8. No-bp: keep N per topology (default: 3)
 
 Usage:
     python scripts/filter_twoway_motifs.py -o curated_twoway.json
@@ -310,6 +312,75 @@ def add_comprehensive_columns(df):
     return df
 
 
+def compute_flanking_competing_ratio(motif_id, pdb_id, motif_cache, bp_cache):
+    """
+    Compute the max ratio of a competing internal basepair score to a
+    flanking basepair score.
+
+    A ratio >= 1.0 means a flanking residue forms a *stronger* basepair
+    with an internal/junction residue than with its flanking partner,
+    indicating a suspect motif boundary.
+
+    Returns (max_ratio, min_flanking_score).
+    """
+    if pdb_id not in motif_cache:
+        try:
+            motif_cache[pdb_id] = {m.name: m for m in get_cached_motifs(pdb_id)}
+        except Exception:
+            motif_cache[pdb_id] = {}
+    if pdb_id not in bp_cache:
+        try:
+            bp_cache[pdb_id] = get_cached_basepairs(pdb_id)
+        except Exception:
+            bp_cache[pdb_id] = []
+
+    motif = motif_cache[pdb_id].get(motif_id)
+    if motif is None or len(motif.basepair_ends) < 2:
+        return 999.0, -1.0
+
+    all_bps = bp_cache[pdb_id]
+
+    # Identify flanking residues
+    flank_res = set()
+    for bp_end in motif.basepair_ends:
+        flank_res.add(bp_end.res_1.get_str())
+        flank_res.add(bp_end.res_2.get_str())
+
+    # Internal residues
+    motif_res = set()
+    for strand in motif.strands:
+        for r in strand:
+            motif_res.add(r.get_str())
+    internal_res = motif_res - flank_res
+
+    min_flank = min(bp.hbond_score for bp in motif.basepair_ends)
+    max_ratio = 0.0
+
+    for bp_end in motif.basepair_ends:
+        r1_str = bp_end.res_1.get_str()
+        r2_str = bp_end.res_2.get_str()
+        flank_score = bp_end.hbond_score
+
+        for flank_r in [r1_str, r2_str]:
+            for bp in all_bps:
+                bp_r1 = bp.res_1.get_str()
+                bp_r2 = bp.res_2.get_str()
+                # Skip the flanking pair itself
+                if {bp_r1, bp_r2} == {r1_str, r2_str}:
+                    continue
+                if bp_r1 != flank_r and bp_r2 != flank_r:
+                    continue
+                other_r = bp_r2 if bp_r1 == flank_r else bp_r1
+                if other_r in internal_res:
+                    ratio = (
+                        bp.hbond_score / flank_score if flank_score > 0 else 999.0
+                    )
+                    if ratio > max_ratio:
+                        max_ratio = ratio
+
+    return max_ratio, min_flank
+
+
 def load_motif_coords(motif_id, pdb_id, motif_cache):
     """Load C1' coordinates for a motif, using cache."""
     if pdb_id not in motif_cache:
@@ -460,6 +531,11 @@ def resolve_representative_chains(tracking):
     help="Max motifs per topology for no-bp population (default: 3)",
 )
 @click.option(
+    "--max-flank-ratio", type=float, default=None,
+    help="Max competing internal bp score / flanking bp score. "
+    "Motifs above this have suspect boundaries (disabled by default, e.g. 1.0 to enable)",
+)
+@click.option(
     "--workers", type=int, default=20,
     help="Number of parallel workers for RMSD computation (default: 20)",
 )
@@ -474,6 +550,7 @@ def filter_motifs(
     bp_score_threshold,
     topo_cap,
     no_bp_per_topo,
+    max_flank_ratio,
     workers,
     verbose,
 ):
@@ -533,22 +610,59 @@ def filter_motifs(
     print(f"After max {max_residues} residues: {len(df_tw)} (removed {too_large.sum()})")
 
     # =========================================================================
-    # Step 2: Sequence dedup (best resolution)
+    # Step 2: Sequence dedup (best resolution) with optional flanking bp check
     # =========================================================================
     df_tw = df_tw.sort_values(["resolution", "motif_id"])
     seq_groups = df_tw.groupby("motif_sequence")
     keep_ids_seq = set()
+    flank_motif_cache = {}
+    flank_bp_cache = {}
+    n_flank_swaps = 0
+    n_flank_dropped = 0
     for seq, group in seq_groups:
-        best_id = group.iloc[0]["motif_id"]
-        keep_ids_seq.add(best_id)
-        for _, row in group.iloc[1:].iterrows():
-            tracking[row["motif_id"]]["status"] = "rejected"
-            tracking[row["motif_id"]]["rejection_reason"] = "sequence_dedup"
-            tracking[row["motif_id"]]["representative_motif_id"] = best_id
+        if max_flank_ratio is not None:
+            # Try each copy in resolution order; pick the first that passes
+            # the flanking competing ratio check
+            chosen_id = None
+            for _, row in group.iterrows():
+                ratio, _ = compute_flanking_competing_ratio(
+                    row["motif_id"], row["pdb_id"],
+                    flank_motif_cache, flank_bp_cache,
+                )
+                if ratio <= max_flank_ratio:
+                    chosen_id = row["motif_id"]
+                    if row.name != group.index[0]:
+                        n_flank_swaps += 1
+                    break
+            if chosen_id is None:
+                # No copy passes — keep the best resolution anyway but flag it
+                chosen_id = group.iloc[0]["motif_id"]
+                n_flank_dropped += 1
+                if verbose:
+                    ratio, _ = compute_flanking_competing_ratio(
+                        chosen_id, group.iloc[0]["pdb_id"],
+                        flank_motif_cache, flank_bp_cache,
+                    )
+                    print(
+                        f"  WARNING: {chosen_id} seq={seq} has no copy with "
+                        f"flank ratio <= {max_flank_ratio} (best ratio={ratio:.2f})"
+                    )
+        else:
+            chosen_id = group.iloc[0]["motif_id"]
+
+        keep_ids_seq.add(chosen_id)
+        for _, row in group.iterrows():
+            if row["motif_id"] != chosen_id:
+                tracking[row["motif_id"]]["status"] = "rejected"
+                tracking[row["motif_id"]]["rejection_reason"] = "sequence_dedup"
+                tracking[row["motif_id"]]["representative_motif_id"] = chosen_id
 
     before = len(df_tw)
     df_tw = df_tw[df_tw["motif_id"].isin(keep_ids_seq)].copy()
     print(f"After sequence dedup: {len(df_tw)} unique sequences (removed {before - len(df_tw)})")
+    if max_flank_ratio is not None:
+        print(f"  Flanking bp swaps: {n_flank_swaps} (picked later copy with clean flanking)")
+        print(f"  Flanking bp warnings: {n_flank_dropped} (no clean copy exists, kept best resolution)")
 
     # =========================================================================
     # Step 2.5: Require at least one A/C in internal (dot) positions
