@@ -1,18 +1,19 @@
 """
 View TWOWAY motif clusters in PyMOL.
 
-Loads a representative motif and all rejected motifs that map to it,
-aligns them by C1' superposition, exports CIF files, and generates
-a PyMOL script for visualization.
+Exports CIF files and generates PyMOL scripts for visualization.
 
 Usage:
-    # View all motifs mapping to a specific representative
-    python scripts/view_twoway_clusters.py -t tracking.json -r TWOWAY-1-1-GAC-GCC-7ECN-1 -o cluster_view
+    # View all curated motifs grouped by topology
+    python scripts/view_twoway_clusters.py --all -c curated_twoway.json -o all_view
 
-    # View all kept motifs for a topology
+    # View all kept motifs for a specific topology
     python scripts/view_twoway_clusters.py -t tracking.json --topology 3-3 -o topo_view
 
-    # View with specific rejection reason filter
+    # View a representative with its direct cluster members
+    python scripts/view_twoway_clusters.py -t tracking.json -r TWOWAY-1-1-GAC-GCC-7ECN-1 -o cluster_view
+
+    # Filter cluster by rejection reason
     python scripts/view_twoway_clusters.py -t tracking.json -r TWOWAY-1-1-GAC-GCC-7ECN-1 -o cluster_view --reason sequence_dedup
 
     # Then open in PyMOL:
@@ -249,11 +250,91 @@ def safe_name(motif_id):
     return motif_id.replace("/", "_")
 
 
+def _view_all(curated_path, output_dir):
+    """Export all curated motifs and generate a PyMOL script grouped by topology."""
+    df = pd.read_json(curated_path)
+    os.makedirs(output_dir, exist_ok=True)
+    motif_cache = {}
+
+    print(f"Loading {len(df)} curated motifs...")
+
+    topo_groups = {}
+    exported = 0
+    for _, row in df.iterrows():
+        motif = load_motif(row["motif_id"], row["pdb_id"], motif_cache)
+        if motif is None:
+            continue
+        name = safe_name(row["motif_id"])
+        motif.to_cif(os.path.join(output_dir, f"{name}.cif"))
+        topo = row["motif_topology"]
+        topo_groups.setdefault(topo, []).append((name, motif_summary_str(row)))
+        exported += 1
+
+    pml_path = write_all_pymol_script(output_dir, topo_groups)
+    print(f"Wrote {exported} CIF files and {pml_path}")
+    print(f"{len(topo_groups)} topologies")
+    for topo in sorted(topo_groups.keys()):
+        print(f"  {topo}: {len(topo_groups[topo])} motifs")
+    print(f"\nOpen in PyMOL: pymol {pml_path}")
+
+
+def write_all_pymol_script(output_dir, topo_groups):
+    """
+    Generate a PyMOL .pml script for all curated motifs grouped by topology.
+
+    Args:
+        topo_groups: dict of topology -> list of (name, summary_str) tuples
+    """
+    pml_path = os.path.join(output_dir, "view.pml")
+    abs_output_dir = os.path.abspath(output_dir)
+    total = sum(len(entries) for entries in topo_groups.values())
+    lines = []
+    lines.append("# Auto-generated PyMOL script for all curated TWOWAY motifs")
+    lines.append(f"# {total} motifs across {len(topo_groups)} topologies")
+    lines.append("")
+    lines.append(f"cd {abs_output_dir}")
+    lines.append("")
+
+    color_idx = 0
+    for topo in sorted(topo_groups.keys()):
+        entries = topo_groups[topo]
+        color = COLORS[color_idx % len(COLORS)]
+        lines.append(f"# --- topology {topo} ({len(entries)} motifs) ---")
+        group_members = []
+        for name, summary in entries:
+            lines.append(f'# {summary}')
+            lines.append(f'load {name}.cif, {name}')
+            lines.append(f'color {color}, {name}')
+            group_members.append(name)
+        lines.append(f'group topo_{topo}, {" ".join(group_members)}')
+        lines.append("")
+        color_idx += 1
+
+    lines.append("hide everything")
+    lines.append("show sticks")
+    lines.append("set stick_radius, 0.15")
+    lines.append("set ray_opaque_background, 0")
+    lines.append("")
+    lines.append("# Toggle topology groups on/off:")
+    for topo in sorted(topo_groups.keys()):
+        lines.append(f"#   disable topo_{topo}")
+
+    with open(pml_path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+    return pml_path
+
+
 @click.command()
 @click.option(
-    "-t", "--tracking", "tracking_path", required=True,
+    "-t", "--tracking", "tracking_path", default=None,
     type=click.Path(exists=True),
     help="Tracking JSON from filter_twoway_motifs.py",
+)
+@click.option(
+    "-c", "--curated", "curated_path", default=None,
+    type=click.Path(exists=True),
+    help="Curated JSON from filter_twoway_motifs.py (used with --all)",
 )
 @click.option(
     "-r", "--representative", "rep_id", default=None,
@@ -262,6 +343,10 @@ def safe_name(motif_id):
 @click.option(
     "--topology", default=None,
     help="View all kept motifs for a topology (e.g., '3-3')",
+)
+@click.option(
+    "--all", "show_all", is_flag=True,
+    help="View all curated motifs (requires -c/--curated)",
 )
 @click.option(
     "--reason", default=None,
@@ -275,12 +360,24 @@ def safe_name(motif_id):
     "-o", "--output", "output_dir", required=True,
     help="Output directory for CIF files and PyMOL script",
 )
-def view_clusters(tracking_path, rep_id, topology, reason, max_members, output_dir):
+def view_clusters(tracking_path, curated_path, rep_id, topology, show_all, reason, max_members, output_dir):
     """View TWOWAY motif clusters aligned in PyMOL."""
+
+    if show_all:
+        if curated_path is None:
+            print("--all requires -c/--curated path to curated JSON")
+            return
+        _view_all(curated_path, output_dir)
+        return
+
+    if tracking_path is None:
+        print("Must specify -t/--tracking for representative or topology mode")
+        return
+
     df = pd.read_json(tracking_path)
 
     if rep_id is None and topology is None:
-        print("Must specify either --representative or --topology")
+        print("Must specify --representative, --topology, or --all")
         return
 
     os.makedirs(output_dir, exist_ok=True)
